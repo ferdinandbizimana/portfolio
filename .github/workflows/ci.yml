@@ -71,7 +71,8 @@ jobs:
       - name: API health check
         run: curl --fail --silent --show-error http://localhost:8000/api/health
       - name: Frontend shows API status
-        run: curl --fail --silent --show-error http://localhost:3000 | grep -q 'API: <strong>ok</strong>'
+        run: |
+          curl --fail --silent --show-error http://localhost:3000 | grep -q 'API: <strong>ok</strong>'
       - name: Worker runs a job
         run: docker compose exec -T backend python -m app.jobs.smoke
       - name: Logs on failure
