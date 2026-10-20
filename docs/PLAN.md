@@ -20,8 +20,8 @@ Phase 0–1 pull request is merged.
 | PowerPoint reports | python-pptx, using the layouts of an uploaded `.pptx` template | Same reason; replaces Node `pptxgenjs`. |
 | Frontend | Next.js (App Router), TypeScript strict, Tailwind CSS, shadcn/ui components | Required framework. Tailwind + shadcn give a clean, accessible, mobile-friendly UI without a heavy design system. Portfolio pages are statically rendered and revalidated on edit, so they are fast. |
 | Charts and tables | Apache ECharts (`echarts-for-react`) and TanStack Table | ECharts handles bar, stacked, pie, line and large data sets well and renders the same in light and dark mode. TanStack Table gives sorting, filtering, search and pagination for line-level tables. |
-| Authentication | Built into the backend: Argon2 password hash, TOTP two-factor (authenticator app) with one-time recovery codes, server-side sessions in an HttpOnly, Secure, SameSite=Strict cookie, CSRF token, login rate limiting | One user only, so no external identity provider is needed. Everything stays in the application you own. The admin account is created from the command line, never through a public sign-up. |
-| Contact form | Stored in the database and e-mailed via SMTP (any provider) with a honeypot field and rate limiting | No third-party form service; messages are visible in the admin area even if e-mail fails. |
+| Authentication | A login page with e-mail and password only (no two-factor, by your decision). Behind the scenes: Argon2 password hash, server-side session in an HttpOnly, Secure, SameSite=Strict cookie, login rate limiting | One user only, so no external identity provider is needed. The admin account is created from the command line, never through a public sign-up. |
+| Contact form | Sent by SMTP directly to your e-mail address, with a honeypot field and rate limiting against spam | Your address and the SMTP password live in `.env`, never in the public code. |
 | Tests and linting | pytest, ruff, mypy; ESLint, Prettier, Vitest; Playwright for a few end-to-end checks later | Standard tools. All run in GitHub Actions on every push and pull request. |
 | Local run | Docker Compose: `frontend`, `backend`, `worker`, `postgres`, `redis` | `docker compose up` starts everything. |
 | Deployment (Phase 9) | One Linux VPS running the same Docker Compose stack, Caddy as reverse proxy with automatic HTTPS | Cheapest and simplest setup one person can maintain. Same files in development and production. |
@@ -93,7 +93,7 @@ test and open questions. You review and merge before the next phase starts.
 
 ### Phase 1 — Foundation
 - [x] Monorepo layout: `backend/`, `frontend/`, `docs/`, `scripts/`
-- [ ] `legacy/` added unchanged — **on hold**: the repository is public and the scripts contain real figures (question G1)
+- [x] Legacy scripts kept out of git (your decision, G1); `legacy/` is git-ignored and blocked by the data guard
 - [x] Backend skeleton: settings from environment, `/api/health` (checks DB and Redis, 503 naming the failing one), JSON logging
 - [x] Alembic set up with a first empty migration (run automatically when the backend container starts)
 - [x] Frontend skeleton: Next.js + TypeScript (strict) + Tailwind, placeholder home page showing the API status
@@ -106,10 +106,11 @@ test and open questions. You review and merge before the next phase starts.
 
 ### Phase 2 — Login and admin area
 - [ ] User table; `create-admin` command line tool
-- [ ] Login with password (Argon2) and TOTP; enrolment with QR code; recovery codes
+- [ ] Login page (e-mail + password, Argon2 hash); no two-factor
 - [ ] Sessions in secure cookies, CSRF protection, logout, session expiry
 - [ ] Login rate limiting and lockout after repeated failures
-- [ ] Audit log table and admin page (login, failures, 2FA changes, later uploads, runs, publishing)
+- [ ] Audit log table and admin page (login, failures, password changes, later uploads, runs, publishing)
+- [ ] uvicorn logs in JSON like the application logs
 - [ ] Admin layout: navigation, dashboard home, settings
 - [ ] Tests for every auth path, including wrong code and expired session
 
@@ -119,7 +120,7 @@ test and open questions. You review and merge before the next phase starts.
 - [ ] Admin editors for all content (Markdown for long text), image and CV upload
 - [ ] Static rendering with revalidation on save; SEO metadata, Open Graph image, sitemap
 - [ ] Mobile-first layout, accessibility checks, Lighthouse performance ≥ 90
-- [ ] Contact form: validation, honeypot, rate limit, stored + e-mailed
+- [ ] Contact form: validation, honeypot, rate limit, sent by SMTP to your e-mail
 
 ### Phase 4 — Upload and analysis engine
 - [ ] Chunked, resumable upload for large files (200 MB+), progress bar, SHA-256 hash
@@ -180,7 +181,10 @@ Rules and fake-safe samples from you for each:
 | 2026-10-20 | Report generation is done in Python only (openpyxl, docxtpl, python-docx, python-pptx); the legacy Node scripts are not reused. |
 | 2026-10-20 | Analyses are pure functions over named datasets; data sources are separate (upload now, folder and SAP later). |
 | 2026-10-20 | Your instructions override legacy behaviour; for the RBC report receipts, issues and expired stock are never shown. |
-| 2026-10-20 | The GitHub repository is public, so `legacy/` is not committed until you decide (G1). The scripts stay in your zip; `docs/legacy-analysis.md` holds the rules without real figures. |
+| 2026-10-20 | G1 answered: the legacy scripts are never put on GitHub. They stay with you; `legacy/` is git-ignored and blocked by the data guard. `docs/legacy-analysis.md` holds the rules without real figures. |
+| 2026-10-20 | G4 answered: a simple login page (e-mail + password). No two-factor, no recovery codes. Passwords are still stored hashed, sessions use secure cookies, and repeated failed logins are slowed down. |
+| 2026-10-20 | G3 answered: contact form messages are sent by SMTP directly to your e-mail. Recipient address and SMTP account go in `.env` (`CONTACT_TO_EMAIL`, `SMTP_*`), never in the code. |
+| 2026-10-20 | F1/F2 answered: you will provide the export headers and preparation scripts when Phase 5 starts. |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
 
@@ -189,18 +193,13 @@ Rules and fake-safe samples from you for each:
 Answers will be recorded in section 4 (Decisions).
 
 **General (needed before Phase 1–3)**
-- G1. Is the GitHub repository public or private? The legacy scripts contain a
-  few real figures (quarter totals, GL document numbers and amounts, product
-  names in narrative text). Commit `legacy/` as it is, or only while the
-  repository stays private?
+- G1, G3, G4: answered (see Decisions).
 - G2. Hosting: do you have a domain and a preferred server provider or budget? (Phase 9)
-- G3. Contact form: which address receives messages, and which SMTP account can send them?
-- G4. Two-factor with an authenticator app (Microsoft / Google Authenticator) — acceptable?
 - G5. Report narrative: the app writes fixed, rule-based sentences from the
   numbers, and you can add or edit commentary sections in the admin area
   before generating Word / PowerPoint. Acceptable?
 
-**Files (needed before Phase 5)**
+**Files (needed before Phase 5 — you will provide them then)**
 - F1. Header rows (values removed) of: reconciliation workbook, sheet "Closing
   vs Counted branches"; GL export sheets "Stock 1", "Stock2", "Details for
   scrapping", "Materials differences"; OX10; previous RBC report sheets "CPDS
@@ -269,7 +268,7 @@ Answers will be recorded in section 4 (Decisions).
 | Date | Done | Next |
 |---|---|---|
 | 2026-10-20 | Read legacy scripts (from the uploaded zip; the repository was empty). Wrote `docs/legacy-analysis.md`, `CLAUDE.md`, this plan, `.gitignore`. | Your review and answers; then Phase 1. |
-| 2026-10-20 | Phase 1 built and verified locally: backend checks (ruff, mypy, 4 tests), frontend checks (ESLint, Prettier, tsc, 6 tests, production build), `docker compose up` with all five services healthy, `/api/health` 200 (503 when Redis is stopped), migration applied, worker smoke test passed. | Merge the Phase 0–1 pull request; answer G1–G5; start Phase 2 (login, 2FA, audit log). |
+| 2026-10-20 | Phase 1 built and verified locally: backend checks (ruff, mypy, 4 tests), frontend checks (ESLint, Prettier, tsc, 6 tests, production build), `docker compose up` with all five services healthy, `/api/health` 200 (503 when Redis is stopped), migration applied, worker smoke test passed. | Merge the Phase 0–1 pull request; start Phase 2 (login page, admin layout, audit log). |
 
 Known gaps after Phase 1:
 - uvicorn's own access and error logs are still plain text; only application logs are JSON. To fix in Phase 2 with a uvicorn log config.

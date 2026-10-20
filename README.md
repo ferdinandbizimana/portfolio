@@ -3,7 +3,7 @@
 A web application with two parts:
 
 - **Public**: personal portfolio and a page of published, read-only dashboards.
-- **Private** (one admin, password + two-factor login): upload SAP S/4HANA
+- **Private** (one admin, password login): upload SAP S/4HANA
   exports, run fixed, tested analyses (stock reconciliation, closing stock by
   WBS, RBC accountability, stock sufficiency against AMC, and more), review
   dashboards and self-checks, and download Excel / Word / PowerPoint reports.

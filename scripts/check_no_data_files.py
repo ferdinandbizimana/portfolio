@@ -16,7 +16,7 @@ BLOCKED_SUFFIXES = {
     ".pkl", ".pickle", ".docx", ".pptx", ".pdf", ".zip",
 }  # fmt: skip
 ALLOWED_PREFIX = "backend/tests/fixtures/"
-BLOCKED_DIRS = {"legacy-data", "uploads", "local-data"}
+BLOCKED_DIRS = {"legacy", "legacy-data", "uploads", "local-data"}
 
 
 def is_blocked(path: str) -> bool:

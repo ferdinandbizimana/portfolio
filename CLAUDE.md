@@ -13,7 +13,7 @@ Supply, SAP S/4HANA MM / EWM / SD / FI). It has two parts:
   and case studies, CV download, contact form) and a page listing the
   dashboards Ferdinand has chosen to publish. Each published dashboard has
   its own shareable link and is read-only.
-- **Private** (one admin user, password + two-factor login): upload SAP
+- **Private** (one admin user, password login page): upload SAP
   exports (Excel / CSV), choose an analysis, validate columns, run it in the
   background, review an interactive dashboard and self-checks, download
   Excel / Word / PowerPoint reports built on uploaded organisation templates,
@@ -21,9 +21,10 @@ Supply, SAP S/4HANA MM / EWM / SD / FI). It has two parts:
 - **Later**: the same analyses fed directly from SAP (shared folder pickup,
   then a read-only S/4HANA connection) on a schedule.
 
-`legacy/` holds the original one-off scripts. They are the reference for
-business rules. **Never modify `legacy/`.** `docs/legacy-analysis.md`
-summarises them.
+The original one-off scripts ("legacy scripts") are the reference for
+business rules. They are **kept outside this repository** and must never be
+committed (`legacy/` is git-ignored). `docs/legacy-analysis.md` summarises
+them without real figures; when more detail is needed, ask Ferdinand.
 
 ## Layout (target; built up phase by phase)
 
@@ -51,7 +52,6 @@ frontend/                Next.js (App Router, TypeScript, Tailwind)
   src/app/(public)/      portfolio and public dashboards
   src/app/admin/         private area
 docs/                    PLAN.md, legacy-analysis.md, decisions, guides
-legacy/                  reference scripts (read only)
 docker-compose.yml       whole stack, one command
 .env.example             every setting, no real values
 ```
@@ -98,7 +98,7 @@ These commands become real in Phase 1; update this section if they change.
    total; opening + difference = closing) with expected value, actual value,
    tolerance and passed / failed. Checks are shown in the dashboard and in
    every report.
-6. **Business rules come from `legacy/` and from Ferdinand.** Where they
+6. **Business rules come from the legacy scripts and from Ferdinand.** Where they
    differ, Ferdinand's instructions win. **Never invent a rule or an SAP
    column name.** If something is unclear, ask and record the answer in
    `docs/PLAN.md` (Decisions).
@@ -139,7 +139,7 @@ These commands become real in Phase 1; update this section if they change.
   OX10) are fine.
 - Commits: small, imperative subject line ("Add RBC opening/closing
   calculation"). One branch and one pull request per phase.
-- Important admin actions (login, failed login, 2FA change, upload, run,
+- Important admin actions (login, failed login, password change, upload, run,
   publish, unpublish, delete) are written to the audit log.
 
 ## Working in a cloud session

@@ -20,6 +20,8 @@ data/
 uploads/
 storage/
 local-data/
+# The legacy scripts contain real figures and stay outside this public repository.
+legacy/
 !backend/tests/fixtures/**
 
 # Secrets
