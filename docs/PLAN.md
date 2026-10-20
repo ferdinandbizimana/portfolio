@@ -1,7 +1,8 @@
 # Build plan
 
-Status: **Phase 0 (exploration and plan) — waiting for approval.**
-No application code is written until this plan is approved.
+Status: **Phase 1 (foundation) — in review.** Plan approved by Ferdinand on
+2026-10-20 ("go on with the implementation"). Phase 2 starts after the
+Phase 0–1 pull request is merged.
 
 ---
 
@@ -87,19 +88,21 @@ test and open questions. You review and merge before the next phase starts.
 - [x] Write `CLAUDE.md`
 - [x] Write this plan
 - [x] Add `.gitignore` rules that block data files
-- [ ] Your approval of the plan and answers to the questions in section 5
+- [x] Approval of the plan (2026-10-20)
+- [ ] Answers to the questions in section 5
 
 ### Phase 1 — Foundation
-- [ ] Monorepo layout: `backend/`, `frontend/`, `docs/`; `legacy/` added unchanged
-- [ ] Backend skeleton: settings from environment, `/api/health` (checks DB and Redis), structured logging
-- [ ] Alembic set up with a first empty migration
-- [ ] Frontend skeleton: Next.js + TypeScript + Tailwind, a placeholder home page, calls the health check
-- [ ] Worker container with a trivial test job
-- [ ] `docker-compose.yml` (frontend, backend, worker, postgres, redis) — `docker compose up` works
-- [ ] `.env.example` listing every setting
-- [ ] GitHub Actions: backend lint/type/test, frontend lint/type/test, Docker build
-- [ ] Pre-commit check that rejects data files (xlsx, csv, …) outside `backend/tests/fixtures/`
-- [ ] README: what the project is, how to run, how to test
+- [x] Monorepo layout: `backend/`, `frontend/`, `docs/`, `scripts/`
+- [ ] `legacy/` added unchanged — **on hold**: the repository is public and the scripts contain real figures (question G1)
+- [x] Backend skeleton: settings from environment, `/api/health` (checks DB and Redis, 503 naming the failing one), JSON logging
+- [x] Alembic set up with a first empty migration (run automatically when the backend container starts)
+- [x] Frontend skeleton: Next.js + TypeScript (strict) + Tailwind, placeholder home page showing the API status
+- [x] Worker container with a trivial `ping` job and a smoke test (`python -m app.jobs.smoke`)
+- [x] `docker-compose.yml` (frontend, backend, worker, postgres, redis) — `docker compose up --build`
+- [x] `.env.example` listing every setting
+- [x] GitHub Actions: data guard, backend lint/type/test, frontend lint/type/test/build, full stack start + health check + worker smoke test
+- [x] Pre-commit hook and CI job that reject data files (xlsx, csv, …) outside `backend/tests/fixtures/`
+- [x] README: what the project is, how to run, how to test
 
 ### Phase 2 — Login and admin area
 - [ ] User table; `create-admin` command line tool
@@ -177,6 +180,9 @@ Rules and fake-safe samples from you for each:
 | 2026-10-20 | Report generation is done in Python only (openpyxl, docxtpl, python-docx, python-pptx); the legacy Node scripts are not reused. |
 | 2026-10-20 | Analyses are pure functions over named datasets; data sources are separate (upload now, folder and SAP later). |
 | 2026-10-20 | Your instructions override legacy behaviour; for the RBC report receipts, issues and expired stock are never shown. |
+| 2026-10-20 | The GitHub repository is public, so `legacy/` is not committed until you decide (G1). The scripts stay in your zip; `docs/legacy-analysis.md` holds the rules without real figures. |
+| 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
+| 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
 
 ## 5. Open questions
 
@@ -263,3 +269,8 @@ Answers will be recorded in section 4 (Decisions).
 | Date | Done | Next |
 |---|---|---|
 | 2026-10-20 | Read legacy scripts (from the uploaded zip; the repository was empty). Wrote `docs/legacy-analysis.md`, `CLAUDE.md`, this plan, `.gitignore`. | Your review and answers; then Phase 1. |
+| 2026-10-20 | Phase 1 built and verified locally: backend checks (ruff, mypy, 4 tests), frontend checks (ESLint, Prettier, tsc, 6 tests, production build), `docker compose up` with all five services healthy, `/api/health` 200 (503 when Redis is stopped), migration applied, worker smoke test passed. | Merge the Phase 0–1 pull request; answer G1–G5; start Phase 2 (login, 2FA, audit log). |
+
+Known gaps after Phase 1:
+- uvicorn's own access and error logs are still plain text; only application logs are JSON. To fix in Phase 2 with a uvicorn log config.
+- The cloud session could not pull from Docker Hub (rate limit) or GitHub's container registry, so the local stack test used mirror images and a local copy of the uv binary. The Dockerfiles themselves are unchanged; the `stack` job in GitHub Actions is the authoritative test.
