@@ -1,0 +1,43 @@
+# Production settings, added on top of docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# (or set COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml in .env).
+# Only Caddy is reachable from outside, on ports 80 and 443 with HTTPS.
+
+x-production: &production
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+x-production-env: &production-env
+  ENVIRONMENT: production
+  COOKIE_SECURE: "true"
+
+services:
+  postgres:
+    <<: *production
+  redis:
+    <<: *production
+  backend:
+    <<: *production
+    environment: *production-env
+    ports: !reset []
+  worker:
+    <<: *production
+    environment: *production-env
+  scheduler:
+    <<: *production
+    environment: *production-env
+  frontend:
+    <<: *production
+    ports: !reset []
+  backup:
+    <<: *production
+  proxy:
+    <<: *production
+    ports: !override
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"

@@ -119,6 +119,13 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chromium
           pnpm e2e
+      - name: Backup, simulated data loss, restore
+        run: bash scripts/test-backup-restore.sh
+      - name: Sign-in works on the restored data
+        working-directory: frontend
+        run: pnpm exec playwright test e2e/auth.spec.ts --project=desktop
+      - name: Production Compose file is valid
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile backup config --quiet
       - name: Keep browser traces on failure
         if: failure()
         uses: actions/upload-artifact@v4

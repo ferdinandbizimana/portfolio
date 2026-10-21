@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import __version__
 from app.api import (
     admin_audit,
     admin_content,
@@ -14,6 +15,7 @@ from app.api import (
     publications,
     runs,
     schedules,
+    system,
     templates,
     uploads,
 )
@@ -28,7 +30,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="Portfolio and SAP analytics API",
-        version="0.8.0",
+        version=__version__,
         docs_url="/api/docs" if settings.environment != "production" else None,
         redoc_url=None,
         openapi_url="/api/openapi.json" if settings.environment != "production" else None,
@@ -53,6 +55,7 @@ def create_app() -> FastAPI:
         uploads.router,
         runs.router,
         schedules.router,
+        system.router,
         templates.router,
         publications.admin_router,
         publications.public_router,

@@ -12,10 +12,10 @@ import getpass
 import os
 import sys
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.core.passwords import hash_password, password_problem
-from app.db.models import User
+from app.db.models import User, UserSession
 from app.db.session import session_scope
 
 
@@ -56,8 +56,10 @@ def set_password(email: str) -> int:
             print(problem)
             return 1
         user.password_hash = hash_password(password)
+        # A reset may follow a lost or stolen password: sign out everywhere.
+        db.execute(delete(UserSession).where(UserSession.user_id == user.id))
         db.commit()
-    print(f"Password changed for {email}.")
+    print(f"Password changed for {email}. All sessions were signed out.")
     return 0
 
 
