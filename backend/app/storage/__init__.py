@@ -73,7 +73,6 @@ class LocalStorage:
         return self.path(key).is_file()
 
 
-
 def _chunks(stream: BinaryIO) -> Iterator[bytes]:
     while chunk := stream.read(CHUNK_SIZE):
         yield chunk
