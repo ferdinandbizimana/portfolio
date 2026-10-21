@@ -38,6 +38,19 @@ class Settings(BaseSettings):
     login_max_failures: int = 5
     login_window_minutes: int = 15
 
+    # Outgoing e-mail (contact form). Nothing is sent until these are set.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+    smtp_username: str = ""
+    smtp_password: str = ""
+    mail_from: str = Field(default="", description="Sender address, e.g. portfolio@yourdomain")
+    contact_to_email: str = Field(default="", description="Where contact form messages go.")
+    contact_max_per_hour: int = 5
+
+    # Upload limit for portfolio files (photo, CV, images).
+    content_file_max_mb: int = 10
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

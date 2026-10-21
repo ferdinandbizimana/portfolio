@@ -3,9 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.admin_audit import router as admin_audit_router
-from app.api.auth import router as auth_router
-from app.api.health import router as health_router
+from app.api import admin_audit, admin_content, admin_mail, auth, files, health, public
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.origin import make_origin_check
@@ -17,7 +15,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="Portfolio and SAP analytics API",
-        version="0.2.0",
+        version="0.3.0",
         docs_url="/api/docs" if settings.environment != "production" else None,
         redoc_url=None,
         openapi_url="/api/openapi.json" if settings.environment != "production" else None,
@@ -30,9 +28,17 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["*"],
     )
-    app.include_router(health_router)
-    app.include_router(auth_router)
-    app.include_router(admin_audit_router)
+    for router in (
+        health.router,
+        auth.router,
+        admin_audit.router,
+        admin_content.router,
+        admin_mail.router,
+        files.admin_router,
+        files.public_router,
+        public.router,
+    ):
+        app.include_router(router)
     return app
 
 
