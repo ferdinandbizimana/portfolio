@@ -13,6 +13,8 @@ tested too. Tables are emptied between tests.
 import os
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from email.message import EmailMessage
+from pathlib import Path
 
 import pytest
 from alembic import command
@@ -22,12 +24,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.api import deps
+from app.api import deps, public
 from app.core.config import Settings, get_settings
 from app.core.passwords import hash_password
 from app.db.base import Base
 from app.db.models import User
 from app.main import create_app
+from app.storage import LocalStorage, get_storage
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ADMIN_EMAIL = "admin@example.com"
@@ -91,18 +94,52 @@ def settings() -> Settings:
         _env_file=None,
         cookie_secure=False,
         cors_origins="http://testserver",
+        smtp_host="smtp.example.com",
+        mail_from="portfolio@example.com",
+        contact_to_email="owner@example.com",
+        contact_max_per_hour=3,
     )
+
+
+class FakeMailer:
+    """Collects messages instead of sending them. Set `fail` to simulate a broken server."""
+
+    def __init__(self) -> None:
+        self.sent: list[EmailMessage] = []
+        self.fail = False
+
+    def send(self, message: EmailMessage) -> None:
+        if self.fail:
+            raise ConnectionRefusedError("mail server down")
+        self.sent.append(message)
+
+
+@pytest.fixture
+def mailer() -> FakeMailer:
+    return FakeMailer()
+
+
+@pytest.fixture
+def storage(tmp_path: Path) -> LocalStorage:
+    return LocalStorage(tmp_path / "storage")
 
 
 @pytest.fixture
 def client(
-    db: Session, redis: FakeStrictRedis, clock: Clock, settings: Settings
+    db: Session,
+    redis: FakeStrictRedis,
+    clock: Clock,
+    settings: Settings,
+    mailer: FakeMailer,
+    storage: LocalStorage,
 ) -> Iterator[TestClient]:
     app = create_app()
     app.dependency_overrides[deps.get_db] = lambda: db
     app.dependency_overrides[deps.get_redis_client] = lambda: redis
     app.dependency_overrides[deps.get_now] = lambda: clock.now
     app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[public.get_mailer] = lambda: mailer
+    app.dependency_overrides[get_storage] = lambda: storage
     with TestClient(app) as test_client:
         yield test_client
 

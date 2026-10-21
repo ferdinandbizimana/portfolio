@@ -35,6 +35,7 @@ backend/                 FastAPI application (Python 3.12, uv)
     core/                settings (env vars), security, logging, audit log
     db/                  SQLAlchemy models, session, Alembic migrations
     api/                 routers: public/, admin/, auth/
+    content/             portfolio content schemas and service
     storage/             file storage interface + local filesystem adapter
     jobs/                RQ worker tasks (run analysis, render reports)
     datasources/         where input data comes from: upload, folder, sap
@@ -49,9 +50,10 @@ backend/                 FastAPI application (Python 3.12, uv)
   tests/
     fixtures/            small FAKE sample files only
 frontend/                Next.js (App Router, TypeScript, Tailwind)
-  src/app/(public)/      portfolio and public dashboards
-  src/app/admin/         private area
-docs/                    PLAN.md, legacy-analysis.md, decisions, guides
+  src/app/(public)/      portfolio and public dashboards (cached, tag "portfolio")
+  src/app/admin/         private area (sign-in required)
+  e2e/                   Playwright browser tests (desktop and mobile)
+docs/                    PLAN.md, legacy-analysis.md, operations.md (how to run it)
 docker-compose.yml       whole stack, one command
 .env.example             every setting, no real values
 ```
@@ -148,6 +150,10 @@ including the browser tests on desktop and mobile layouts.
   publish, unpublish, delete) are written to the audit log with
   `app.core.audit.record()`.
 - Every admin API route depends on `CurrentUserDep` (401 without a session).
+- Public pages fetch through `lib/public-api.ts` (cached); after an admin
+  edit, the client calls the `refreshPublicPages` server action.
+- Code that runs on the server must not import helpers from a `"use client"`
+  file; shared values go in plain modules.
 - The browser only talks to one origin (Caddy on :8080, or Next.js rewrites
   in `pnpm dev`); state-changing requests from other origins are refused.
 

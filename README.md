@@ -33,6 +33,7 @@ docker compose exec backend python -m app.cli create-admin --email you@example.c
 - API docs (development only): http://localhost:8000/api/docs
 
 Forgot the password? `docker compose exec backend python -m app.cli set-password --email you@example.com`.
+Contact form e-mail, editing content and day-to-day tasks: [`docs/operations.md`](docs/operations.md).
 
 ## Develop and test without Docker
 
@@ -55,7 +56,8 @@ cd frontend
 pnpm install
 pnpm lint && pnpm typecheck && pnpm test
 pnpm dev                      # http://localhost:3000, /api forwarded to localhost:8000
-# browser tests against a running stack (docker compose up) and an admin account:
+# browser tests against a running stack (docker compose up, with COMPOSE_PROFILES=dev-mail
+# and SMTP_HOST=mailpit for the contact form test) and an admin account:
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e
 ```
 

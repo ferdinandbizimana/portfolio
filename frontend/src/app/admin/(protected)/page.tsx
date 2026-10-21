@@ -1,12 +1,30 @@
 import Link from "next/link";
 
 import { formatDateTime } from "@/lib/audit";
-import { getCurrentUser } from "@/lib/server-api";
+import { fetchHealth } from "@/lib/health";
+import { API_URL, getCurrentUser } from "@/lib/server-api";
 
 export const metadata = { title: "Overview" };
 
+const SECTIONS = [
+  { href: "/admin/content/profile", title: "Profile", text: "Name, introduction, photo and CV." },
+  { href: "/admin/content/experience", title: "Experience", text: "Your roles, in order." },
+  { href: "/admin/content/skills", title: "Skills", text: "Groups of skills." },
+  {
+    href: "/admin/content/projects",
+    title: "Projects",
+    text: "Case studies; publish when ready.",
+  },
+  {
+    href: "/admin/activity",
+    title: "Activity log",
+    text: "Sign-ins, failed attempts and changes.",
+  },
+  { href: "/admin/settings", title: "Settings", text: "Password and e-mail." },
+];
+
 export default async function AdminHome() {
-  const user = await getCurrentUser();
+  const [user, health] = await Promise.all([getCurrentUser(), fetchHealth(API_URL)]);
 
   return (
     <div className="max-w-3xl">
@@ -17,17 +35,25 @@ export default async function AdminHome() {
           : "Welcome. This is your first sign-in."}
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Link href="/admin/activity" className="card">
-          <h2 className="font-semibold">Activity log</h2>
-          <p className="text-sm text-muted">
-            Sign-ins, failed attempts and other important actions.
-          </p>
-        </Link>
-        <Link href="/admin/settings" className="card">
-          <h2 className="font-semibold">Settings</h2>
-          <p className="text-sm text-muted">Change your password.</p>
-        </Link>
+        {SECTIONS.map((section) => (
+          <Link key={section.href} href={section.href} className="card">
+            <h2 className="font-semibold">{section.title}</h2>
+            <p className="text-sm text-muted">{section.text}</p>
+          </Link>
+        ))}
       </div>
+      <section aria-labelledby="status-heading" className="mt-8 rounded-lg bg-panel p-4 text-sm">
+        <h2 id="status-heading" className="mb-1 font-semibold">
+          System status: {health.status === "ok" ? "all services running" : health.status}
+        </h2>
+        <ul className="text-muted">
+          {Object.entries(health.checks).map(([name, state]) => (
+            <li key={name}>
+              {name}: {state}
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

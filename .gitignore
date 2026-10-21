@@ -16,10 +16,12 @@
 *.pptx
 *.pdf
 *.zip
-data/
-uploads/
-storage/
-local-data/
+# Data folders (anchored to the repository root so source folders with the
+# same name, such as backend/app/storage/, are not hidden).
+/data/
+/uploads/
+/storage/
+**/local-data/
 # The legacy scripts contain real figures and stay outside this public repository.
 legacy/
 !backend/tests/fixtures/**

@@ -1,6 +1,6 @@
 # Build plan
 
-Status: **Phase 2 (login and admin area) — in review.** Phases 0–1 merged on
+Status: **Phase 3 (portfolio) — in review.** Phase 2 merged on 2026-10-21. Phases 0–1 merged on
 2026-10-21. Ferdinand asked (2026-10-21) to continue through all phases
 without stopping; each phase still gets its own pull request, merged once CI
 is green.
@@ -117,12 +117,13 @@ test and open questions. You review and merge before the next phase starts.
 - [x] Tests for every auth path: wrong password, unknown e-mail, idle and absolute expiry, rate limit, password change signs out other devices, cross-site request refused; migrations match models; browser tests on desktop and mobile
 
 ### Phase 3 — Portfolio
-- [ ] Content model: profile, about, experience, skills, projects / case studies, CV file, contact messages
-- [ ] Public pages: home, about, experience, skills, projects, case study pages, CV download, contact form
-- [ ] Admin editors for all content (Markdown for long text), image and CV upload
-- [ ] Static rendering with revalidation on save; SEO metadata, Open Graph image, sitemap
-- [ ] Mobile-first layout, accessibility checks, Lighthouse performance ≥ 90
-- [ ] Contact form: validation, honeypot, rate limit, sent by SMTP to your e-mail
+- [x] Content model: profile, experience, skill groups, projects / case studies, stored files (migration 0003)
+- [x] Public pages: home, about, experience, skills, projects, case study pages, CV download, contact form
+- [x] Admin editors for all content (Markdown with preview), photo, CV and cover image upload (type checked from file content, 10 MB limit)
+- [x] Cached rendering refreshed on save (`updateTag`); SEO metadata, Open Graph image, sitemap, robots.txt
+- [x] Mobile-first layout; Lighthouse (mobile): performance 95–100, accessibility 100, best practices 96, SEO 100
+- [x] Contact form: validation, honeypot, 5 per hour per address, sent by SMTP to your e-mail; test button in Settings; Mailpit for local and CI testing
+- [x] `docs/operations.md`: first start, password reset, Gmail set-up, editing content
 
 ### Phase 4 — Upload and analysis engine
 - [ ] Chunked, resumable upload for large files (200 MB+), progress bar, SHA-256 hash
@@ -271,6 +272,7 @@ Answers will be recorded in section 4 (Decisions).
 |---|---|---|
 | 2026-10-20 | Read legacy scripts (from the uploaded zip; the repository was empty). Wrote `docs/legacy-analysis.md`, `CLAUDE.md`, this plan, `.gitignore`. | Your review and answers; then Phase 1. |
 | 2026-10-20 | Phase 1 built and verified locally: backend checks (ruff, mypy, 4 tests), frontend checks (ESLint, Prettier, tsc, 6 tests, production build), `docker compose up` with all five services healthy, `/api/health` 200 (503 when Redis is stopped), migration applied, worker smoke test passed. | Merge the Phase 0–1 pull request; start Phase 2 (login page, admin layout, audit log). |
+| 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 
 Known gaps after Phase 1:
