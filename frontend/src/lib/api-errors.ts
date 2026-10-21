@@ -20,7 +20,7 @@ export type ApiResult<T = unknown> =
 
 /** Send a request from the browser to the API on the same origin. */
 export async function sendJson<T = unknown>(
-  method: "POST" | "PUT" | "DELETE",
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
 ): Promise<ApiResult<T>> {

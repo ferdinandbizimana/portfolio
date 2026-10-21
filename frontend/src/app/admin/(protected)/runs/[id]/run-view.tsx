@@ -53,9 +53,16 @@ export function RunView({ run }: { run: Run }) {
               Cancel
             </button>
           ) : (
-            <button type="button" className="btn-secondary text-danger" onClick={remove}>
-              Delete run
-            </button>
+            <>
+              {run.status === "succeeded" && run.dashboard && (
+                <Link href={`/admin/runs/${run.id}/publish`} className="btn-primary">
+                  Publish…
+                </Link>
+              )}
+              <button type="button" className="btn-secondary text-danger" onClick={remove}>
+                Delete run
+              </button>
+            </>
           )}
         </div>
       </div>

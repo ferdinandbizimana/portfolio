@@ -223,3 +223,32 @@ class ReportTemplate(Base):
     storage_key: Mapped[str] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Publication(Base):
+    """A frozen copy of a run's dashboard, shown to visitors.
+
+    Visitors only ever see `snapshot`; nothing here points them to uploads or
+    run data. `visibility`: private (only you), secret (anyone with the link),
+    public (listed on the dashboards page).
+    """
+
+    __tablename__ = "publications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("analysis_runs.id", ondelete="SET NULL"), index=True
+    )
+    slug: Mapped[str] = mapped_column(String(120), unique=True)
+    secret_token: Mapped[str] = mapped_column(String(64), unique=True)
+    visibility: Mapped[str] = mapped_column(String(8), default="private", index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    detail_level: Mapped[str] = mapped_column(String(8), default="summary")
+    include_checks: Mapped[bool] = mapped_column(Boolean, default=False)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JsonDict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
