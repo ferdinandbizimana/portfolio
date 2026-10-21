@@ -1,10 +1,12 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from app import cli
 from app.core.passwords import verify_password
-from app.db.models import User
+from app.db.models import User, UserSession
 from app.db.session import get_engine, get_sessionmaker
 
 
@@ -36,9 +38,23 @@ def test_set_password(db: Session, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ADMIN_PASSWORD", "a long enough password")
     cli.main(["create-admin", "--email", "me@example.com"])
     monkeypatch.setenv("ADMIN_PASSWORD", "another long password")
+    user = db.scalars(select(User)).one()
+    now = datetime.now(UTC)
+    db.add(
+        UserSession(
+            token_hash="0" * 64,
+            user_id=user.id,
+            created_at=now,
+            last_seen_at=now,
+            expires_at=now + timedelta(days=1),
+        )
+    )
+    db.commit()
 
     assert cli.main(["set-password", "--email", "ME@example.com"]) == 0
 
     db.expire_all()
     user = db.scalars(select(User)).one()
     assert verify_password(user.password_hash, "another long password")
+    # Signed out everywhere.
+    assert db.scalars(select(UserSession)).all() == []

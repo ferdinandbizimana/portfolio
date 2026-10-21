@@ -1,9 +1,14 @@
 # Build plan
 
-Status: **Phase 8 (shared folder and schedules) — in review.** Phases 4 and 6 merged on 2026-10-21. Phase 5 waits for your SAP export headers. Phases 2 and 3 merged on 2026-10-21. Phases 0–1 merged on
-2026-10-21. Ferdinand asked (2026-10-21) to continue through all phases
-without stopping; each phase still gets its own pull request, merged once CI
-is green.
+Status: **Phase 9 (going live) — in review.** Phases 0–4, 6 and 8 are
+merged (all on 2026-10-21). Ferdinand asked (2026-10-21) to continue through
+all phases without stopping; each phase gets its own pull request, merged once
+CI is green. What remains needs something from you:
+
+- Phase 5 (legacy analyses): the SAP export headers and preparation scripts (F1, F2).
+- Phase 7 (more analyses): the rules and fake-safe samples for each analysis.
+- Phase 8, direct SAP connection: SAP access (P1). The shared folder works meanwhile.
+- Phase 9, the live site: a server and a domain (G2), then `docs/deploy.md`.
 
 ---
 
@@ -173,11 +178,12 @@ Rules and fake-safe samples from you for each:
 - [ ] Same results from SAP as from the equivalent uploaded files (tested), once `SapSource` exists
 
 ### Phase 9 — Going live
-- [ ] VPS setup, domain, Caddy with HTTPS, security headers
-- [ ] Production Docker Compose, secrets on the server only
-- [ ] Nightly encrypted off-site backups; restore tested
-- [ ] Monitoring: uptime check, error log
-- [ ] `docs/operations.md`: how to update, back up, restore, rotate secrets
+- [x] Caddy with automatic HTTPS for your domain, security headers (HSTS, Content Security Policy, no framing), checked by browser tests
+- [x] Production Docker Compose (`docker-compose.prod.yml`): only ports 80/443 open, restart on failure, log rotation, secure cookies; secrets only in `.env` on the server
+- [x] Nightly encrypted off-site backups (restic: database + stored files, 7 daily / 4 weekly / 12 monthly, sample check each night); restore tested automatically in CI (`scripts/test-backup-restore.sh`)
+- [x] Monitoring: Admin → Overview shows worker, scheduler, last backup and disk space; `/api/health` for an outside uptime check; optional backup ping (healthchecks.io); error log commands
+- [x] `docs/deploy.md` (server, domain, first start, backups, monitoring) and `docs/operations.md` (update, back up, restore, change passwords and keys); `scripts/update.sh`
+- [ ] The actual server and domain. **Waiting for you** (G2): choose a provider and a domain, then follow `docs/deploy.md` (about an hour). I can guide you step by step.
 
 ## 4. Decisions
 
@@ -195,6 +201,8 @@ Rules and fake-safe samples from you for each:
 | 2026-10-21 | Server sizing: the worker needed 1.8 GB for a 4.9-million-row file; plan at least 4 GB of memory for the server (8 GB comfortable). |
 | 2026-10-21 | Publishing: a publication is a frozen copy of one run's dashboard. It starts private; a secret link is `/d/<token>` (not listed, not indexed by search engines, can be replaced by a new one); public dashboards are listed at `/dashboards`. Self-checks are hidden from visitors unless you tick "Show the self-checks". Unpublishing deletes the copy. Deleting the run does not change a publication. |
 | 2026-10-21 | Shared folder: the app reads the folder given by `INBOX_HOST_DIR` (read-only mount) every minute. A file is taken once unchanged for 60 s; Office lock files (`~$…`) and hidden files are ignored. Schedule times use `TIMEZONE` (default Africa/Kigali). A scheduled run stores the actual date (for example 2026-06-30), not the rule, so it can be repeated exactly. |
+| 2026-10-21 | Backups use restic (encrypted, deduplicated) to any S3-compatible bucket; the backup password must be kept outside the server. The command-line password reset now also signs out every session. |
+| 2026-10-21 | Content Security Policy allows only the site itself; inline scripts and styles are allowed because Next.js and the charts need them. |
 | 2026-10-21 | Word templates: the report goes where the template has a paragraph `{{p body }}`; `{{ title }}`, `{{ subtitle }}`, `{{ report_date }}` may be used anywhere. PowerPoint uses the layouts "Title Slide", "Title and Content", "Title Only". |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
@@ -290,6 +298,7 @@ Answers will be recorded in section 4 (Decisions).
 | 2026-10-21 | Phase 4 built: chunked uploads, parsing, dataset recognition and validation, analysis contract and registry, background runs, dashboards, Excel/Word/PowerPoint reports with templates, language guard, run comparison, demo analysis. Verified: 86 backend tests, 23 frontend unit tests, 24 browser tests (desktop + mobile) incl. upload → run → reports → compare; 210 MB / 4.9 M-row file processed. Fixed on the way: memory (5 GB → 1.8 GB), Excel row limit, missing docxcompose. | Phase 5 needs your SAP headers; meanwhile Phase 6 (publishing). |
 | 2026-10-21 | Phase 4 merged. Phase 6 built: publications (frozen snapshot, summary or full detail, optional checks), private / secret link / public, new secret link, unpublish, preview before creating, public Dashboards page and menu entry, sitemap, `/d/` excluded from search engines. Verified: 97 backend tests, 25 frontend unit tests, 28 browser tests (desktop + mobile) incl. publish → secret → public → unpublish. | Phase 5 still needs your SAP headers; next Phase 8 shared-folder pickup and Phase 9 going-live tooling. |
 | 2026-10-21 | Phase 6 merged. Phase 8 (folder part) built: shared folder pickup, scheduler service, schedules (set time or new files, name patterns, date rules, skip when unchanged, Run now), e-mail notification, Schedules admin pages. Verified: 119 backend tests, 27 frontend unit tests, browser tests incl. folder → schedule → run; live check of the scheduler container starting a run by itself. | Direct SAP connection waits for SAP access (P1); Phase 5 waits for headers; next Phase 9 going-live tooling. |
+| 2026-10-21 | Phase 8 merged. Phase 9 built: production Compose, HSTS + CSP, restic backup service with nightly schedule and retention, restore script, automated backup → wipe → restore test, admin system status, deploy and operations guides, update script. Verified: 123 backend tests, 27 frontend unit tests, browser tests incl. CSP on chart pages; backup/restore on the local stack (row counts and file checksums identical). | Waiting for you: G2 (server, domain), F1/F2 (Phase 5), Phase 7 rules, P1 (SAP access). |
 | 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 

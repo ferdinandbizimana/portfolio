@@ -127,6 +127,31 @@ services:
       timeout: 5s
       retries: 10
 
+  # Nightly encrypted backups (database + stored files) with restic.
+  # Start with COMPOSE_PROFILES=backup; see "Backups" in docs/operations.md.
+  backup:
+    build: ./backup
+    profiles: ["backup"]
+    environment:
+      TZ: ${TIMEZONE:-Africa/Kigali}
+      BACKUP_TIME: ${BACKUP_TIME:-02:30}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-/backups}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      BACKUP_PING_URL: ${BACKUP_PING_URL:-}
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+    volumes:
+      - storage:/data/storage
+      # Used when RESTIC_REPOSITORY is a folder (/backups); keep a copy off the server.
+      - ${BACKUP_LOCAL_DIR:-./local-data/backups}:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   proxy:
     image: caddy:2.10-alpine
     environment:

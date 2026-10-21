@@ -161,6 +161,56 @@ analysed. A server with 4 GB of memory is the minimum; 8 GB is comfortable.
 
 ## Checking the system
 
-- The admin **Overview** shows whether the database and the job queue are running.
+- Admin → **Overview** shows the database, the job queue, the worker, the
+  scheduler, the last backup and the free disk space.
 - `docker compose ps` lists the services and their health.
 - `docker compose logs backend --tail 100` shows recent server messages.
+- Errors of the last day:
+  `docker compose logs --since 24h backend worker scheduler | grep '"ERROR"'`.
+- Outside checks (uptime, backups) are described in [`deploy.md`](deploy.md).
+
+## Updating
+
+`scripts/update.sh` on the server: backup, latest version, rebuild, restart,
+check. Database changes are applied automatically when the backend starts.
+
+## Backups
+
+Every night at `BACKUP_TIME` the `backup` service saves the database and the
+stored files (uploads, reports, templates, portfolio files) to
+`RESTIC_REPOSITORY`, encrypted with `RESTIC_PASSWORD`. It keeps 7 daily, 4
+weekly and 12 monthly copies. The shared SAP folder is not included: it is
+yours and stays where it is.
+
+```bash
+docker compose run --rm backup backup.sh           # a backup now
+docker compose run --rm backup restic snapshots    # list the backups
+docker compose logs backup --tail 50               # the last nightly run
+```
+
+## Restoring from a backup
+
+This replaces the current database and files by those of the backup.
+
+```bash
+docker compose stop backend worker scheduler
+docker compose run --rm backup restore.sh             # the latest backup
+# or: docker compose run --rm backup restore.sh 1a2b3c4d   (a snapshot from the list)
+docker compose up -d --wait
+```
+
+On a new server: install as in `deploy.md` with the **same** `.env` values for
+`RESTIC_*` and `AWS_*`, run `docker compose up -d --wait`, then the three
+commands above. Sign in with your usual password (it is restored too).
+
+## Changing passwords and keys
+
+| What | How |
+|---|---|
+| Your admin password | Admin → Settings, or `docker compose exec backend python -m app.cli set-password --email you@example.com`. All other sessions are signed out. |
+| E-mail (SMTP) password | Create a new app password, put it in `.env` (`SMTP_PASSWORD`), `docker compose up -d`. Remove the old app password at the provider. |
+| Database password | `docker compose exec postgres psql -U portfolio -c "ALTER USER portfolio PASSWORD 'new-value'"`, then the same value in `.env` (`POSTGRES_PASSWORD`), then `docker compose up -d`. |
+| Backup bucket keys | Create new keys at the provider, put them in `.env` (`AWS_*`), `docker compose up -d`, delete the old keys. |
+| Backup password | `docker compose run --rm backup restic key add` (enter the new one), put it in `.env`, `docker compose up -d`, then `restic key list` and `restic key remove <old id>`. Keep the new one in your password manager. |
+| Secret dashboard links | Admin → Published → **New shared link** on each. |
+

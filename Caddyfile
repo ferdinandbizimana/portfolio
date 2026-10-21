@@ -10,6 +10,12 @@
 		Referrer-Policy strict-origin-when-cross-origin
 		X-Frame-Options DENY
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# Browsers keep to HTTPS for a year once they have seen the site over HTTPS
+		# (ignored on plain-HTTP local addresses).
+		Strict-Transport-Security "max-age=31536000"
+		# Only this site's own scripts, styles, images and API. Next.js needs
+		# inline scripts and the charts set inline styles.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 		-Server
 	}
 

@@ -2,7 +2,8 @@ import Link from "next/link";
 
 import { formatDateTime } from "@/lib/audit";
 import { fetchHealth } from "@/lib/health";
-import { API_URL, getCurrentUser } from "@/lib/server-api";
+import { API_URL, apiGet, getCurrentUser } from "@/lib/server-api";
+import { STATE_CLASS, STATE_LABEL, type SystemStatus } from "@/lib/system";
 
 export const metadata = { title: "Overview" };
 
@@ -18,7 +19,17 @@ const SECTIONS = [
   { href: "/admin/data", title: "Data files", text: "Upload SAP exports (Excel or CSV)." },
   { href: "/admin/analyses", title: "Analyses", text: "Run an analysis on uploaded files." },
   { href: "/admin/runs", title: "Runs", text: "Results, checks, reports; compare periods." },
+  {
+    href: "/admin/schedules",
+    title: "Schedules",
+    text: "Automatic runs on files from the shared folder.",
+  },
   { href: "/admin/templates", title: "Templates", text: "Word and PowerPoint templates." },
+  {
+    href: "/admin/publications",
+    title: "Published",
+    text: "Dashboards shared by link or on the public site.",
+  },
   {
     href: "/admin/activity",
     title: "Activity log",
@@ -28,7 +39,12 @@ const SECTIONS = [
 ];
 
 export default async function AdminHome() {
-  const [user, health] = await Promise.all([getCurrentUser(), fetchHealth(API_URL)]);
+  const [user, health, systemResponse] = await Promise.all([
+    getCurrentUser(),
+    fetchHealth(API_URL),
+    apiGet("/api/admin/system").catch(() => null),
+  ]);
+  const system = systemResponse?.ok ? ((await systemResponse.json()) as SystemStatus) : null;
 
   return (
     <div className="max-w-3xl">
@@ -47,16 +63,25 @@ export default async function AdminHome() {
         ))}
       </div>
       <section aria-labelledby="status-heading" className="mt-8 rounded-lg bg-panel p-4 text-sm">
-        <h2 id="status-heading" className="mb-1 font-semibold">
-          System status: {health.status === "ok" ? "all services running" : health.status}
+        <h2 id="status-heading" className="mb-2 font-semibold">
+          System status: {health.status === "ok" ? "database and job queue running" : health.status}
         </h2>
-        <ul className="text-muted">
+        <ul className="flex flex-col gap-1">
           {Object.entries(health.checks).map(([name, state]) => (
-            <li key={name}>
+            <li key={name} className="text-muted">
               {name}: {state}
             </li>
           ))}
+          {system?.items.map((item) => (
+            <li key={item.name}>
+              <span className={`mr-2 rounded-full px-2 py-0.5 text-xs ${STATE_CLASS[item.state]}`}>
+                {STATE_LABEL[item.state]}
+              </span>
+              <span className="font-medium">{item.name}</span>: {item.detail}
+            </li>
+          ))}
         </ul>
+        {system && <p className="mt-2 text-xs text-muted">Version {system.version}</p>}
       </section>
     </div>
   );
