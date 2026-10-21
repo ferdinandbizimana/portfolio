@@ -119,6 +119,26 @@ including the browser tests on desktop and mobile layouts.
    expected values. Parity with the legacy outputs on real files is checked
    locally only (see "Data protection").
 
+## Adding an analysis
+
+1. Define its input datasets in `backend/app/datasets/definitions.py`, with the
+   exact SAP column headers (from Ferdinand) and a type per column.
+2. Create `backend/app/analyses/<name>/__init__.py` with a subclass of
+   `Analysis` (`base.py`): key, title, version, description, inputs,
+   `Parameters` (Pydantic), `compute()` (pure) and `reports()`; end with
+   `ANALYSIS = MyAnalysis()`. The registry finds it; nothing else changes.
+3. `compute()` returns tables, KPIs, `Check`s and a `Dashboard`
+   (`dashboard.py`). Use `rows_of()` for table rows; mark line-level tables
+   `level="detail"` so publishing can leave them out.
+4. Reports: build a `ReportDocument` and call `build_workbook`, `build_docx`,
+   `build_pptx` (`app/reporting/`). The engine runs the language guard.
+5. Tests: fake inputs built in code (`tests/samples.py` style), hand-checked
+   expected values, a determinism test (same inputs → same `result_hash`).
+6. Bump `version` whenever the calculation changes.
+
+Before every push run `scripts/check-commit.sh` (CI checks on a clean export
+of the commit).
+
 ## Data protection (non-negotiable)
 
 - **No real RMS data in git.** `.gitignore` blocks Excel, CSV, Parquet,
