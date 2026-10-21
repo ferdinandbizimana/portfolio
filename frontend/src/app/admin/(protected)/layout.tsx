@@ -20,6 +20,10 @@ const NAV: NavItem[] = [
   { href: "/admin/content/experience", label: "Experience" },
   { href: "/admin/content/skills", label: "Skills" },
   { href: "/admin/content/projects", label: "Projects" },
+  { href: "/admin/data", label: "Data files" },
+  { href: "/admin/analyses", label: "Analyses" },
+  { href: "/admin/runs", label: "Runs" },
+  { href: "/admin/templates", label: "Templates" },
   { href: "/admin/activity", label: "Activity log" },
   { href: "/admin/settings", label: "Settings" },
 ];
