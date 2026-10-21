@@ -11,6 +11,7 @@ from app.api import (
     files,
     health,
     public,
+    publications,
     runs,
     templates,
     uploads,
@@ -26,7 +27,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="Portfolio and SAP analytics API",
-        version="0.4.0",
+        version="0.6.0",
         docs_url="/api/docs" if settings.environment != "production" else None,
         redoc_url=None,
         openapi_url="/api/openapi.json" if settings.environment != "production" else None,
@@ -51,6 +52,8 @@ def create_app() -> FastAPI:
         uploads.router,
         runs.router,
         templates.router,
+        publications.admin_router,
+        publications.public_router,
     ):
         app.include_router(router)
     return app
