@@ -10,6 +10,13 @@ x-backend-env: &backend-env
   CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:3000}
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
   STORAGE_DIR: /data/storage
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  MAIL_FROM: ${MAIL_FROM:-}
+  CONTACT_TO_EMAIL: ${CONTACT_TO_EMAIL:-}
 
 services:
   postgres:
@@ -71,10 +78,20 @@ services:
       redis:
         condition: service_healthy
 
+  # Development only: catches outgoing e-mail instead of sending it.
+  # Start with COMPOSE_PROFILES=dev-mail and SMTP_HOST=mailpit (see .env.example);
+  # read the messages at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    profiles: ["dev-mail"]
+    ports:
+      - "8025:8025"
+
   frontend:
     build: ./frontend
     environment:
       API_INTERNAL_URL: http://backend:8000
+      SITE_URL: ${SITE_URL:-http://localhost:8080}
     ports:
       - "3000:3000"
     depends_on:
