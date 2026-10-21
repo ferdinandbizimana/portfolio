@@ -125,6 +125,35 @@ A publication never changes after it is created, even if you delete or
 re-run the analysis. To update a published dashboard, publish the new run
 and unpublish the old one.
 
+## Shared folder and schedules
+
+The app can pick up SAP exports from a folder instead of you uploading them.
+
+1. In `.env`, set `INBOX_HOST_DIR` to the folder on the server, for example a
+   network share mounted at `/mnt/sap-exports`. Default: `./local-data/inbox`.
+   Restart with `docker compose up -d`. The app only reads this folder; it
+   never changes or deletes anything in it.
+2. Save exports there (sub-folders are fine). Every minute the scheduler takes
+   files that have not changed for a minute (`INBOX_SETTLE_SECONDS`), so a
+   file still being copied is left alone. They appear in Admin → Data files
+   marked "from the shared folder". **Check the folder now** does it at once.
+   A file saved again with the same content is not taken twice.
+3. Admin → Schedules → **New schedule**:
+   - the analysis;
+   - when: at a set time on chosen days (in `TIMEZONE`, default
+     Africa/Kigali), or as soon as new files arrive;
+   - for each input, a file name pattern (`*` stands for any text, e.g.
+     `MB52*.xlsx`); the newest ready file that matches is used;
+   - dates such as the period end: "Last day of the previous month", "Day
+     before the run", "Date of the run" or a fixed date. The run stores the
+     actual date, so it can be repeated exactly;
+   - "Skip the run when no file has changed", and "E-mail me when a run
+     finishes" (sent to `NOTIFY_EMAIL`, or `CONTACT_TO_EMAIL` if empty).
+4. **Run now** starts a run at once with the newest matching files. If a file
+   is missing, the schedule says which one.
+
+Deleting a schedule keeps its past runs.
+
 ## Server size
 
 A file of about 5 million lines needs up to 2 GB of memory while it is
