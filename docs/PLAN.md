@@ -7,7 +7,6 @@ CI is green. What remains needs something from you:
 
 - Phase 5 (legacy analyses): the SAP export headers and preparation scripts (F1, F2).
 - Phase 7 (more analyses): the rules and fake-safe samples for each analysis.
-- Phase 8, direct SAP connection: SAP access (P1). The shared folder works meanwhile.
 - Phase 9, the live site: a server and a domain (G2), then `docs/deploy.md`.
 
 ---
@@ -66,7 +65,8 @@ A `DataSource` produces the input datasets for a run:
    each file is by its sheet names and column headers, and asks you to
    confirm.
 2. `FolderSource` (Phase 8): picks up new SAP exports from a shared folder.
-3. `SapSource` (Phase 8): read-only OData / CDS queries on S/4HANA.
+3. ~~`SapSource`~~: dropped (2026-10-21). Data always comes from spreadsheets
+   exported from SAP, uploaded or saved in the shared folder.
 
 Analyses only see datasets, never the source, so changing the source does not
 change the analysis.
@@ -174,8 +174,7 @@ Rules and fake-safe samples from you for each:
 - [x] Shared folder pickup: new exports in the shared folder are taken once they stop changing, copied into storage (the folder is only read) and read like uploads; a file is taken again only when its content changes
 - [x] Schedules: at a set time on chosen days, or as soon as new files arrive; newest file matching a name pattern per input; date parameters as rules ("last day of the previous month"); skip when nothing changed; Run now
 - [x] E-mail when a scheduled run finishes (status, self-checks, link)
-- [ ] `SapSource`: read-only OData / CDS connection to S/4HANA with a technical user. **Blocked**: needs SAP access (system address, technical user, which CDS views / OData services are released). See P1.
-- [ ] Same results from SAP as from the equivalent uploaded files (tested), once `SapSource` exists
+- Direct S/4HANA connection: **dropped** by decision of 2026-10-21 (no SAP APIs; spreadsheet exports only).
 
 ### Phase 9 — Going live
 - [x] Caddy with automatic HTTPS for your domain, security headers (HSTS, Content Security Policy, no framing), checked by browser tests
@@ -203,6 +202,7 @@ Rules and fake-safe samples from you for each:
 | 2026-10-21 | Shared folder: the app reads the folder given by `INBOX_HOST_DIR` (read-only mount) every minute. A file is taken once unchanged for 60 s; Office lock files (`~$…`) and hidden files are ignored. Schedule times use `TIMEZONE` (default Africa/Kigali). A scheduled run stores the actual date (for example 2026-06-30), not the rule, so it can be repeated exactly. |
 | 2026-10-21 | Backups use restic (encrypted, deduplicated) to any S3-compatible bucket; the backup password must be kept outside the server. The command-line password reset now also signs out every session. |
 | 2026-10-21 | Content Security Policy allows only the site itself; inline scripts and styles are allowed because Next.js and the charts need them. |
+| 2026-10-21 | P1 answered: no SAP APIs and no direct S/4HANA connection. All data comes from spreadsheets exported from SAP and uploaded (or saved in the shared folder). Phase 8 is complete as built. |
 | 2026-10-21 | Word templates: the report goes where the template has a paragraph `{{p body }}`; `{{ title }}`, `{{ subtitle }}`, `{{ report_date }}` may be used anywhere. PowerPoint uses the layouts "Title Slide", "Title and Content", "Title Only". |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
@@ -279,10 +279,7 @@ Answers will be recorded in section 4 (Decisions).
   (under ARV and OI). Is that a general rule?
 
 **Writing**
-- P1. Direct SAP connection (Phase 8): can RMS IT give a read-only technical
-  user, the S/4HANA address reachable from the server, and the released
-  OData services or CDS views for stock, material documents and WBS stock?
-  Until then the shared folder (exports saved by SAP or by you) is used.
+- P1: answered (see Decisions): no SAP connection.
 - L1. "AI" check: whole word, upper case only (so "AID" or "maintain" pass)?
   "to be confirmed": any case. Also forbid "TBC"? (Implemented as described; "TBC" is not blocked yet.)
 - L2. The guard also scans data printed in reports (product names, reasons). A
@@ -299,6 +296,7 @@ Answers will be recorded in section 4 (Decisions).
 | 2026-10-21 | Phase 4 merged. Phase 6 built: publications (frozen snapshot, summary or full detail, optional checks), private / secret link / public, new secret link, unpublish, preview before creating, public Dashboards page and menu entry, sitemap, `/d/` excluded from search engines. Verified: 97 backend tests, 25 frontend unit tests, 28 browser tests (desktop + mobile) incl. publish → secret → public → unpublish. | Phase 5 still needs your SAP headers; next Phase 8 shared-folder pickup and Phase 9 going-live tooling. |
 | 2026-10-21 | Phase 6 merged. Phase 8 (folder part) built: shared folder pickup, scheduler service, schedules (set time or new files, name patterns, date rules, skip when unchanged, Run now), e-mail notification, Schedules admin pages. Verified: 119 backend tests, 27 frontend unit tests, browser tests incl. folder → schedule → run; live check of the scheduler container starting a run by itself. | Direct SAP connection waits for SAP access (P1); Phase 5 waits for headers; next Phase 9 going-live tooling. |
 | 2026-10-21 | Phase 8 merged. Phase 9 built: production Compose, HSTS + CSP, restic backup service with nightly schedule and retention, restore script, automated backup → wipe → restore test, admin system status, deploy and operations guides, update script. Verified: 123 backend tests, 27 frontend unit tests, browser tests incl. CSP on chart pages; backup/restore on the local stack (row counts and file checksums identical). | Waiting for you: G2 (server, domain), F1/F2 (Phase 5), Phase 7 rules, P1 (SAP access). |
+| 2026-10-21 | Phase 9 merged. Decision: no SAP APIs; data only from uploaded SAP spreadsheet exports. | Waiting for you: SAP export headers and preparation scripts (F1/F2, Phase 5), rules and samples (Phase 7), server and domain (G2). |
 | 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 

@@ -18,8 +18,9 @@ Supply, SAP S/4HANA MM / EWM / SD / FI). It has two parts:
   background, review an interactive dashboard and self-checks, download
   Excel / Word / PowerPoint reports built on uploaded organisation templates,
   compare periods, publish or unpublish dashboards, edit portfolio content.
-- **Later**: the same analyses fed directly from SAP (shared folder pickup,
-  then a read-only S/4HANA connection) on a schedule.
+- **Automation**: the same analyses on spreadsheets saved in a shared folder,
+  on a schedule. There is no direct SAP connection: all data comes from
+  spreadsheets exported from SAP.
 
 The original one-off scripts ("legacy scripts") are the reference for
 business rules. They are **kept outside this repository** and must never be
@@ -38,7 +39,7 @@ backend/                 FastAPI application (Python 3.12, uv)
     content/             portfolio content schemas and service
     storage/             file storage interface + local filesystem adapter
     jobs/                RQ worker tasks (run analysis, render reports)
-    datasources/         where input data comes from: upload, folder, sap
+    datasources/         where input data comes from: upload, shared folder
     analyses/            one self-contained package per analysis
       base.py            Analysis contract, InputSpec, Check, Result
       registry.py        discovers analyses
