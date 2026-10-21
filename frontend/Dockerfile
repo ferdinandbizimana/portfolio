@@ -9,7 +9,9 @@ RUN pnpm install --frozen-lockfile
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
+# Destination of the /api rewrite when port 3000 is used directly (see next.config.ts).
+ARG API_INTERNAL_URL=http://backend:8000
+ENV NEXT_TELEMETRY_DISABLED=1 API_INTERNAL_URL=$API_INTERNAL_URL
 RUN pnpm build
 
 FROM node:22-alpine AS run
