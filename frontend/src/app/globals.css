@@ -4,8 +4,14 @@
   --color-ink: #0f1a1f;
   --color-muted: #4a5a62;
   --color-accent: #0e6e78;
+  --color-on-accent: #ffffff;
   --color-surface: #ffffff;
   --color-panel: #eef3f4;
+  --color-line: #d5dfe2;
+  --color-danger: #a12a1e;
+  --color-danger-soft: #fbe9e7;
+  --color-success: #1d6b3a;
+  --color-success-soft: #e6f4ea;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -13,12 +19,43 @@
     --color-ink: #e7eef0;
     --color-muted: #9fb0b6;
     --color-accent: #4fb3bd;
+    --color-on-accent: #06272b;
     --color-surface: #0d1418;
     --color-panel: #16232a;
+    --color-line: #2a3a42;
+    --color-danger: #ff9a8f;
+    --color-danger-soft: #3a1714;
+    --color-success: #8fd6a6;
+    --color-success-soft: #12301d;
   }
 }
 
 body {
   background: var(--color-surface);
   color: var(--color-ink);
+}
+
+@layer components {
+  .input {
+    @apply rounded-md border border-line bg-surface px-3 py-2 text-base font-normal text-ink;
+  }
+  .input:focus-visible {
+    @apply outline-2 outline-offset-1 outline-accent;
+  }
+  .btn-primary {
+    @apply rounded-md bg-accent px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60;
+  }
+  .btn-secondary {
+    @apply rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-panel disabled:opacity-60;
+  }
+  .card {
+    @apply block rounded-lg border border-line p-4 hover:bg-panel;
+  }
+  a {
+    @apply text-accent;
+  }
+  .card,
+  nav a {
+    @apply text-ink;
+  }
 }
