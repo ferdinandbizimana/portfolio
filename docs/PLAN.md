@@ -1,7 +1,7 @@
 # Build plan
 
-Status: **Phase 9 (going live) — in review.** Phases 0–4, 6 and 8 are
-merged (all on 2026-10-21). Ferdinand asked (2026-10-21) to continue through
+Status: **All phases that can be built without your input are merged**
+(0–4, 6, 8 and the Phase 9 tooling, all on 2026-10-21). Ferdinand asked (2026-10-21) to continue through
 all phases without stopping; each phase gets its own pull request, merged once
 CI is green. What remains needs something from you:
 
