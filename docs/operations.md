@@ -71,6 +71,45 @@ only when **Published** is ticked.
 Long texts use Markdown: `**bold**`, `*italic*`, `## Heading`, `- list item`,
 `[link text](https://…)` and tables. Use **Preview** to check before saving.
 
+## Running an analysis
+
+1. **Data files**: upload the SAP exports (Excel or CSV). Large files are sent
+   in pieces; if the connection drops, choose the same file again and the
+   upload continues. Each file is read in the background and every sheet is
+   matched to the kinds of file the analyses know.
+2. **Analyses** → **Run**: give the run a name (e.g. "End of June 2026"),
+   fill in the parameters (e.g. the period end) and choose the file and sheet
+   for each input. Recognised sheets are chosen for you.
+3. The run page follows the progress. If a file does not fit, nothing is
+   calculated and each problem is listed with the file, sheet, row and column.
+4. When it finishes: the checks (all must pass), the dashboard, and the Excel,
+   Word and PowerPoint downloads.
+5. **Runs**: tick two finished runs of the same analysis and **Compare** them
+   (for example end of March against end of June).
+
+Uploaded files and results are private. They are never shown on the public site.
+
+## Report templates
+
+In **Templates**, upload your Word (.docx) and PowerPoint (.pptx) templates and
+click **Make active**. From then on every report uses them.
+
+- **Word:** keep your cover, logo, header and footer. Put a paragraph that
+  contains only `{{p body }}` where the report should go. You may also write
+  `{{ title }}`, `{{ subtitle }}` and `{{ report_date }}` anywhere, for example
+  on the cover page.
+- **PowerPoint:** the layouts named "Title Slide", "Title and Content" and
+  "Title Only" are used; the template's own example slides are left out.
+
+If a template cannot be used, the run stops and says why. Reports are also
+checked for the words "AI" and "to be confirmed"; a report containing them is
+not produced.
+
+## Server size
+
+A file of about 5 million lines needs up to 2 GB of memory while it is
+analysed. A server with 4 GB of memory is the minimum; 8 GB is comfortable.
+
 ## Checking the system
 
 - The admin **Overview** shows whether the database and the job queue are running.

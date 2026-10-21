@@ -16,6 +16,14 @@ dependencies = [
     "rq>=2.0,<3",
     "argon2-cffi>=23.1,<26",
     "python-multipart>=0.0.20,<1",
+    "pandas>=2.2,<3",
+    "pyarrow>=18,<22",
+    "python-calamine>=0.3,<1",
+    "openpyxl>=3.1,<4",
+    "python-docx>=1.1,<2",
+    "docxtpl>=0.19,<1",
+    "python-pptx>=1.0,<2",
+    "docxcompose>=1.4,<2",
 ]
 
 [dependency-groups]
@@ -25,6 +33,8 @@ dev = [
     "ruff>=0.8,<1",
     "mypy>=1.13,<2",
     "fakeredis>=2.26,<3",
+    "pandas-stubs>=2.2,<3",
+    "types-openpyxl>=3.1,<4",
 ]
 
 [tool.uv]
@@ -51,6 +61,10 @@ python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
 exclude = ["alembic/"]
+
+[[tool.mypy.overrides]]
+module = ["docxtpl", "docxtpl.*", "pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
 
 
 [tool.pytest.ini_options]

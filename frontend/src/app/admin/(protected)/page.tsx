@@ -15,6 +15,10 @@ const SECTIONS = [
     title: "Projects",
     text: "Case studies; publish when ready.",
   },
+  { href: "/admin/data", title: "Data files", text: "Upload SAP exports (Excel or CSV)." },
+  { href: "/admin/analyses", title: "Analyses", text: "Run an analysis on uploaded files." },
+  { href: "/admin/runs", title: "Runs", text: "Results, checks, reports; compare periods." },
+  { href: "/admin/templates", title: "Templates", text: "Word and PowerPoint templates." },
   {
     href: "/admin/activity",
     title: "Activity log",

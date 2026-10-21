@@ -3,7 +3,17 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -136,3 +146,80 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class UploadSession(Base):
+    """A chunked upload in progress. Chunks are kept in storage until completed."""
+
+    __tablename__ = "upload_sessions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    chunk_size: Mapped[int] = mapped_column(Integer)
+    received_chunks: Mapped[list[int]] = mapped_column(JsonDict, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class DataFile(Base):
+    """An uploaded data file (Excel or CSV export). Never public."""
+
+    __tablename__ = "data_files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    storage_key: Mapped[str] = mapped_column(String(255))
+    # received -> parsing -> ready | failed
+    status: Mapped[str] = mapped_column(String(16), default="received")
+    message: Mapped[str] = mapped_column(Text, default="")
+    # [{name, header_row, columns, row_count, parquet_path, matches: [{dataset, title}]}]
+    sheets: Mapped[list[dict[str, Any]]] = mapped_column(JsonDict, default=list)
+    source: Mapped[str] = mapped_column(String(32), default="upload")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AnalysisRun(Base):
+    """One execution of an analysis on chosen input files."""
+
+    __tablename__ = "analysis_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    analysis_key: Mapped[str] = mapped_column(String(64), index=True)
+    analysis_version: Mapped[str] = mapped_column(String(32))
+    label: Mapped[str] = mapped_column(String(200), default="")
+    parameters: Mapped[dict[str, Any]] = mapped_column(JsonDict, default=dict)
+    # {input_key: {data_file_id, sheet, sha256, filename}}
+    inputs: Mapped[dict[str, Any]] = mapped_column(JsonDict, default=dict)
+    # queued -> running -> succeeded | failed | cancelled
+    status: Mapped[str] = mapped_column(String(16), default="queued", index=True)
+    progress: Mapped[int] = mapped_column(Integer, default=0)
+    message: Mapped[str] = mapped_column(Text, default="")
+    errors: Mapped[list[str]] = mapped_column(JsonDict, default=list)
+    checks: Mapped[list[dict[str, Any]]] = mapped_column(JsonDict, default=list)
+    metrics: Mapped[list[dict[str, Any]]] = mapped_column(JsonDict, default=list)
+    dashboard: Mapped[dict[str, Any] | None] = mapped_column(JsonDict)
+    # [{key, title, kind, filename, storage_key, size_bytes}]
+    reports: Mapped[list[dict[str, Any]]] = mapped_column(JsonDict, default=list)
+    result_hash: Mapped[str] = mapped_column(String(64), default="")
+    job_id: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ReportTemplate(Base):
+    """An organisation template (Word or PowerPoint) used for generated reports."""
+
+    __tablename__ = "report_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(8))  # docx | pptx
+    name: Mapped[str] = mapped_column(String(200))
+    filename: Mapped[str] = mapped_column(String(255))
+    storage_key: Mapped[str] = mapped_column(String(255))
+    active: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

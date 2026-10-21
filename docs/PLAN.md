@@ -1,6 +1,6 @@
 # Build plan
 
-Status: **Phase 3 (portfolio) — in review.** Phase 2 merged on 2026-10-21. Phases 0–1 merged on
+Status: **Phase 4 (upload and analysis engine) — in review.** Phases 2 and 3 merged on 2026-10-21. Phases 0–1 merged on
 2026-10-21. Ferdinand asked (2026-10-21) to continue through all phases
 without stopping; each phase still gets its own pull request, merged once CI
 is green.
@@ -126,18 +126,19 @@ test and open questions. You review and merge before the next phase starts.
 - [x] `docs/operations.md`: first start, password reset, Gmail set-up, editing content
 
 ### Phase 4 — Upload and analysis engine
-- [ ] Chunked, resumable upload for large files (200 MB+), progress bar, SHA-256 hash
-- [ ] Parse Excel / CSV to Parquet in the worker; keep the original file private
-- [ ] Dataset detection by sheet name and headers, with confirmation screen
-- [ ] Column validation with clear messages: file, sheet, column, what is wrong
-- [ ] Analysis registry and the contract in section 2
-- [ ] Run in background with progress; cancel; error messages
-- [ ] Store results, checks, dashboard data; run history page
-- [ ] Generic dashboard renderer (KPI tiles, charts, filterable tables)
-- [ ] Report generation framework: Excel, Word (docxtpl), PowerPoint; template upload and versioning
-- [ ] Language guard: reports fail if they contain "AI" or "to be confirmed"
-- [ ] Compare two runs of the same analysis
-- [ ] One small demo analysis on fake data to prove the whole flow end to end
+- [x] Chunked (8 MB), resumable upload with progress and retries; SHA-256 per file; up to 1 GB (setting)
+- [x] Parse Excel (.xlsx/.xls via calamine) and CSV (any separator, UTF-8 or Windows encoding) to Parquet in the worker, streaming; header row found below title lines; values kept as exact text
+- [x] Dataset recognition by headers (case and punctuation ignored, aliases) and sheet name; the run form pre-selects the recognised sheet and lets you change it
+- [x] Validation with clear messages naming file, sheet, row and column (missing columns, bad numbers/dates; SAP "1,234" and "1234-" understood)
+- [x] Analysis contract (`app/analyses/base.py`) and registry: drop a package in `app/analyses/` and it appears
+- [x] Background runs with progress, cancel, clear failure messages; run history page
+- [x] Results stored: tables (Parquet), checks, KPIs, dashboard, reports, result fingerprint (same inputs → same fingerprint, tested across Excel and CSV)
+- [x] Dashboard renderer: KPI tiles, filters and search, ECharts charts, sortable paginated tables, checks
+- [x] Reports: Excel (streaming, live totals, checks sheet), Word and PowerPoint on uploaded templates or a built-in layout; template upload, activate, delete
+- [x] Language guard: a run fails if any report or dashboard text contains "AI" (whole word) or "to be confirmed"
+- [x] Compare two runs of the same analysis (difference, Increase / Reduction %)
+- [x] Demo analysis on clearly fake data proves the flow end to end
+- [x] Large file test: 210 MB CSV, 4.9 million rows: upload 2 s, parse 28 s, full run with reports 4 min 47 s, worker peak memory 1.8 GB
 
 ### Phase 5 — First analyses (from legacy)
 For each: input specs from real headers (you provide), fake fixtures, rules,
@@ -188,6 +189,10 @@ Rules and fake-safe samples from you for each:
 | 2026-10-20 | G4 answered: a simple login page (e-mail + password). No two-factor, no recovery codes. Passwords are still stored hashed, sessions use secure cookies, and repeated failed logins are slowed down. |
 | 2026-10-20 | G3 answered: contact form messages are sent by SMTP directly to your e-mail. Recipient address and SMTP account go in `.env` (`CONTACT_TO_EMAIL`, `SMTP_*`), never in the code. |
 | 2026-10-20 | F1/F2 answered: you will provide the export headers and preparation scripts when Phase 5 starts. |
+| 2026-10-21 | Uploaded cells are stored as exact text; each dataset definition declares column types, and conversion happens per analysis with row-level messages. Thousands separators "," are removed and a trailing minus ("1234-", SAP style) is read as negative. If your exports use "." for thousands and "," for decimals, tell me. |
+| 2026-10-21 | Dashboards keep at most 20,000 lines per table (the full table stays with the run and in the Excel workbook). Excel sheets stop at Excel's 1,048,576-row limit with a visible note. |
+| 2026-10-21 | Server sizing: the worker needed 1.8 GB for a 4.9-million-row file; plan at least 4 GB of memory for the server (8 GB comfortable). |
+| 2026-10-21 | Word templates: the report goes where the template has a paragraph `{{p body }}`; `{{ title }}`, `{{ subtitle }}`, `{{ report_date }}` may be used anywhere. PowerPoint uses the layouts "Title Slide", "Title and Content", "Title Only". |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
 
@@ -264,7 +269,10 @@ Answers will be recorded in section 4 (Decisions).
 
 **Writing**
 - L1. "AI" check: whole word, upper case only (so "AID" or "maintain" pass)?
-  "to be confirmed": any case. Also forbid "TBC"?
+  "to be confirmed": any case. Also forbid "TBC"? (Implemented as described; "TBC" is not blocked yet.)
+- L2. The guard also scans data printed in reports (product names, reasons). A
+  material description containing the word "AI" would make a run fail. Should
+  the guard check only the wording the application writes, or everything?
 
 ## 6. Session log
 
@@ -272,6 +280,7 @@ Answers will be recorded in section 4 (Decisions).
 |---|---|---|
 | 2026-10-20 | Read legacy scripts (from the uploaded zip; the repository was empty). Wrote `docs/legacy-analysis.md`, `CLAUDE.md`, this plan, `.gitignore`. | Your review and answers; then Phase 1. |
 | 2026-10-20 | Phase 1 built and verified locally: backend checks (ruff, mypy, 4 tests), frontend checks (ESLint, Prettier, tsc, 6 tests, production build), `docker compose up` with all five services healthy, `/api/health` 200 (503 when Redis is stopped), migration applied, worker smoke test passed. | Merge the Phase 0–1 pull request; start Phase 2 (login page, admin layout, audit log). |
+| 2026-10-21 | Phase 4 built: chunked uploads, parsing, dataset recognition and validation, analysis contract and registry, background runs, dashboards, Excel/Word/PowerPoint reports with templates, language guard, run comparison, demo analysis. Verified: 86 backend tests, 23 frontend unit tests, 24 browser tests (desktop + mobile) incl. upload → run → reports → compare; 210 MB / 4.9 M-row file processed. Fixed on the way: memory (5 GB → 1.8 GB), Excel row limit, missing docxcompose. | Phase 5 needs your SAP headers; meanwhile Phase 6 (publishing). |
 | 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 
