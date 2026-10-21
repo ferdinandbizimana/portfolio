@@ -1,0 +1,9 @@
+# Install once with: pipx install pre-commit && pre-commit install
+repos:
+  - repo: local
+    hooks:
+      - id: no-data-files
+        name: Block real data files
+        entry: python3 scripts/check_no_data_files.py
+        language: system
+        pass_filenames: true

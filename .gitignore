@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------
+# Data protection: never commit real RMS data.
+# Fake test samples live in backend/tests/fixtures/ and are allowed
+# explicitly below.
+# ---------------------------------------------------------------
+*.xlsx
+*.xlsm
+*.xls
+*.xlsb
+*.csv
+*.tsv
+*.parquet
+*.pkl
+*.pickle
+*.docx
+*.pptx
+*.pdf
+*.zip
+data/
+uploads/
+storage/
+local-data/
+# The legacy scripts contain real figures and stay outside this public repository.
+legacy/
+!backend/tests/fixtures/**
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

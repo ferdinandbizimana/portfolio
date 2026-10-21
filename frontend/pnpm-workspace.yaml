@@ -1,0 +1,14 @@
+# Only install package versions published at least 14 days ago (in minutes).
+minimumReleaseAge: 20160
+# Exceptions: security releases taken immediately. Remove once older than 14 days.
+# React 19.3.1 and Next.js 16.4.2 (14-15 Oct 2026) patch every supported line at once.
+minimumReleaseAgeExclude:
+  - next
+  - "@next/*"
+  - eslint-config-next
+  - react
+  - react-dom
+  - scheduler
+onlyBuiltDependencies:
+  - sharp
+  - unrs-resolver
