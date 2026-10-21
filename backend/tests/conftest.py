@@ -21,12 +21,14 @@ from alembic import command
 from alembic.config import Config
 from fakeredis import FakeStrictRedis
 from fastapi.testclient import TestClient
+from rq import Queue
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.api import deps, public
+from app.api import deps, public, uploads
 from app.core.config import Settings, get_settings
 from app.core.passwords import hash_password
+from app.db import session as db_session
 from app.db.base import Base
 from app.db.models import User
 from app.main import create_app
@@ -140,8 +142,22 @@ def client(
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[public.get_mailer] = lambda: mailer
     app.dependency_overrides[get_storage] = lambda: storage
+    app.dependency_overrides[uploads.get_job_queue] = lambda: Queue(
+        "test", connection=redis, is_async=False
+    )
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def jobs(engine: Engine, storage: LocalStorage, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Background jobs run immediately, on the test database and test storage."""
+    db_session.get_engine.cache_clear()
+    db_session.get_sessionmaker.cache_clear()
+    monkeypatch.setattr(db_session, "get_engine", lambda: engine)
+    monkeypatch.setattr("app.storage.get_storage", lambda: storage)
+    yield
+    db_session.get_sessionmaker.cache_clear()
 
 
 @pytest.fixture

@@ -50,6 +50,8 @@ class Settings(BaseSettings):
 
     # Upload limit for portfolio files (photo, CV, images).
     content_file_max_mb: int = 10
+    # Upload limit for SAP data exports (sent in 8 MB chunks).
+    data_upload_max_mb: int = 1024
 
     @property
     def cors_origin_list(self) -> list[str]:
