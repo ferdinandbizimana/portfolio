@@ -117,8 +117,11 @@ export function DataFiles({ files }: { files: DataFile[] }) {
                 <div>
                   <p className="font-medium">{file.filename}</p>
                   <p className="text-xs text-muted">
-                    {formatBytes(file.size_bytes)} · uploaded {formatDateTime(file.created_at)} ·
-                    SHA-256 {file.sha256.slice(0, 12)}…
+                    {formatBytes(file.size_bytes)} ·{" "}
+                    {file.source === "folder"
+                      ? `from the shared folder (${file.source_path ?? file.filename})`
+                      : "uploaded"}{" "}
+                    {formatDateTime(file.created_at)} · SHA-256 {file.sha256.slice(0, 12)}…
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

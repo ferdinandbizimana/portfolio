@@ -25,6 +25,8 @@ export interface DataFile {
   }[];
   created_at: string;
   used_by_runs: number;
+  source: "upload" | "folder";
+  source_path: string | null;
 }
 
 const RETRIES = 3;

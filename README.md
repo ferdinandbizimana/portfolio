@@ -13,7 +13,8 @@ contributors: [`CLAUDE.md`](CLAUDE.md).
 
 ## Stack
 
-FastAPI (Python 3.12) · PostgreSQL · Redis + RQ worker · Next.js (TypeScript,
+FastAPI (Python 3.12) · PostgreSQL · Redis + RQ worker · scheduler (shared
+folder pickup, scheduled runs) · Next.js (TypeScript,
 Tailwind) · Docker Compose.
 
 ## Run locally

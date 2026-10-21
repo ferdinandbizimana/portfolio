@@ -17,6 +17,12 @@ x-backend-env: &backend-env
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   MAIL_FROM: ${MAIL_FROM:-}
   CONTACT_TO_EMAIL: ${CONTACT_TO_EMAIL:-}
+  NOTIFY_EMAIL: ${NOTIFY_EMAIL:-}
+  SITE_URL: ${SITE_URL:-http://localhost:8080}
+  INBOX_DIR: /data/inbox
+  INBOX_SETTLE_SECONDS: ${INBOX_SETTLE_SECONDS:-60}
+  SCHEDULER_INTERVAL_SECONDS: ${SCHEDULER_INTERVAL_SECONDS:-60}
+  TIMEZONE: ${TIMEZONE:-Africa/Kigali}
 
 services:
   postgres:
@@ -72,10 +78,24 @@ services:
     environment: *backend-env
     volumes:
       - storage:/data/storage
+      # Shared folder with SAP exports, read-only (see INBOX_HOST_DIR in .env.example).
+      - ${INBOX_HOST_DIR:-./local-data/inbox}:/data/inbox:ro
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+
+  # Picks up new files from the shared folder and starts scheduled runs.
+  scheduler:
+    build: ./backend
+    command: ["python", "-m", "app.jobs.scheduler"]
+    environment: *backend-env
+    volumes:
+      - storage:/data/storage
+      - ${INBOX_HOST_DIR:-./local-data/inbox}:/data/inbox:ro
+    depends_on:
+      backend:
         condition: service_healthy
 
   # Development only: catches outgoing e-mail instead of sending it.

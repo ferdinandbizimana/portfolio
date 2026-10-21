@@ -94,6 +94,8 @@ jobs:
             -e "s/^CONTACT_TO_EMAIL=.*/CONTACT_TO_EMAIL=owner@example.com/" .env
           echo "COMPOSE_PROFILES=dev-mail" >> .env
           echo "E2E_PASSWORD=ci-admin-$(openssl rand -hex 12)" >> "$GITHUB_ENV"
+      - name: Shared folder for the folder pickup tests
+        run: mkdir -p local-data/inbox
       - run: docker compose up --build --detach --wait --wait-timeout 300
       - name: API health check through Caddy
         run: curl --fail --silent --show-error http://localhost:8080/api/health
