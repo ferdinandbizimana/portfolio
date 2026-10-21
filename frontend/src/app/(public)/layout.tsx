@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { fetchPortfolio } from "@/lib/public-api";
+import { fetchPortfolio, fetchPublicDashboards } from "@/lib/public-api";
 
 import { SiteNav } from "./site-nav";
 
@@ -10,13 +10,17 @@ import { SiteNav } from "./site-nav";
 export const dynamic = "force-dynamic";
 
 export default async function PublicLayout({ children }: { children: ReactNode }) {
-  const { profile, projects } = await fetchPortfolio();
+  const [{ profile, projects }, dashboards] = await Promise.all([
+    fetchPortfolio(),
+    fetchPublicDashboards(),
+  ]);
   const links = [
     { href: "/", label: "Home" },
     { href: "/about", label: "About" },
     { href: "/experience", label: "Experience" },
     { href: "/skills", label: "Skills" },
     ...(projects.length ? [{ href: "/projects", label: "Projects" }] : []),
+    ...(dashboards.length ? [{ href: "/dashboards", label: "Dashboards" }] : []),
     { href: "/contact", label: "Contact" },
   ];
 
