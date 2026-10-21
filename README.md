@@ -23,11 +23,16 @@ Requires Docker with Compose v2.
 ```bash
 cp .env.example .env     # set POSTGRES_PASSWORD
 docker compose up --build
+# once, to create your admin account (asks for the password):
+docker compose exec backend python -m app.cli create-admin --email you@example.com
 ```
 
-- Frontend: http://localhost:3000
-- API health check: http://localhost:8000/api/health
+- Site: http://localhost:8080 (Caddy sends `/api/*` to FastAPI, everything else to Next.js)
+- Admin area: http://localhost:8080/admin
+- API health check: http://localhost:8080/api/health
 - API docs (development only): http://localhost:8000/api/docs
+
+Forgot the password? `docker compose exec backend python -m app.cli set-password --email you@example.com`.
 
 ## Develop and test without Docker
 
@@ -36,7 +41,11 @@ Backend (needs [uv](https://docs.astral.sh/uv/)):
 ```bash
 cd backend
 uv sync
-uv run ruff check . && uv run ruff format --check . && uv run mypy app && uv run pytest
+uv run ruff check . && uv run ruff format --check . && uv run mypy app tests
+# tests need PostgreSQL:
+docker run -d --name testpg -p 55432:5432 -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test \
+  -e POSTGRES_DB=test postgres:16-alpine
+TEST_DATABASE_URL=postgresql+psycopg://test:test@localhost:55432/test uv run pytest
 ```
 
 Frontend (needs Node 22 and pnpm via `corepack enable`):
@@ -45,7 +54,9 @@ Frontend (needs Node 22 and pnpm via `corepack enable`):
 cd frontend
 pnpm install
 pnpm lint && pnpm typecheck && pnpm test
-pnpm dev
+pnpm dev                      # http://localhost:3000, /api forwarded to localhost:8000
+# browser tests against a running stack (docker compose up) and an admin account:
+E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e
 ```
 
 ## Data protection
