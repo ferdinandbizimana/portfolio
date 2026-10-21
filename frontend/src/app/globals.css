@@ -59,3 +59,58 @@ body {
     @apply text-ink;
   }
 }
+
+/* Markdown written in the admin area */
+.prose-content {
+  @apply leading-relaxed;
+}
+.prose-content > * + * {
+  @apply mt-4;
+}
+.prose-content h2 {
+  @apply mt-8 text-xl font-semibold;
+}
+.prose-content h3 {
+  @apply mt-6 text-lg font-semibold;
+}
+.prose-content ul {
+  @apply list-disc pl-6;
+}
+.prose-content ol {
+  @apply list-decimal pl-6;
+}
+.prose-content li + li {
+  @apply mt-1;
+}
+.prose-content blockquote {
+  @apply border-l-4 border-line pl-4 text-muted;
+}
+.prose-content code {
+  @apply rounded bg-panel px-1 py-0.5 text-sm;
+}
+.prose-content pre {
+  @apply overflow-x-auto rounded-md bg-panel p-3 text-sm;
+}
+.prose-content pre code {
+  @apply bg-transparent p-0;
+}
+.prose-content table {
+  @apply block w-full overflow-x-auto text-sm;
+}
+.prose-content th,
+.prose-content td {
+  @apply border border-line px-2 py-1 text-left;
+}
+.prose-content th {
+  @apply bg-panel font-semibold;
+}
+.prose-content img {
+  @apply rounded-md;
+}
+
+.skip-link {
+  @apply sr-only;
+}
+.skip-link:focus {
+  @apply not-sr-only fixed top-2 left-2 z-50 rounded-md bg-accent px-3 py-2 text-on-accent;
+}

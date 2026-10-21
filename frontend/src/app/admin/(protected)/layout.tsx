@@ -16,6 +16,10 @@ export const dynamic = "force-dynamic";
 
 const NAV: NavItem[] = [
   { href: "/admin", label: "Overview" },
+  { href: "/admin/content/profile", label: "Profile" },
+  { href: "/admin/content/experience", label: "Experience" },
+  { href: "/admin/content/skills", label: "Skills" },
+  { href: "/admin/content/projects", label: "Projects" },
   { href: "/admin/activity", label: "Activity log" },
   { href: "/admin/settings", label: "Settings" },
 ];
@@ -36,7 +40,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           </p>
         </div>
         <AdminNav items={NAV} />
-        <div className="mt-3 md:mt-6">
+        <div className="mt-3 flex flex-wrap gap-2 md:mt-6">
+          <Link href="/" className="btn-secondary" target="_blank">
+            View site
+          </Link>
           <LogoutButton />
         </div>
       </aside>

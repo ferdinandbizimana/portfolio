@@ -1,14 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-const EMAIL = process.env.E2E_EMAIL ?? "admin@example.com";
-const PASSWORD = process.env.E2E_PASSWORD ?? "";
-
-async function signIn(page: Page, password = PASSWORD) {
-  await page.goto("/admin/login");
-  await page.getByLabel("E-mail").fill(EMAIL);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-}
+import { PASSWORD, signIn } from "./helpers";
 
 test.beforeAll(() => {
   if (!PASSWORD) throw new Error("Set E2E_PASSWORD (and E2E_EMAIL) for the admin account.");
