@@ -62,19 +62,24 @@ Everything runs with Docker Compose:
 
 ```bash
 cp .env.example .env          # then fill in values
-docker compose up --build     # frontend http://localhost:3000, API http://localhost:8000
+docker compose up --build     # http://localhost:8080 (Caddy: /api -> backend, rest -> frontend)
+docker compose exec backend python -m app.cli create-admin --email you@example.com
 ```
 
 Tests and linters (also run in GitHub Actions on every push / PR):
 
 ```bash
-# backend
-cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app && uv run pytest
+# backend (tests need PostgreSQL; see backend/tests/conftest.py)
+cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app tests
+TEST_DATABASE_URL=postgresql+psycopg://test:test@localhost:55432/test uv run pytest
 # frontend
 cd frontend && pnpm lint && pnpm typecheck && pnpm test
+# browser tests (stack running, admin account created)
+cd frontend && E2E_EMAIL=... E2E_PASSWORD=... pnpm e2e
 ```
 
-These commands become real in Phase 1; update this section if they change.
+pytest treats warnings as errors. GitHub Actions runs all of the above,
+including the browser tests on desktop and mobile layouts.
 
 ## Rules for analyses (non-negotiable)
 
@@ -140,7 +145,11 @@ These commands become real in Phase 1; update this section if they change.
 - Commits: small, imperative subject line ("Add RBC opening/closing
   calculation"). One branch and one pull request per phase.
 - Important admin actions (login, failed login, password change, upload, run,
-  publish, unpublish, delete) are written to the audit log.
+  publish, unpublish, delete) are written to the audit log with
+  `app.core.audit.record()`.
+- Every admin API route depends on `CurrentUserDep` (401 without a session).
+- The browser only talks to one origin (Caddy on :8080, or Next.js rewrites
+  in `pnpm dev`); state-changing requests from other origins are refused.
 
 ## Working in a cloud session
 

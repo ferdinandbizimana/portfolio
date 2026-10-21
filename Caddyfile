@@ -1,0 +1,23 @@
+# Single entry point: the browser talks to one origin.
+# /api/* goes to FastAPI, everything else to Next.js.
+# SITE_ADDRESS is ":8080" locally; in production it is the domain name,
+# and Caddy then obtains and renews the HTTPS certificate automatically.
+{$SITE_ADDRESS::8080} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

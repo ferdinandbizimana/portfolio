@@ -26,6 +26,22 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/test
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -34,7 +50,7 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy app
+      - run: uv run mypy app tests
       - run: uv run pytest
 
   frontend:
@@ -60,23 +76,48 @@ jobs:
       - run: pnpm build
 
   stack:
-    name: Docker Compose stack starts and is healthy
+    name: Full stack and browser tests
     runs-on: ubuntu-latest
     needs: [backend, frontend]
+    env:
+      E2E_EMAIL: admin@example.com
     steps:
       - uses: actions/checkout@v4
-      - name: Create .env for CI
+      - name: Create .env and admin password for CI
         run: |
           cp .env.example .env
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci-$(openssl rand -hex 12)/" .env
+          echo "E2E_PASSWORD=ci-admin-$(openssl rand -hex 12)" >> "$GITHUB_ENV"
       - run: docker compose up --build --detach --wait --wait-timeout 300
-      - name: API health check
-        run: curl --fail --silent --show-error http://localhost:8000/api/health
-      - name: Frontend shows API status
-        run: |
-          curl --fail --silent --show-error http://localhost:3000 | grep -q 'API: <strong>ok</strong>'
+      - name: API health check through Caddy
+        run: curl --fail --silent --show-error http://localhost:8080/api/health
       - name: Worker runs a job
         run: docker compose exec -T backend python -m app.jobs.smoke
+      - name: Create the admin account
+        run: >-
+          docker compose exec -T -e ADMIN_PASSWORD="$E2E_PASSWORD" backend
+          python -m app.cli create-admin --email "$E2E_EMAIL"
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Browser tests (desktop and mobile)
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+          pnpm e2e
+      - name: Keep browser traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: frontend/test-results/
+          retention-days: 7
       - name: Logs on failure
         if: failure()
         run: docker compose logs

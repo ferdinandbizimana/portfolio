@@ -1,8 +1,9 @@
 # Build plan
 
-Status: **Phase 1 (foundation) — in review.** Plan approved by Ferdinand on
-2026-10-20 ("go on with the implementation"). Phase 2 starts after the
-Phase 0–1 pull request is merged.
+Status: **Phase 2 (login and admin area) — in review.** Phases 0–1 merged on
+2026-10-21. Ferdinand asked (2026-10-21) to continue through all phases
+without stopping; each phase still gets its own pull request, merged once CI
+is green.
 
 ---
 
@@ -20,10 +21,10 @@ Phase 0–1 pull request is merged.
 | PowerPoint reports | python-pptx, using the layouts of an uploaded `.pptx` template | Same reason; replaces Node `pptxgenjs`. |
 | Frontend | Next.js (App Router), TypeScript strict, Tailwind CSS, shadcn/ui components | Required framework. Tailwind + shadcn give a clean, accessible, mobile-friendly UI without a heavy design system. Portfolio pages are statically rendered and revalidated on edit, so they are fast. |
 | Charts and tables | Apache ECharts (`echarts-for-react`) and TanStack Table | ECharts handles bar, stacked, pie, line and large data sets well and renders the same in light and dark mode. TanStack Table gives sorting, filtering, search and pagination for line-level tables. |
-| Authentication | A login page with e-mail and password only (no two-factor, by your decision). Behind the scenes: Argon2 password hash, server-side session in an HttpOnly, Secure, SameSite=Strict cookie, login rate limiting | One user only, so no external identity provider is needed. The admin account is created from the command line, never through a public sign-up. |
+| Authentication | A login page with e-mail and password only (no two-factor, by your decision). Behind the scenes: Argon2 password hash, server-side session in an HttpOnly, Secure, SameSite=Lax cookie plus an Origin check on every state-changing request (CSRF protection), login rate limiting | One user only, so no external identity provider is needed. The admin account is created from the command line, never through a public sign-up. |
 | Contact form | Sent by SMTP directly to your e-mail address, with a honeypot field and rate limiting against spam | Your address and the SMTP password live in `.env`, never in the public code. |
-| Tests and linting | pytest, ruff, mypy; ESLint, Prettier, Vitest; Playwright for a few end-to-end checks later | Standard tools. All run in GitHub Actions on every push and pull request. |
-| Local run | Docker Compose: `frontend`, `backend`, `worker`, `postgres`, `redis` | `docker compose up` starts everything. |
+| Tests and linting | pytest (against real PostgreSQL), ruff, mypy; ESLint, Prettier, Vitest; Playwright browser tests on desktop and mobile | Standard tools. All run in GitHub Actions on every push and pull request. |
+| Local run | Docker Compose: `proxy` (Caddy), `frontend`, `backend`, `worker`, `postgres`, `redis` | `docker compose up` starts everything; the browser uses one origin, http://localhost:8080. |
 | Deployment (Phase 9) | One Linux VPS running the same Docker Compose stack, Caddy as reverse proxy with automatic HTTPS | Cheapest and simplest setup one person can maintain. Same files in development and production. |
 | Backups (Phase 9) | Nightly `pg_dump` + file volume, encrypted and sent off-site with restic | Proven, scriptable, and restore is tested with a written guide. |
 
@@ -105,14 +106,15 @@ test and open questions. You review and merge before the next phase starts.
 - [x] README: what the project is, how to run, how to test
 
 ### Phase 2 — Login and admin area
-- [ ] User table; `create-admin` command line tool
-- [ ] Login page (e-mail + password, Argon2 hash); no two-factor
-- [ ] Sessions in secure cookies, CSRF protection, logout, session expiry
-- [ ] Login rate limiting and lockout after repeated failures
-- [ ] Audit log table and admin page (login, failures, password changes, later uploads, runs, publishing)
-- [ ] uvicorn logs in JSON like the application logs
-- [ ] Admin layout: navigation, dashboard home, settings
-- [ ] Tests for every auth path, including wrong code and expired session
+- [x] User table; `create-admin` and `set-password` command line tools
+- [x] Login page (e-mail + password, Argon2 hash); no two-factor
+- [x] Sessions in secure cookies (idle 12 h, absolute 7 days), Origin-check CSRF protection, logout
+- [x] Login rate limiting: 5 failures per 15 minutes per e-mail and per address
+- [x] Audit log table and admin page (sign-ins, failures, blocks, sign-outs, password changes)
+- [x] uvicorn logs in JSON like the application logs
+- [x] Admin layout (mobile and desktop): overview, activity log, settings (change password)
+- [x] Caddy as the single entry point in Docker Compose (same set-up as production)
+- [x] Tests for every auth path: wrong password, unknown e-mail, idle and absolute expiry, rate limit, password change signs out other devices, cross-site request refused; migrations match models; browser tests on desktop and mobile
 
 ### Phase 3 — Portfolio
 - [ ] Content model: profile, about, experience, skills, projects / case studies, CV file, contact messages
@@ -269,7 +271,7 @@ Answers will be recorded in section 4 (Decisions).
 |---|---|---|
 | 2026-10-20 | Read legacy scripts (from the uploaded zip; the repository was empty). Wrote `docs/legacy-analysis.md`, `CLAUDE.md`, this plan, `.gitignore`. | Your review and answers; then Phase 1. |
 | 2026-10-20 | Phase 1 built and verified locally: backend checks (ruff, mypy, 4 tests), frontend checks (ESLint, Prettier, tsc, 6 tests, production build), `docker compose up` with all five services healthy, `/api/health` 200 (503 when Redis is stopped), migration applied, worker smoke test passed. | Merge the Phase 0–1 pull request; start Phase 2 (login page, admin layout, audit log). |
+| 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 
 Known gaps after Phase 1:
-- uvicorn's own access and error logs are still plain text; only application logs are JSON. To fix in Phase 2 with a uvicorn log config.
 - The cloud session could not pull from Docker Hub (rate limit) or GitHub's container registry, so the local stack test used mirror images and a local copy of the uv binary. The Dockerfiles themselves are unchanged; the `stack` job in GitHub Actions is the authoritative test.

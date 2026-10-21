@@ -1,12 +1,14 @@
 # Whole stack for local development: `docker compose up --build`
-# Frontend: http://localhost:3000 · API: http://localhost:8000/api/health
+# Open http://localhost:8080 (Caddy sends /api/* to FastAPI, the rest to Next.js).
+# API health check: http://localhost:8080/api/health
 
 x-backend-env: &backend-env
   ENVIRONMENT: ${ENVIRONMENT:-development}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   REDIS_URL: redis://redis:6379/0
-  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:3000}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
   STORAGE_DIR: /data/storage
 
 services:
@@ -78,8 +80,33 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  proxy:
+    image: caddy:2.10-alpine
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:8080}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
 
 volumes:
+  caddy-data:
   postgres-data:
   redis-data:
   storage:
