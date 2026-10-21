@@ -15,8 +15,8 @@ from app.analyses.registry import all_analyses, get_analysis
 from app.api.deps import CurrentUserDep, DbDep, client_ip
 from app.api.uploads import QueueDep, StorageDep
 from app.core import audit
-from app.db.models import AnalysisRun, DataFile
-from app.jobs.analysis import run_analysis
+from app.db.models import AnalysisRun
+from app.runs import enqueue, resolve_inputs
 
 router = APIRouter(prefix="/api/admin", tags=["admin analyses"])
 
@@ -180,27 +180,9 @@ def create_run(
     analysis = get_analysis(body.analysis)
     if analysis is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown analysis.")
-    errors: list[str] = []
-    inputs: dict[str, Any] = {}
-    for spec in analysis.inputs:
-        choice = body.inputs.get(spec.key)
-        if choice is None:
-            if spec.required:
-                errors.append(f"Choose a file for {spec.label!r}.")
-            continue
-        data_file = db.get(DataFile, choice.data_file_id)
-        if data_file is None or data_file.status != "ready":
-            errors.append(f"The file chosen for {spec.label!r} is not ready.")
-            continue
-        if not any(s["name"] == choice.sheet for s in data_file.sheets):
-            errors.append(f"{data_file.filename} has no sheet {choice.sheet!r}.")
-            continue
-        inputs[spec.key] = {
-            "data_file_id": data_file.id,
-            "sheet": choice.sheet,
-            "filename": data_file.filename,
-            "sha256": data_file.sha256,
-        }
+    inputs, errors = resolve_inputs(
+        db, analysis, {key: (c.data_file_id, c.sheet) for key, c in body.inputs.items()}
+    )
     params = None
     try:
         params = analysis.Parameters.model_validate(body.parameters)
@@ -229,11 +211,7 @@ def create_run(
         label=run.label,
     )
     db.commit()
-    job = queue.enqueue(run_analysis, run.id, job_timeout=3 * 3600)
-    db.refresh(run)
-    if not run.job_id:
-        run.job_id = job.id
-        db.commit()
+    enqueue(db, queue, run)
     return _out(run)
 
 

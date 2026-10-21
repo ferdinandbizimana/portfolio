@@ -1,12 +1,13 @@
 """Database models. Alembic migrations in alembic/versions must match these."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -177,6 +178,10 @@ class DataFile(Base):
     # [{name, header_row, columns, row_count, parquet_path, matches: [{dataset, title}]}]
     sheets: Mapped[list[dict[str, Any]]] = mapped_column(JsonDict, default=list)
     source: Mapped[str] = mapped_column(String(32), default="upload")
+    # Shared folder only: path inside the folder, and its size and modification
+    # time when it was picked up (to notice a changed file without re-reading it).
+    source_path: Mapped[str | None] = mapped_column(String(1024), index=True)
+    source_mtime_ns: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -204,6 +209,9 @@ class AnalysisRun(Base):
     reports: Mapped[list[dict[str, Any]]] = mapped_column(JsonDict, default=list)
     result_hash: Mapped[str] = mapped_column(String(64), default="")
     job_id: Mapped[str] = mapped_column(String(64), default="")
+    schedule_id: Mapped[int | None] = mapped_column(
+        ForeignKey("schedules.id", ondelete="SET NULL"), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
@@ -252,3 +260,29 @@ class Publication(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Schedule(Base):
+    """Runs an analysis automatically on the newest files from the shared folder."""
+
+    __tablename__ = "schedules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    analysis_key: Mapped[str] = mapped_column(String(64))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # daily: at `run_time` on `weekdays`; new_files: as soon as new input files arrive
+    trigger: Mapped[str] = mapped_column(String(16), default="daily")
+    run_time: Mapped[str] = mapped_column(String(5), default="06:00")  # HH:MM, settings.timezone
+    weekdays: Mapped[list[int]] = mapped_column(JsonDict, default=lambda: [0, 1, 2, 3, 4, 5, 6])
+    # {input_key: {pattern: "MB5B*.xlsx", sheet: ""}}; empty sheet = the recognised one
+    inputs: Mapped[dict[str, Any]] = mapped_column(JsonDict, default=dict)
+    # Parameter values; a date may be a rule such as "previous_month_end" (see scheduling.py)
+    parameters: Mapped[dict[str, Any]] = mapped_column(JsonDict, default=dict)
+    only_when_changed: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_fired_on: Mapped[date | None] = mapped_column(Date)
+    last_signature: Mapped[str] = mapped_column(String(64), default="")
+    last_message: Mapped[str] = mapped_column(Text, default="")
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

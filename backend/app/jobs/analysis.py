@@ -26,6 +26,7 @@ from app.analyses.registry import get_analysis
 from app.db.models import AnalysisRun, DataFile, ReportTemplate
 from app.db.session import session_scope
 from app.jobs.ingest import parsed_dir_key
+from app.jobs.notify import notify_run_finished
 from app.reporting.documents import Templates
 from app.reporting.guard import BannedWordingError, check_report, find_banned
 from app.reporting.word import TemplateError
@@ -138,6 +139,7 @@ def run_analysis(run_id: int) -> None:
             run.progress = 100
         run.finished_at = _now()
         db.commit()
+        notify_run_finished(db, run)
 
 
 def _execute(db: Session, storage: LocalStorage, run: AnalysisRun) -> None:

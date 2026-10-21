@@ -60,6 +60,8 @@ class DataFileOut(BaseModel):
     sheets: list[dict[str, Any]]
     created_at: str
     used_by_runs: int = 0
+    source: str = "upload"
+    source_path: str | None = None
 
 
 def _chunk_count(size: int, chunk_size: int) -> int:
@@ -243,6 +245,8 @@ def _out(db: DbDep, data_file: DataFile) -> DataFileOut:
             used += 1
     return DataFileOut(
         id=data_file.id,
+        source=data_file.source,
+        source_path=data_file.source_path,
         filename=data_file.filename,
         size_bytes=data_file.size_bytes,
         sha256=data_file.sha256,

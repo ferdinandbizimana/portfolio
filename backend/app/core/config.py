@@ -53,6 +53,25 @@ class Settings(BaseSettings):
     # Upload limit for SAP data exports (sent in 8 MB chunks).
     data_upload_max_mb: int = 1024
 
+    # Shared folder where SAP exports are dropped (read-only for the app).
+    # Empty: the folder pickup is switched off.
+    inbox_dir: str = ""
+    # A file is picked up only when it has not changed for this many seconds,
+    # so files still being copied are left alone.
+    inbox_settle_seconds: int = 60
+    # How often the scheduler checks the folder and the schedules.
+    scheduler_interval_seconds: int = 60
+    # Time zone of the schedules ("every day at 06:00").
+    timezone: str = "Africa/Kigali"
+    # Where notifications of scheduled runs go (empty: CONTACT_TO_EMAIL).
+    notify_email: str = ""
+    # Public address of the site, used for links in e-mails.
+    site_url: str = "http://localhost:8080"
+
+    @property
+    def notify_to(self) -> str:
+        return self.notify_email or self.contact_to_email
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
