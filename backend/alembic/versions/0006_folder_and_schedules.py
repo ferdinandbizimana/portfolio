@@ -38,7 +38,10 @@ def upgrade() -> None:
         sa.Column("last_message", sa.Text(), nullable=False),
         sa.Column("last_checked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_schedules")),
     )
