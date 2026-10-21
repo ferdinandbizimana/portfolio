@@ -1,6 +1,6 @@
 # Build plan
 
-Status: **Phase 4 (upload and analysis engine) — in review.** Phases 2 and 3 merged on 2026-10-21. Phases 0–1 merged on
+Status: **Phase 6 (publishing) — in review.** Phase 4 merged on 2026-10-21. Phase 5 waits for your SAP export headers. Phases 2 and 3 merged on 2026-10-21. Phases 0–1 merged on
 2026-10-21. Ferdinand asked (2026-10-21) to continue through all phases
 without stopping; each phase still gets its own pull request, merged once CI
 is green.
@@ -152,11 +152,11 @@ compares totals line by line.
 - [ ] Parity confirmed by you on real files for all four
 
 ### Phase 6 — Publishing
-- [ ] Visibility: private, secret link, public; unpublish
-- [ ] Detail level choice (program / plant / product) and a preview of exactly what will be visible
-- [ ] Frozen snapshots; public endpoints read snapshots only
-- [ ] Public dashboards page and per-dashboard pages with filters, search, charts, tables
-- [ ] Tests proving public endpoints cannot reach uploads, runs or unpublished snapshots
+- [x] Visibility: private, secret link, public; unpublish
+- [x] Detail level choice and a preview of exactly what will be visible. Each analysis marks its tables as summary or detail; "Summary only" keeps the summary tables (for example by program or plant) and leaves out line-level detail. The real analyses in Phase 5 decide which tables are summary.
+- [x] Frozen snapshots; public endpoints read snapshots only
+- [x] Public dashboards page and per-dashboard pages with filters, search, charts, tables
+- [x] Tests proving public endpoints cannot reach uploads, runs or unpublished snapshots
 
 ### Phase 7 — More analyses
 Rules and fake-safe samples from you for each:
@@ -192,6 +192,7 @@ Rules and fake-safe samples from you for each:
 | 2026-10-21 | Uploaded cells are stored as exact text; each dataset definition declares column types, and conversion happens per analysis with row-level messages. Thousands separators "," are removed and a trailing minus ("1234-", SAP style) is read as negative. If your exports use "." for thousands and "," for decimals, tell me. |
 | 2026-10-21 | Dashboards keep at most 20,000 lines per table (the full table stays with the run and in the Excel workbook). Excel sheets stop at Excel's 1,048,576-row limit with a visible note. |
 | 2026-10-21 | Server sizing: the worker needed 1.8 GB for a 4.9-million-row file; plan at least 4 GB of memory for the server (8 GB comfortable). |
+| 2026-10-21 | Publishing: a publication is a frozen copy of one run's dashboard. It starts private; a secret link is `/d/<token>` (not listed, not indexed by search engines, can be replaced by a new one); public dashboards are listed at `/dashboards`. Self-checks are hidden from visitors unless you tick "Show the self-checks". Unpublishing deletes the copy. Deleting the run does not change a publication. |
 | 2026-10-21 | Word templates: the report goes where the template has a paragraph `{{p body }}`; `{{ title }}`, `{{ subtitle }}`, `{{ report_date }}` may be used anywhere. PowerPoint uses the layouts "Title Slide", "Title and Content", "Title Only". |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
@@ -281,6 +282,7 @@ Answers will be recorded in section 4 (Decisions).
 | 2026-10-20 | Read legacy scripts (from the uploaded zip; the repository was empty). Wrote `docs/legacy-analysis.md`, `CLAUDE.md`, this plan, `.gitignore`. | Your review and answers; then Phase 1. |
 | 2026-10-20 | Phase 1 built and verified locally: backend checks (ruff, mypy, 4 tests), frontend checks (ESLint, Prettier, tsc, 6 tests, production build), `docker compose up` with all five services healthy, `/api/health` 200 (503 when Redis is stopped), migration applied, worker smoke test passed. | Merge the Phase 0–1 pull request; start Phase 2 (login page, admin layout, audit log). |
 | 2026-10-21 | Phase 4 built: chunked uploads, parsing, dataset recognition and validation, analysis contract and registry, background runs, dashboards, Excel/Word/PowerPoint reports with templates, language guard, run comparison, demo analysis. Verified: 86 backend tests, 23 frontend unit tests, 24 browser tests (desktop + mobile) incl. upload → run → reports → compare; 210 MB / 4.9 M-row file processed. Fixed on the way: memory (5 GB → 1.8 GB), Excel row limit, missing docxcompose. | Phase 5 needs your SAP headers; meanwhile Phase 6 (publishing). |
+| 2026-10-21 | Phase 4 merged. Phase 6 built: publications (frozen snapshot, summary or full detail, optional checks), private / secret link / public, new secret link, unpublish, preview before creating, public Dashboards page and menu entry, sitemap, `/d/` excluded from search engines. Verified: 97 backend tests, 25 frontend unit tests, 28 browser tests (desktop + mobile) incl. publish → secret → public → unpublish. | Phase 5 still needs your SAP headers; next Phase 8 shared-folder pickup and Phase 9 going-live tooling. |
 | 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 

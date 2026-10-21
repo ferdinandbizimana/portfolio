@@ -105,6 +105,26 @@ If a template cannot be used, the run stops and says why. Reports are also
 checked for the words "AI" and "to be confirmed"; a report containing them is
 not produced.
 
+## Publishing a dashboard
+
+1. Open a finished run (Admin → Runs) and choose **Publish…**.
+2. Give it a title and, if you like, a description. Choose **Summary only**
+   (totals and summary tables, no line-level detail) or **Full detail**, and
+   whether visitors see the self-checks. The preview below the form shows
+   exactly what visitors will see.
+3. **Create (private)** saves a frozen copy. Nobody else can see it yet.
+4. In Admin → Published, choose who can see it:
+   - **Secret link**: anyone with the link (`/d/…`). Not listed and not
+     indexed by search engines. **New shared link** replaces it; the old
+     link stops working at once.
+   - **Public**: listed on the public Dashboards page with its own address
+     (`/dashboards/…`).
+5. **Unpublish** deletes the copy; every link to it stops working.
+
+A publication never changes after it is created, even if you delete or
+re-run the analysis. To update a published dashboard, publish the new run
+and unpublish the old one.
+
 ## Server size
 
 A file of about 5 million lines needs up to 2 GB of memory while it is
