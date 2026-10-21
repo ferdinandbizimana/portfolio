@@ -20,10 +20,23 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # Comma-separated list of origins allowed to call the API from a browser.
-    cors_origins: str = "http://localhost:3000"
+    # State-changing requests from any other Origin are refused.
+    cors_origins: str = "http://localhost:3000,http://localhost:8080"
 
     # Where uploaded files, converted data and reports are stored.
     storage_dir: str = "/data/storage"
+
+    # Login sessions
+    session_cookie_name: str = "session"
+    cookie_secure: bool = Field(
+        default=True, description="Send the session cookie over HTTPS only. False for local HTTP."
+    )
+    session_idle_minutes: int = 12 * 60
+    session_absolute_hours: int = 7 * 24
+
+    # Login rate limiting: after this many failures in the window, refuse further attempts.
+    login_max_failures: int = 5
+    login_window_minutes: int = 15
 
     @property
     def cors_origin_list(self) -> list[str]:
