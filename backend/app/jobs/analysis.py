@@ -64,6 +64,14 @@ def load_input(
     data_file = db.get(DataFile, choice.get("data_file_id"))
     if data_file is None or data_file.status != "ready":
         raise RunFailed(f"The file chosen for {spec.title!r} is not available.")
+    if choice.get("sheet") == datasets.ALL_SHEETS:
+        # Every sheet recognised as the dataset, one after the other.
+        names = datasets.recognised_sheets(data_file.sheets, spec.key)
+        frames = [
+            load_input(db, storage, spec, {**choice, "sheet": name}).assign(Sheet=name)
+            for name in names
+        ]
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
     sheet = next((s for s in data_file.sheets if s["name"] == choice.get("sheet")), None)
     if sheet is None:
         raise RunFailed(f"{data_file.filename}: sheet {choice.get('sheet')!r} was not found.")
@@ -163,6 +171,8 @@ def _execute(db: Session, storage: LocalStorage, run: AnalysisRun) -> None:
             continue
         try:
             data[spec.key] = load_input(db, storage, datasets.get(spec.dataset), choice)
+            if choice.get("sheet") == datasets.ALL_SHEETS and data[spec.key].empty:
+                errors.append(f"No sheet of the file is recognised for {spec.label!r}.")
         except RunFailed as failure:
             errors += failure.errors or [str(failure)]
     if errors:

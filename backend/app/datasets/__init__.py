@@ -12,7 +12,7 @@ Never invent a column name here: headers must come from real exports
 
 import re
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import pandas as pd
 
@@ -67,6 +67,17 @@ class Coerced:
 
 
 _REGISTRY: dict[str, DatasetSpec] = {}
+
+ALL_SHEETS = "*"  # the input takes every recognised sheet of the file
+
+
+def recognised_sheets(sheets: list[dict[str, Any]], dataset: str) -> list[str]:
+    """Names of the sheets recognised as the dataset, in workbook order."""
+    return [
+        str(s["name"])
+        for s in sheets
+        if any(m.get("dataset") == dataset for m in s.get("matches", []))
+    ]
 
 
 def register(spec: DatasetSpec) -> DatasetSpec:

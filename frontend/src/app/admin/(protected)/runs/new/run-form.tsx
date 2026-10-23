@@ -11,11 +11,17 @@ import type { DataFile } from "@/lib/upload";
 
 type Choice = { fileId: string; sheet: string };
 
+/** Sent as the sheet when an input takes every recognised sheet of the file. */
+export const ALL_SHEETS = "*";
+
+const recognised = (file: DataFile, dataset: string) =>
+  file.sheets.filter((s) => s.matches.some((m) => m.dataset === dataset));
+
 /** The best sheet for a dataset: one recognised as it, newest file first. */
-export function suggest(files: DataFile[], dataset: string): Choice {
+export function suggest(files: DataFile[], dataset: string, allSheets = false): Choice {
   for (const file of files) {
-    const sheet = file.sheets.find((s) => s.matches.some((m) => m.dataset === dataset));
-    if (sheet) return { fileId: String(file.id), sheet: sheet.name };
+    const sheet = recognised(file, dataset)[0];
+    if (sheet) return { fileId: String(file.id), sheet: allSheets ? ALL_SHEETS : sheet.name };
   }
   return { fileId: "", sheet: "" };
 }
@@ -33,7 +39,9 @@ export function RunForm({ analysis, files }: { analysis: AnalysisInfo; files: Da
     ),
   );
   const [choices, setChoices] = useState<Record<string, Choice>>(() =>
-    Object.fromEntries(analysis.inputs.map((i) => [i.key, suggest(files, i.dataset)])),
+    Object.fromEntries(
+      analysis.inputs.map((i) => [i.key, suggest(files, i.dataset, i.all_sheets)]),
+    ),
   );
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -123,13 +131,11 @@ export function RunForm({ analysis, files }: { analysis: AnalysisInfo; files: Da
                 value={choice.fileId}
                 onChange={(e) => {
                   const next = files.find((f) => String(f.id) === e.target.value);
-                  const sheet =
-                    next?.sheets.find((s) => s.matches.some((m) => m.dataset === input.dataset)) ??
-                    next?.sheets[0];
-                  setChoices({
-                    ...choices,
-                    [input.key]: { fileId: e.target.value, sheet: sheet?.name ?? "" },
-                  });
+                  const sheet = next
+                    ? (recognised(next, input.dataset)[0] ?? next.sheets[0])
+                    : undefined;
+                  const name = input.all_sheets && next ? ALL_SHEETS : (sheet?.name ?? "");
+                  setChoices({ ...choices, [input.key]: { fileId: e.target.value, sheet: name } });
                 }}
               >
                 <option value="">Choose a file…</option>
@@ -140,7 +146,16 @@ export function RunForm({ analysis, files }: { analysis: AnalysisInfo; files: Da
                 ))}
               </select>
             </Field>
-            {file && (
+            {file && input.all_sheets && (
+              <p className="text-sm" data-testid={`sheets-${input.key}`}>
+                {recognised(file, input.dataset).length
+                  ? `Every recognised sheet is used: ${recognised(file, input.dataset)
+                      .map((s) => s.name.trim())
+                      .join(", ")}.`
+                  : "No sheet of this file is recognised as this dataset."}
+              </p>
+            )}
+            {file && !input.all_sheets && (
               <Field label="Sheet">
                 <select
                   className="input"
