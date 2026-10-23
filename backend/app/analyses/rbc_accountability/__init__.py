@@ -6,8 +6,8 @@ the report shows only opening stock, closing stock and the difference,
 labelled "Increase" or "Reduction", with percentages. Receipts, issues and
 expired stock never appear anywhere in it.
 
-- Opening = closing stock shown in the previous RBC report (its "CPDS Report"
-  data sheet), all of its lines, as in the June 2026 report.
+- Opening = closing stock of the previous RBC report (its "CPDS Report" data
+  sheet) on the RBC WBS element only; RMS-OWN-ESE-RM stock is not RBC stock.
 - Closing = final closing stock on the same WBS after the period-end
   reconciliation: G/L line items of the stock accounts, less the expired stock
   scrapped at Finance level on that WBS (shared rule, see common/closing.py).
@@ -25,6 +25,12 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.analyses.base import Analysis, AnalysisResult, Check, InputSpec
 from app.analyses.common.closing import final_closing, material_code, plant_code, plant_names
+from app.analyses.common.programmes import (
+    CATEGORY_NAMES,
+    DEFAULT_CATEGORY,
+    PROGRAMMES,
+    normalise_category,
+)
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
 from app.reporting.documents import (
     ChartBlock,
@@ -42,32 +48,6 @@ from app.reporting.word import build_docx
 
 RBC_WBS = "RMS-PRG-FND-CP"
 
-# Report order of the programmes (RBC report, June 2026).
-PROGRAMMES = [
-    "CPDS",
-    "MALARIA AND NTD",
-    "ARV and Opportunistic Infection",
-    "MCCH",
-    "EI",
-    "VMMC",
-    "Cross Cutting",
-    "Hepatitis",
-    "TB",
-    "NCDS",
-]
-DEFAULT_CATEGORY = "CPDS"
-
-# Names found in earlier reports and the programme they are reported under.
-CATEGORY_NAMES = {
-    "ARV AND OPPORTUNITIC INFECTION": "ARV and Opportunistic Infection",
-    "ARV&OI": "ARV and Opportunistic Infection",
-    "MALARIA": "MALARIA AND NTD",
-    "Program Lab": "CPDS",
-    "ESE": "Cross Cutting",
-    "Oncology": "Cross Cutting",
-    "SPECIALIZED": "Cross Cutting",
-}
-
 # Labels as in the RBC report of June 2026 (with an en dash).
 DASH = "\u2013"
 SOURCE_SAME_PLANT = f"Previous report {DASH} same plant"
@@ -78,20 +58,6 @@ SOURCE_NEW = f"New item {DASH} assigned CPDS (review)"
 SOURCES = [SOURCE_SAME_PLANT, SOURCE_OTHER_PLANT, SOURCE_OTHER_WBS, SOURCE_ITEM_LIST, SOURCE_NEW]
 
 INCREASE, REDUCTION, NO_CHANGE = "Increase", "Reduction", "No change"
-
-
-def _key(text: str) -> str:
-    return " ".join(text.split()).upper()
-
-
-_NAME_LOOKUP = {_key(k): v for k, v in CATEGORY_NAMES.items()} | {_key(p): p for p in PROGRAMMES}
-
-
-def normalise_category(value: object) -> str:
-    text = "" if value is None or value is pd.NA else str(value).strip()
-    if not text or text.lower() == "nan":
-        return ""
-    return _NAME_LOOKUP.get(_key(text), text)
 
 
 def label(difference: float) -> str:
@@ -283,11 +249,11 @@ class RbcAccountability(Analysis):
             }
         )
         previous = previous[previous["Material"] != ""]
-        # Opening = everything the previous report showed, whatever its WBS: the
-        # March 2026 report also lists stock on RMS-OWN-ESE-RM (as Cross Cutting),
-        # and the June 2026 report counts it in the opening.
+        # Opening = the previous report's lines on the RBC WBS only: stock on
+        # RMS-OWN-ESE-RM is not RBC stock (Ferdinand, 23 October 2026).
+        on_wbs = previous[previous["WBS"] == wbs]
         opening = (
-            previous.groupby(["Plant", "Material"], sort=True)
+            on_wbs.groupby(["Plant", "Material"], sort=True)
             .agg(
                 **{
                     "Opening Qty": ("Closing Stock", "sum"),
@@ -513,12 +479,12 @@ class RbcAccountability(Analysis):
             }
         )
 
-        previous_total = float(previous["Closing Value"].sum())
+        previous_total = float(on_wbs["Closing Value"].sum())
         closing_on_wbs = float(on_wbs_closing["Final Value"].sum())
         checks = [
             Check(
                 "opening_total",
-                "Opening stock equals the closing stock shown in the previous report",
+                "Opening stock equals the previous report's closing stock on the WBS",
                 expected=previous_total,
                 actual=opening_total,
             ),
