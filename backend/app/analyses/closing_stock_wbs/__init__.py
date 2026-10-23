@@ -511,13 +511,10 @@ class ClosingStockByWbs(Analysis):
             "Items to review", t["flags"], {"Items": "integer", "Final Value": "money"}
         )
         counts = TableBlock("Counts", t["counts"], {"Number": "integer"})
-        items = TableBlock(
-            "Final Closing Stock",
-            t["items"],
-            {**money, "WBS count": "integer"},
-            total_row=True,
-        )
-        lines = TableBlock("Closing by ID and WBS", t["by_wbs_lines"], money, total_row=True)
+        # No total row: this sheet is read back by the count variance analysis.
+        items = TableBlock("Final Closing Stock", t["items"], {**money, "WBS count": "integer"})
+        # No total row: this sheet is read back by the count variance analysis.
+        lines = TableBlock("Closing by ID and WBS", t["by_wbs_lines"], money)
         scrapping = TableBlock(
             "Expired Scrapped",
             t["scrapping"],
