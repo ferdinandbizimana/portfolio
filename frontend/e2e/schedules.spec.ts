@@ -37,6 +37,7 @@ test("a file dropped in the shared folder is picked up and run by a schedule", a
   await page.goto("/admin/schedules");
   await page.getByRole("link", { name: "New schedule" }).click();
   await page.getByRole("textbox", { name: /^Name/ }).fill(`Stock ${tag}`);
+  await page.getByLabel("Analysis").selectOption({ label: "Demo: stock value by plant" });
   await page.getByLabel("File name pattern").fill(`e2e-${tag}-*.csv`);
   await expect(page.getByLabel("Period end: rule")).toHaveValue("previous_month_end");
   await page.getByLabel("Switched on").uncheck();
@@ -66,6 +67,7 @@ test("a schedule with a missing file says what is missing", async ({ page }) => 
   await signInOk(page);
   await page.goto("/admin/schedules/new");
   await page.getByRole("textbox", { name: /^Name/ }).fill(`Missing ${tag}`);
+  await page.getByLabel("Analysis").selectOption({ label: "Demo: stock value by plant" });
   await page.getByLabel("File name pattern").fill(`nothing-${tag}*.xlsx`);
   await page.getByLabel("Switched on").uncheck();
   await page.getByRole("button", { name: "Save schedule" }).click();

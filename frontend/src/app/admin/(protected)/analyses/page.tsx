@@ -28,7 +28,10 @@ export default async function AnalysesPage() {
                 </h2>
                 <p className="mt-1 text-sm text-muted">{analysis.description}</p>
                 <p className="mt-2 text-sm">
-                  Needs: {analysis.inputs.map((i) => i.dataset_title).join(", ")}
+                  Needs:{" "}
+                  {analysis.inputs
+                    .map((i) => (i.required ? i.dataset_title : `${i.dataset_title} (optional)`))
+                    .join(", ")}
                 </p>
               </div>
               <Link href={`/admin/runs/new?analysis=${analysis.key}`} className="btn-primary">

@@ -44,7 +44,14 @@ export interface AnalysisInfo {
   parameters_schema: {
     properties?: Record<
       string,
-      { title?: string; description?: string; type?: string; format?: string; enum?: string[] }
+      {
+        title?: string;
+        description?: string;
+        type?: string;
+        format?: string;
+        enum?: string[];
+        default?: unknown;
+      }
     >;
     required?: string[];
   };

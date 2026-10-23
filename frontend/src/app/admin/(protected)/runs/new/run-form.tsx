@@ -24,7 +24,14 @@ export function RunForm({ analysis, files }: { analysis: AnalysisInfo; files: Da
   const router = useRouter();
   const properties = analysis.parameters_schema.properties ?? {};
   const [label, setLabel] = useState("");
-  const [params, setParams] = useState<Record<string, string>>({});
+  // Start from the defaults the analysis declares (e.g. the WBS element).
+  const [params, setParams] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      Object.entries(properties)
+        .filter(([, prop]) => typeof prop.default === "string" || typeof prop.default === "number")
+        .map(([name, prop]) => [name, String(prop.default)]),
+    ),
+  );
   const [choices, setChoices] = useState<Record<string, Choice>>(() =>
     Object.fromEntries(analysis.inputs.map((i) => [i.key, suggest(files, i.dataset)])),
   );

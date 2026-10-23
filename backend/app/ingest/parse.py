@@ -192,6 +192,7 @@ def parse_file(path: Path, out_dir: Path, progress: Progress | None = None) -> l
         workbook = CalamineWorkbook.from_path(str(path))
     except Exception as error:  # calamine raises several error types
         raise ParseError(f"The workbook cannot be opened: {error}") from None
+    skipped: list[str] = []
     for position, name in enumerate(workbook.sheet_names, start=1):
         if progress:
             progress(f"Reading sheet {name!r}")
@@ -200,11 +201,14 @@ def parse_file(path: Path, out_dir: Path, progress: Progress | None = None) -> l
                 name, _excel_rows(workbook, name), out_dir, f"sheet-{position}.parquet"
             )
         except ParseError as error:
-            raise ParseError(f"Sheet {name!r}: {error}") from None
+            # Workbooks often hold sheets without a table (notes, summaries, charts):
+            # those are left out; the file fails only if no sheet has a table.
+            skipped.append(f"sheet {name!r}: {error}")
+            continue
         if info:
             sheets.append(info)
     if not sheets:
-        raise ParseError("The file has no data.")
+        raise ParseError("; ".join(skipped) if skipped else "The file has no data.")
     return sheets
 
 
