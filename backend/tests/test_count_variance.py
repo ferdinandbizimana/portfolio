@@ -18,7 +18,7 @@ from app.reporting.documents import Templates
 from app.reporting.guard import check_report
 
 PRG, OWN = "RMS-PRG-FND-CP", "RMS-OWN-ESE-RM"
-PENDING = "Not Justified – Pending"  # noqa: RUF001 (as in the SAP file)
+PENDING = "Not Justified – Pending"
 
 # Fake variance lines (invented plants, materials and amounts). Variance = - amount.
 LINES = pd.DataFrame(

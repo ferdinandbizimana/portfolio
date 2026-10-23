@@ -196,14 +196,20 @@ export function ScheduleForm({
                 onChange={(e) => update({ pattern: e.target.value })}
               />
             </Field>
-            <Field label="Sheet" hint="Leave empty to use the sheet recognised as this dataset.">
-              <input
-                className="input"
-                maxLength={100}
-                value={rule.sheet}
-                onChange={(e) => update({ sheet: e.target.value })}
-              />
-            </Field>
+            {input.all_sheets ? (
+              <p className="text-xs text-muted">
+                Every sheet of the file recognised as this dataset is used.
+              </p>
+            ) : (
+              <Field label="Sheet" hint="Leave empty to use the sheet recognised as this dataset.">
+                <input
+                  className="input"
+                  maxLength={100}
+                  value={rule.sheet}
+                  onChange={(e) => update({ sheet: e.target.value })}
+                />
+              </Field>
+            )}
           </fieldset>
         );
       })}

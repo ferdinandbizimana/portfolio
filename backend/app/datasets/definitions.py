@@ -157,6 +157,68 @@ RBC_MATERIAL_CATEGORIES = register(
     )
 )
 
+CLOSING_VS_COUNTED = register(
+    DatasetSpec(
+        key="closing_vs_counted",
+        title="Closing vs counted stock (reconciliation)",
+        description=(
+            'Sheet "Closing vs Counted branches" of the year-end stock reconciliation: '
+            "closing stock posted in Finance and counted stock per plant and material, with "
+            "the reason for each difference."
+        ),
+        columns=(
+            ColumnSpec("ValA", "text", description="Plant (valuation area)"),
+            ColumnSpec("Material", "text"),
+            ColumnSpec("Sum of Closing Stock Posted In Finance", "number"),
+            ColumnSpec("Sum of Closing Value Posted In Finance", "number", description="RWF"),
+            ColumnSpec("Counted Quantities", "number"),
+            ColumnSpec("Counted Value", "number", description="RWF"),
+            ColumnSpec("Diff Between Counted Value and Closing Value", "number"),
+            ColumnSpec("Reasons for differences where Applicable", "text"),
+            ColumnSpec("ID", "text", required=False),
+            ColumnSpec("Description", "text", required=False),
+            ColumnSpec("Unit cost", "number", required=False),
+        ),
+        sheet_hints=("Closing vs Counted branches",),
+    )
+)
+
+WEEKLY_STOCK_MONITORING = register(
+    DatasetSpec(
+        key="weekly_stock_monitoring",
+        title="Weekly stock monitoring (programme sheet)",
+        description=(
+            "A programme sheet of the compiled weekly report on stock monitoring: stock at "
+            "the RMS central warehouse, branches and SDPs, and the average monthly "
+            "consumption (AMC). Column names differ a little between sheets; each spelling "
+            "is listed."
+        ),
+        columns=(
+            ColumnSpec("Product code", "text", aliases=("CODE",)),
+            ColumnSpec("Product description", "text"),
+            ColumnSpec("RMS central warehouse", "text", aliases=("RMS HQ",)),
+            ColumnSpec("RMS Branches", "text"),
+            ColumnSpec("SDPs", "text"),
+            ColumnSpec(
+                "AMC",
+                "text",
+                aliases=("Average Monthly consumption", "Average Monthly distribution"),
+            ),
+            # On the LAB sheet "Product Code" is the platform and "code" the product code.
+            ColumnSpec("code", "text", required=False),
+            ColumnSpec("Unit of measure (Pack Size)", "text", required=False),
+            ColumnSpec("Total", "text", required=False),
+            ColumnSpec(
+                "MOS at National Level",
+                "text",
+                required=False,
+                aliases=("MoS AT NATIONAL LEVEL", "MOS atNational Level"),
+            ),
+            ColumnSpec("ALERT", "text", required=False, aliases=("ALERT AT NATIONAL LEVEL",)),
+        ),
+    )
+)
+
 GL_VARIANCE_LINES = register(
     DatasetSpec(
         key="gl_variance_lines",
@@ -230,23 +292,32 @@ def _recognised(key: str, title: str, description: str, columns: tuple[str, ...]
     )
 
 
-ZSTOCKREPORT = _recognised(
-    "zstockreport",
-    "ZSTOCKREPORT stock on hand",
-    "Stock on hand by plant, storage location, batch and WBS, with expiry date and unit cost.",
-    (
-        "Material",
-        "NPC CODE",
-        "Plant",
-        "Storage Location",
-        "Unrestricted",
-        "Quality Inspection",
-        "Blocked",
-        "Batch",
-        "Expiry Date",
-        "WBS Element",
-        "Unit Cost",
-    ),
+ZSTOCKREPORT = register(
+    DatasetSpec(
+        key="zstockreport",
+        title="ZSTOCKREPORT stock on hand",
+        description=(
+            "Stock on hand by plant, storage location, batch and WBS, with expiry date, "
+            "unit cost and the national product code (NPC CODE)."
+        ),
+        columns=(
+            ColumnSpec("Material", "text"),
+            ColumnSpec("NPC CODE", "text"),
+            ColumnSpec("Plant", "text"),
+            ColumnSpec("Unrestricted", "number"),
+            ColumnSpec("Quality Inspection", "number"),
+            ColumnSpec("Blocked", "number"),
+            ColumnSpec("WBS Element", "text"),
+            ColumnSpec("Unit Cost", "number", description="RWF"),
+            ColumnSpec("Material Description", "text", required=False),
+            ColumnSpec("Storage Location", "text", required=False),
+            ColumnSpec("Batch", "text", required=False),
+            ColumnSpec("Expiry Date", "text", required=False),
+            ColumnSpec("Base Unit of Measure", "text", required=False),
+            ColumnSpec("Material Type", "text", required=False),
+            ColumnSpec("Material Group", "text", required=False),
+        ),
+    )
 )
 MB5T_STOCK_IN_TRANSIT = _recognised(
     "mb5t_stock_in_transit",

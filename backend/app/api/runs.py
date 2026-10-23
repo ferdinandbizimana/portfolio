@@ -33,6 +33,7 @@ class InputOut(BaseModel):
     dataset: str
     dataset_title: str
     required: bool
+    all_sheets: bool = False
 
 
 class AnalysisOut(BaseModel):
@@ -69,6 +70,7 @@ def list_analyses(_: CurrentUserDep) -> list[AnalysisOut]:
                     dataset=i.dataset,
                     dataset_title=datasets.get(i.dataset).title,
                     required=i.required,
+                    all_sheets=i.all_sheets,
                 )
                 for i in a.inputs
             ],

@@ -40,6 +40,8 @@ export interface AnalysisInfo {
     dataset: string;
     dataset_title: string;
     required: boolean;
+    /** The input takes every sheet of the file recognised as the dataset. */
+    all_sheets: boolean;
   }[];
   parameters_schema: {
     properties?: Record<

@@ -25,6 +25,7 @@ from app.analyses.base import Analysis
 from app.analyses.registry import get_analysis
 from app.core import audit
 from app.core.config import Settings
+from app.datasets import ALL_SHEETS, recognised_sheets
 from app.datasources.folder import ScanResult, scan_folder
 from app.db.models import AnalysisRun, DataFile, Schedule
 from app.runs import enqueue, resolve_inputs
@@ -96,6 +97,11 @@ def pick_files(
         found = None
         for data_file in recent:
             if not _matches(pattern, data_file):
+                continue
+            if spec.all_sheets:
+                if recognised_sheets(data_file.sheets, spec.dataset):
+                    found = (data_file.id, ALL_SHEETS)
+                    break
                 continue
             for sheet in data_file.sheets:
                 if wanted_sheet:

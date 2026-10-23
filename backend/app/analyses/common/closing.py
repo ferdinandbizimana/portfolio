@@ -9,6 +9,10 @@ the legacy script `w5` (docs/legacy-analysis.md, section 3):
 - the expired stock scrapped at Finance level (MB51 lines, negative) is
   deducted on the WBS shown on each scrapping line, never moved to another WBS;
 - final closing = closing + scrapped.
+- An MB51 file holds every goods movement; only the scrapping movement types
+  are kept (551 GI scrapping project and 555 GI scrapping from blocked project
+  stock, the types in the "Scrapped at Fin" sheet of the June 2026
+  reconciliation).
 
 Material numbers lose their leading zeros and plant codes are trimmed, so the
 same item from both files is matched.
@@ -19,6 +23,13 @@ from dataclasses import dataclass
 import pandas as pd
 
 NO_WBS = "No WBS in GL"
+SCRAPPING_MOVEMENT_TYPES = "551, 555"
+
+
+def movement_types(text: str) -> set[str]:
+    """ "551, 555" -> {"551", "555"}."""
+    return {part.strip() for part in text.replace(";", ",").split(",") if part.strip()}
+
 
 KEYS = ["Plant", "Material", "WBS"]
 
@@ -48,6 +59,7 @@ class ClosingStock:
     gl_value_used: float
     scrap_lines: pd.DataFrame  # the scrapping lines, with normalised keys
     scrap_value: float
+    scrap_lines_left_out: int = 0  # MB51 lines of other movement types
 
 
 def _description(frame: pd.DataFrame, column: str) -> pd.DataFrame:
@@ -61,7 +73,9 @@ def _description(frame: pd.DataFrame, column: str) -> pd.DataFrame:
     )
 
 
-def final_closing(gl: pd.DataFrame, scrap: pd.DataFrame) -> ClosingStock:
+def final_closing(
+    gl: pd.DataFrame, scrap: pd.DataFrame, scrap_types: set[str] | None = None
+) -> ClosingStock:
     """Closing, scrapped and final quantity and value per plant, material and WBS.
 
     `gl` has the columns of the dataset gl_stock_lines, `scrap` those of
@@ -82,6 +96,10 @@ def final_closing(gl: pd.DataFrame, scrap: pd.DataFrame) -> ClosingStock:
         .reset_index()
     )
 
+    types = scrap["Movement Type"].astype("string").str.strip().fillna("")
+    kept = types.isin(scrap_types) if scrap_types else pd.Series(True, index=scrap.index)
+    left_out = int((~kept).sum())
+    scrap = scrap[kept.to_numpy()]
     scrap = scrap.assign(
         Plant=plant_code(scrap["Plant"]),
         Material=material_code(scrap["Material"]),
@@ -119,6 +137,7 @@ def final_closing(gl: pd.DataFrame, scrap: pd.DataFrame) -> ClosingStock:
         gl_value_used=float(used["Value"].sum()),
         scrap_lines=scrap,
         scrap_value=float(scrap["Value"].sum()),
+        scrap_lines_left_out=left_out,
     )
 
 

@@ -17,7 +17,15 @@ import pandas as pd
 from pydantic import BaseModel, Field
 
 from app.analyses.base import Analysis, AnalysisResult, Check, InputSpec
-from app.analyses.common.closing import NO_WBS, final_closing, plant_names
+from app.analyses.common.closing import (
+    NO_WBS,
+    SCRAPPING_MOVEMENT_TYPES,
+    final_closing,
+    material_code,
+    movement_types,
+    plant_code,
+    plant_names,
+)
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
 from app.reporting.documents import (
     ChartBlock,
@@ -50,6 +58,11 @@ HALF = 0.5
 class Parameters(BaseModel):
     period_end: date = Field(
         title="Period end", description="Date of the closing stock, e.g. 30 June 2026."
+    )
+    scrapping_movement_types: str = Field(
+        default=SCRAPPING_MOVEMENT_TYPES,
+        title="Scrapping movement types",
+        description="MB51 movement types counted as expired stock scrapped (comma-separated).",
     )
 
 
@@ -160,6 +173,66 @@ def item_table(by_wbs: pd.DataFrame, names: dict[str, str]) -> pd.DataFrame:
     return items.sort_values(["Plant", "Material"], kind="mergesort").reset_index(drop=True)
 
 
+def add_counted(
+    items: pd.DataFrame, counted: pd.DataFrame
+) -> tuple[pd.DataFrame, dict[str, float]]:
+    """Counted stock per item, without the expired stock scrapped (legacy w5 rules 8 and 9).
+
+    When an item had expired stock scrapped and its counted quantity covers the
+    scrapped quantity, the scrapped quantity and value are also taken off the
+    counted stock. Difference after scrapping = counted value excluding expired
+    - final closing value.
+    """
+    count = pd.DataFrame(
+        {
+            "Plant": plant_code(counted["ValA"]).astype(str),
+            "Material": material_code(counted["Material"]).astype(str),
+            "Counted Qty": counted["Counted Quantities"].astype(float).fillna(0.0),
+            "Counted Value": counted["Counted Value"].astype(float).fillna(0.0),
+            "Count Reason": counted["Reasons for differences where Applicable"]
+            .astype("string")
+            .fillna("")
+            .astype(str),
+        }
+    )
+    count = (
+        count.groupby(["Plant", "Material"], sort=True)
+        .agg(
+            **{
+                "Counted Qty": ("Counted Qty", "sum"),
+                "Counted Value": ("Counted Value", "sum"),
+                "Count Reason": ("Count Reason", "first"),
+            }
+        )
+        .reset_index()
+    )
+    merged = items.merge(count, on=["Plant", "Material"], how="left")
+    found = merged["Counted Value"].notna()
+    merged[["Counted Qty", "Counted Value"]] = merged[["Counted Qty", "Counted Value"]].fillna(0.0)
+    merged["Count Reason"] = merged["Count Reason"].fillna("")
+    scrapped = merged["Scrapped Qty"] != 0
+    covers = merged["Counted Qty"] >= merged["Scrapped Qty"].abs()
+    remove = scrapped & covers
+    merged["Counted Qty excl. Expired"] = merged["Counted Qty"].where(
+        ~remove, merged["Counted Qty"] + merged["Scrapped Qty"]
+    )
+    merged["Counted Value excl. Expired"] = merged["Counted Value"].where(
+        ~remove, merged["Counted Value"] + merged["Scrapped Value"]
+    )
+    merged["Difference after Scrapping"] = (
+        merged["Counted Value excl. Expired"] - merged["Final Value"]
+    )
+    summary = {
+        "counted": float(merged["Counted Value"].sum()),
+        "counted_excl": float(merged["Counted Value excl. Expired"].sum()),
+        "removed": float(merged.loc[remove, "Scrapped Value"].sum()),
+        "difference": float(merged["Difference after Scrapping"].sum()),
+        "items_not_counted": float((~found).sum()),
+        "counted_total_in_file": float(count["Counted Value"].sum()),
+    }
+    return merged, summary
+
+
 class ClosingStockByWbs(Analysis):
     key = "closing_stock_wbs"
     title = "Closing stock by WBS"
@@ -174,16 +247,27 @@ class ClosingStockByWbs(Analysis):
         InputSpec("gl_lines", "gl_stock_lines", "G/L line items of the stock accounts"),
         InputSpec("scrapping", "mb51_material_documents", "Expired stock scrapped (MB51 lines)"),
         InputSpec("plants", "ox10_plants", "Plant names (OX10)", required=False),
+        InputSpec(
+            "counted",
+            "closing_vs_counted",
+            'Counted stock ("Closing vs Counted branches"), to compare',
+            required=False,
+        ),
     )
     Parameters = Parameters
 
     def compute(self, data: dict[str, pd.DataFrame], params: BaseModel) -> AnalysisResult:
         params = _params(params)
         names = plant_names(data.get("plants"))
-        stock = final_closing(data["gl_lines"], data["scrapping"])
+        stock = final_closing(
+            data["gl_lines"], data["scrapping"], movement_types(params.scrapping_movement_types)
+        )
         by_wbs = stock.lines.copy()
         by_wbs.insert(1, "Plant Name", by_wbs["Plant"].map(names).fillna(""))
         items = item_table(stock.lines, names)
+        counted_summary: dict[str, float] = {}
+        if "counted" in data:
+            items, counted_summary = add_counted(items, data["counted"])
 
         closing_value = float(by_wbs["Closing Value"].sum())
         scrapped_value = float(by_wbs["Scrapped Value"].sum())
@@ -293,6 +377,7 @@ class ClosingStockByWbs(Analysis):
                     "Scrapped items with no closing balance",
                     int((items["In closing stock"] == "No").sum()),
                 ],
+                ["MB51 lines of other movement types (left out)", stock.scrap_lines_left_out],
                 ["G/L lines used", stock.gl_lines_used],
                 ["G/L lines without a material (left out)", stock.gl_lines_without_material],
             ],
@@ -343,6 +428,15 @@ class ClosingStockByWbs(Analysis):
             ),
         ]
 
+        if counted_summary:
+            checks.append(
+                Check(
+                    "counted_excluding_expired",
+                    "Counted value excluding expired = counted value + scrapped value taken off",
+                    expected=counted_summary["counted"] + counted_summary["removed"],
+                    actual=counted_summary["counted_excl"],
+                )
+            )
         to_check = int(items["Flag"].isin([FLAG_NEGATIVE, FLAG_WBS]).sum())
         kpis = [
             Kpi(label="Final closing stock", value=final_value, format="money", unit="RWF"),
@@ -351,6 +445,21 @@ class ClosingStockByWbs(Analysis):
             Kpi(label="Items", value=len(items), format="integer"),
             Kpi(label="Items to check", value=to_check, format="integer"),
         ]
+        if counted_summary:
+            kpis += [
+                Kpi(
+                    label="Counted value excl. expired",
+                    value=counted_summary["counted_excl"],
+                    format="money",
+                    unit="RWF",
+                ),
+                Kpi(
+                    label="Difference after scrapping",
+                    value=counted_summary["difference"],
+                    format="money",
+                    unit="RWF",
+                ),
+            ]
         subtitle = f"Closing stock at {params.period_end:%d %B %Y} · RWF"
         notes = []
         if other_wbs and set(other_wbs) != {NO_WBS}:
@@ -488,6 +597,11 @@ class ClosingStockByWbs(Analysis):
             "Closing Value": "money",
             "Scrapped Value": "money",
             "Final Value": "money",
+            "Counted Qty": "number",
+            "Counted Value": "money",
+            "Counted Qty excl. Expired": "number",
+            "Counted Value excl. Expired": "money",
+            "Difference after Scrapping": "money",
             OWN: "money",
             PROGRAMS: "money",
             OTHER: "money",

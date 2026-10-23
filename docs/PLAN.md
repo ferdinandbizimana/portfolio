@@ -1,13 +1,16 @@
 # Build plan
 
-Status: **Phase 5 (first analyses) — part 2 in review**: physical inventory
-variance investigation (with its dashboard), RBC opening on RMS-PRG-FND-CP only.
-Part 1 (SAP export definitions, closing stock by WBS, RBC accountability) is
-merged, as are Phases 0–4, 6, 8 and the Phase 9 tooling. Next: stock
-sufficiency against AMC (Q3 answered). Ferdinand asked (2026-10-21) to
-continue through all phases without stopping; each phase gets its own pull
-request, merged once CI is green. Still needs something from you: Q1, Q4–Q10
-below, Phase 7 choice (Q6), and a server and domain (G2).
+Status: **Phase 5 (first analyses) — part 3 in review**: stock count
+reconciliation (closing vs counted), stock sufficiency against AMC, MB51
+scrapping filter by movement type, counted stock in the closing analysis,
+inputs that take every sheet of a workbook. Parts 1 and 2 are merged, as are
+Phases 0–4, 6, 8 and the Phase 9 tooling. Next: Phase 7 with your rules of
+2026-10-23 (order fill rate, expiry risk, stock in transit, purchase order
+follow-up, warehouse activity). Ferdinand asked (2026-10-21) to continue
+through all phases without stopping; each phase gets its own pull request,
+merged once CI is green. Still needs something from you: Q1, Q7–Q12 below
+and a server and domain (G2). After going live: fillable copies of the
+templates you shared (2026-10-23).
 
 ---
 
@@ -154,7 +157,8 @@ compares totals line by line.
       recognised on upload by its exact headers (`docs/sap-exports.md`)
 - [x] Final closing stock by WBS (w5): G/L line items − expired stock scrapped
       on its own WBS; WBS split, main WBS, flags, checks, dashboard, reports.
-      The comparison with counted stock (w5 rules 8–9) waits for Q4.
+      With the "Closing vs Counted branches" sheet as an optional input it
+      also compares counted stock with the final closing (w5 rules 8–9).
 - [x] RBC accountability report (w6): opening, closing, difference only;
       laid out like your June 2026 report (version 6); its "CPDS Report" sheet
       is next quarter's opening. Local check on your files: opening by
@@ -166,8 +170,16 @@ compares totals line by line.
       earnings; dashboard and reports. Local check on your files: every figure
       of the narrative report's tables 1, 2, 5 and 6 and the retained-earnings
       finding is reproduced to the franc.
-- [ ] Stock sufficiency against AMC (w6) — next (Q3 answered)
-- [ ] Stock count reconciliation (w2 / w3 / w4) — Q4
+- [x] Stock sufficiency against AMC (w6): every programme sheet of the weekly
+      report, months of stock at RMS and nationally, status, value above the
+      maximum level, programme stock without AMC. Local check on your files:
+      every product count, status count, value, monthly consumption value and
+      value above max of your June report's AMC Summary is reproduced exactly,
+      and the "No AMC – Monitor" list has the same 884 materials.
+- [x] Stock count reconciliation (w3, Q4): closing vs counted stock, causes
+      and themes from the reasons, sites, integrity flags, offsetting
+      materials, recount effect. Local check on your June 2026 workbook: same
+      variance lines, causes and flags as the legacy output, all checks pass.
 - [ ] Parity confirmed by you on real files (closing stock needs the G/L export, Q1)
 
 ### Phase 6 — Publishing
@@ -178,11 +190,17 @@ compares totals line by line.
 - [x] Tests proving public endpoints cannot reach uploads, runs or unpublished snapshots
 
 ### Phase 7 — More analyses
-Rules and fake-safe samples from you for each:
-- [ ] Order fill rate
-- [ ] Physical inventory
-- [ ] Procurement and tender analytics
-- [ ] Inventory performance
+Rules from you (2026-10-23, Q6); headers from the exports you sent:
+- [ ] Order fill rate: VA05 sales orders, outbound deliveries, OX10
+- [ ] Expiry risk: ZSTOCKREPORT expiry dates with the AMC
+- [ ] Stock in transit: MB5T, and in MB51 the STO goods issue (movement type
+      641) matched to the goods receipt (101) by purchase order and outbound
+      delivery reference: time in transit
+- [ ] Purchase order follow-up: ME2N and inbound deliveries; delivery period
+      (PO creation date to goods receipt) and delivered in full (ordered vs
+      delivered quantity and value)
+- [ ] Warehouse activity: EWM "All Movement for Products"; dock to stock
+      (goods receipt to putaway) and picking (stock removal) to goods issue
 
 ### Phase 8 — SAP connection
 - [x] Shared folder pickup: new exports in the shared folder are taken once they stop changing, copied into storage (the folder is only read) and read like uploads; a file is taken again only when its content changes
@@ -196,6 +214,9 @@ Rules and fake-safe samples from you for each:
 - [x] Nightly encrypted off-site backups (restic: database + stored files, 7 daily / 4 weekly / 12 monthly, sample check each night); restore tested automatically in CI (`scripts/test-backup-restore.sh`)
 - [x] Monitoring: Admin → Overview shows worker, scheduler, last backup and disk space; `/api/health` for an outside uptime check; optional backup ping (healthchecks.io); error log commands
 - [x] `docs/deploy.md` (server, domain, first start, backups, monitoring) and `docs/operations.md` (update, back up, restore, change passwords and keys); `scripts/update.sh`
+- [ ] After going live: clean, fillable copies of the templates you shared
+      (spot check, OX10, PI document, VA05 and the other export templates),
+      with headers, formats and instructions, for you to fill in.
 - [ ] The actual server and domain. **Waiting for you** (G2): choose a provider and a domain, then follow `docs/deploy.md` (about an hour). I can guide you step by step.
 
 ## 4. Decisions
@@ -225,6 +246,11 @@ Rules and fake-safe samples from you for each:
 | 2026-10-23 | Q3 answered: weekly-report product codes are linked to SAP materials through ZSTOCKREPORT column `NPC CODE`; when no code matches, through the description. |
 | 2026-10-23 | Variance investigation rules (narrative report, Variance Management SOP): stock variance = minus the amount on the difference account; positive and negative never offset; status Justified (any capitals) or Not Justified; inventory variance = Σ|Not Justified variance| ÷ final closing stock, accuracy = 100% − variance, tolerance 0.5% (a parameter). Retained earnings = lines with an "AMOUNT MOVED TO RETAINED EARNINGS" value (zero included), variance = minus that amount. Plant names as in the file (7000 = RMS-Kigali, as in OX10). |
 | 2026-10-23 | When several datasets fit a sheet, the most specific one (most required columns) is proposed first; absent optional columns keep their type. |
+| 2026-10-23 | Q4 answered: stock count reconciliation uses "Closing vs Counted branches" (closing posted in Finance vs counted). Cause list, themes, sites and thresholds as in the legacy `w3` script (S1–S3 kept as they were). |
+| 2026-10-23 | Q5 answered: MB51 holds every goods movement. Only scrapping movement types count as expired stock scrapped: 551 and 555 by default (the types in your June reconciliation's "Scrapped at Fin" sheet), a parameter of the closing and RBC analyses. |
+| 2026-10-23 | Stock sufficiency (AMC): every sheet of the weekly report recognised as a programme sheet is read; the header row is the one with the most labels among the first 30 rows; a sheet stops at its next block ("STOCK STATUS …"). Status on national months of stock; min / max 6 / 12, MCCH 9 / 14; stock-out risk below 3. Value on the WBS from the final closing stock when given (as in your RBC report), otherwise ZSTOCKREPORT quantity × unit cost. A material reached from two products is valued once, under the first (A4). Materials without AMC are listed when their quantity is above zero and their value is at least RWF 0.5 (as your June list). |
+| 2026-10-23 | Q6 answered: Phase 7 analyses and rules (see Phase 7). |
+| 2026-10-23 | After going live, you receive fillable, well-formatted copies of the templates you shared. |
 | 2026-10-21 | Word templates: the report goes where the template has a paragraph `{{p body }}`; `{{ title }}`, `{{ subtitle }}`, `{{ report_date }}` may be used anywhere. PowerPoint uses the layouts "Title Slide", "Title and Content", "Title Only". |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
@@ -261,17 +287,8 @@ Answers will be recorded in section 4 (Decisions).
   to the period end? Could you upload one (any period) so I can check parity?
 - Q2: answered (see Decisions).
 - Q3: answered (see Decisions).
-- Q4. Stock count reconciliation: base it on the EWM physical inventory
-  documents you sent (book, counted, difference, reason per bin), or on the
-  reconciliation workbook "Closing vs Counted branches" (headers still
-  needed)? Your "Physical Inventory Count Findings" workbook looks like the
-  newer version of this analysis: should the app produce that one?
-- Q5. MB51 scrapping list: does it contain only scrapping lines, or should the
-  app keep only some movement types (which)?
-- Q6. Phase 7: which analysis next? With the files you sent, possible ones:
-  order fill rate (VA05 + outbound deliveries), expiry risk (ZSTOCKREPORT),
-  stock in transit (MB5T), purchase order follow-up (ME2N + inbound
-  deliveries), warehouse activity (EWM tasks). For each, the rules you use.
+- Q4, Q5, Q6: answered (see Decisions). Your Q5 message was cut off after
+  "…to Distribution so the"; if it said more, please send the rest.
 
 - Q7. RBC: an item new on RMS-PRG-FND-CP takes its programme from the
   previous report's lines on other WBS (as your June report did, "March MB5B
@@ -288,6 +305,15 @@ Answers will be recorded in section 4 (Decisions).
   RULINDO, which have Not Justified lines but almost no closing stock (their
   percentage is meaningless). The app lists them; should it leave out plants
   whose closing stock is below their Not Justified variance?
+
+- Q11. MB51 reversals of scrapping (movement types 552 and 556): should they
+  count too (they cancel a scrapping)? They are left out for now; add them in
+  the run's "scrapping movement types" field to include them.
+- Q12. AMC projections: your June report also shows pipeline quantities,
+  "falls below 3 MOS" and "projected stock-out" months. Which file gives the
+  pipeline (expected deliveries by month)? The ZSTOCKREPORT you sent has
+  headers only, so the NPC CODE link was checked with the links in your June
+  report; please check one run with a full ZSTOCKREPORT.
 
 **Stock count reconciliation**
 - S1. Use the `w3` cause list (14 causes, 6 themes, 5 sites)? Should the keyword
@@ -359,6 +385,7 @@ Answers will be recorded in section 4 (Decisions).
 | 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 | 2026-10-23 | Phase 5 part 1: SAP export definitions (13 exports), closing stock by WBS, RBC accountability report; workbook sheets without a table are skipped. Verified: 139 backend tests (hand-checked closing and RBC figures, report wording, next-quarter round trip), 27 frontend unit tests, 42 browser tests incl. an RBC run; your real files load without errors; RBC opening by programme equals your June report. | Q1–Q6. |
+| 2026-10-23 | Phase 5 part 3: stock count reconciliation, stock sufficiency against AMC, MB51 movement-type filter, counted stock vs final closing, all-sheet inputs, better header detection. Verified: 191 backend tests, 27 frontend unit tests, 48 browser tests (desktop + mobile) incl. reconciliation and AMC runs; your June figures reproduced (AMC Summary, No-AMC list, reconciliation causes). | Phase 7 (your rules); Q1, Q7–Q12. |
 | 2026-10-23 | Phase 5 part 2: physical inventory variance investigation (dashboard, Excel, Word, PowerPoint), RBC opening on RMS-PRG-FND-CP only, typed absent columns, most specific dataset first. Verified: 152 backend tests, 44 browser tests (desktop + mobile) incl. a variance run; your real files reproduce the narrative report's tables 1, 2, 5, 6 and the retained-earnings finding exactly. | AMC next; Q1, Q4–Q10. |
 
 Known gaps after Phase 1:
