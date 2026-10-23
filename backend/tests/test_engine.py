@@ -247,7 +247,12 @@ def test_data_endpoints_require_login(client: TestClient) -> None:
 
 def test_analyses_are_listed_with_their_inputs(logged_in: TestClient) -> None:
     analyses = {a["key"]: a for a in logged_in.get("/api/admin/analyses").json()}
-    assert set(analyses) == {"demo_stock_summary", "closing_stock_wbs", "rbc_accountability"}
+    assert set(analyses) == {
+        "demo_stock_summary",
+        "closing_stock_wbs",
+        "rbc_accountability",
+        "count_variance",
+    }
     demo = analyses["demo_stock_summary"]
     assert demo["inputs"][0]["dataset"] == "demo_stock_balance"
     assert "period_end" in demo["parameters_schema"]["properties"]

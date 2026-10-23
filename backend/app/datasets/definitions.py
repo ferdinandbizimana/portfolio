@@ -139,6 +139,82 @@ RBC_ITEM_CATEGORIES = register(
 )
 
 
+RBC_MATERIAL_CATEGORIES = register(
+    DatasetSpec(
+        key="rbc_material_categories",
+        title="RBC report lines with programme (category)",
+        description=(
+            "Any data sheet of an RBC report that gives the programme (category) of each "
+            'material on each plant and WBS, e.g. "CPDS Report" or the quarter\'s data sheet.'
+        ),
+        columns=(
+            ColumnSpec("Valuation Area", "text", description="Plant"),
+            ColumnSpec("Material", "text"),
+            ColumnSpec("WBS", "text"),
+            ColumnSpec("Category", "text"),
+        ),
+        sheet_hints=("CPDS Report", "Data"),
+    )
+)
+
+GL_VARIANCE_LINES = register(
+    DatasetSpec(
+        key="gl_variance_lines",
+        title="Count variance lines (G/L, with investigation)",
+        description=(
+            "G/L line items of the stock adjustments posted after a physical count "
+            "(inventory difference accounts), with the investigation columns ACTION, "
+            "REASON and Final Validation Status."
+        ),
+        columns=(
+            ColumnSpec("Plant", "text"),
+            ColumnSpec("Material", "text"),
+            ColumnSpec("Amount in Local Currency", "number", description="RWF"),
+            ColumnSpec("Final Validation Status", "text"),
+            ColumnSpec("WBS Element", "text"),
+            # Header as exported uses a minus sign; matching ignores punctuation.
+            ColumnSpec("Stock Variance (RWF): + excess / - missing", "number", required=False),
+            ColumnSpec("Material Description", "text", required=False),
+            ColumnSpec("Plant Description", "text", required=False),
+            ColumnSpec("Quantity", "number", required=False),
+            ColumnSpec("Document Number", "text", required=False),
+            ColumnSpec("Posting Date", "text", required=False),
+            ColumnSpec("G/L Account", "text", required=False),
+            ColumnSpec("ACTION", "text", required=False),
+            ColumnSpec("REASON", "text", required=False),
+            ColumnSpec("AMOUNT MOVED TO RETAINED EARNINGS", "number", required=False),
+            # Added when the lines are grouped by hand (as in the count findings report).
+            ColumnSpec("Root cause", "text", required=False),
+            ColumnSpec("Action category", "text", required=False),
+        ),
+        sheet_hints=("sheet to use", "Variance Lines"),
+    )
+)
+
+FINAL_CLOSING_BY_WBS = register(
+    DatasetSpec(
+        key="final_closing_by_wbs",
+        title="Final closing stock per item and WBS",
+        description=(
+            "Final closing stock (after expired stock scrapped) per plant, material and "
+            'WBS: sheet "Closing by ID and WBS" of the closing-stock-by-WBS workbook made '
+            'by this application, or sheet "Item Detail by WBS" of the physical '
+            "inventory count findings workbook."
+        ),
+        columns=(
+            ColumnSpec("Plant", "text"),
+            ColumnSpec("Material", "text"),
+            ColumnSpec("WBS", "text", aliases=("WBS element",)),
+            ColumnSpec("Final Value", "number", aliases=("Final closing value",)),
+            ColumnSpec("Final Qty", "number", required=False, aliases=("Final closing qty",)),
+            ColumnSpec("Plant Name", "text", required=False),
+            ColumnSpec("Material Description", "text", required=False),
+        ),
+        sheet_hints=("Closing by ID and WBS", "Item Detail by WBS"),
+    )
+)
+
+
 # --- Other SAP exports: recognised on upload, used by later analyses -------------
 # Only a few distinctive columns are listed; all headers are in docs/sap-exports.md.
 

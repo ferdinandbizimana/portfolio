@@ -115,6 +115,7 @@ class Match:
     title: str
     missing: list[str]
     score: float
+    required: int = 0  # number of required columns, all found
 
 
 def match_sheet(headers: list[str], sheet_name: str) -> list[Match]:
@@ -129,8 +130,9 @@ def match_sheet(headers: list[str], sheet_name: str) -> list[Match]:
         score = len(found) / max(len(spec.columns), 1)
         if normalise_header(sheet_name) in {normalise_header(h) for h in spec.sheet_hints}:
             score += 1
-        matches.append(Match(spec.key, spec.title, missing, score))
-    return sorted(matches, key=lambda m: (-m.score, m.dataset))
+        matches.append(Match(spec.key, spec.title, missing, score, len(required)))
+    # The most specific dataset first: the one that needs the most of these columns.
+    return sorted(matches, key=lambda m: (-m.required, -m.score, m.dataset))
 
 
 def source_columns(spec: DatasetSpec, headers: list[str]) -> list[str]:
@@ -167,7 +169,7 @@ def coerce(spec: DatasetSpec, raw: pd.DataFrame, header_row: int) -> Coerced:
     out: dict[str, pd.Series] = {}
     for column in spec.columns:
         if column.name not in found:
-            out[column.name] = pd.Series([pd.NA] * len(raw), dtype="object")
+            out[column.name] = _empty(column.type, len(raw))
             continue
         values = raw[found[column.name]]
         converted, bad = _convert(values, column.type)
@@ -187,6 +189,17 @@ def coerce(spec: DatasetSpec, raw: pd.DataFrame, header_row: int) -> Coerced:
             )
         out[column.name] = converted
     return Coerced(pd.DataFrame(out).reset_index(drop=True), issues)
+
+
+def _empty(column_type: ColumnType, length: int) -> pd.Series:
+    """An absent optional column, typed like a present one (all values missing)."""
+    if column_type == "number":
+        return pd.Series([float("nan")] * length, dtype="float64")
+    if column_type == "integer":
+        return pd.Series([pd.NA] * length, dtype="Int64")
+    if column_type == "date":
+        return pd.Series([pd.NaT] * length, dtype="datetime64[ns]")
+    return pd.Series([None] * length, dtype="object")
 
 
 def _convert(values: pd.Series, column_type: ColumnType) -> tuple[pd.Series, list[int]]:

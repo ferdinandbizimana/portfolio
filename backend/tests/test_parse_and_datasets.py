@@ -140,3 +140,26 @@ def test_sheets_without_a_table_are_left_out(tmp_path: Path) -> None:
     only_notes.save(path)
     with pytest.raises(ParseError, match="sheet 'Sheet': No header row"):
         parse_file(path, tmp_path / "out2")
+
+
+def test_absent_optional_columns_have_their_type() -> None:
+    spec = datasets.get("gl_variance_lines")
+    raw = pd.DataFrame(
+        {
+            "Plant": ["1000"],
+            "Material": ["1"],
+            "WBS Element": [""],
+            "Amount in Local Currency": ["5"],
+            "Final Validation Status": ["Justified"],
+        }
+    )
+    frame = datasets.coerce(spec, raw, header_row=1).frame
+    assert frame["AMOUNT MOVED TO RETAINED EARNINGS"].dtype == "float64"
+    assert frame["AMOUNT MOVED TO RETAINED EARNINGS"].isna().all()
+    assert frame["ACTION"].tolist() == [None]
+
+
+def test_the_most_specific_dataset_is_listed_first() -> None:
+    headers = ["Valuation Area", "Material", "WBS", "Category", "Closing Stock", "Closing Value"]
+    matches = [m.dataset for m in datasets.match_sheet(headers, "CSV")]
+    assert matches[:2] == ["rbc_previous_report", "rbc_material_categories"]

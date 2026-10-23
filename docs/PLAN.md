@@ -1,15 +1,13 @@
 # Build plan
 
-Status: **Phase 5 (first analyses) — part 1 in review**: SAP export
-definitions, closing stock by WBS, RBC accountability report. Phases 0–4, 6, 8
-and the Phase 9 tooling are merged. Ferdinand asked (2026-10-21) to continue
-through all phases without stopping; each phase gets its own pull request,
-merged once CI is green. What remains needs something from you:
-
-- Phase 5, part 2: answers to Q1–Q6 below (stock sufficiency against AMC,
-  stock count reconciliation, two confirmations on the files).
-- Phase 7 (more analyses): which analysis next and its rules (Q6).
-- Phase 9, the live site: a server and a domain (G2), then `docs/deploy.md`.
+Status: **Phase 5 (first analyses) — part 2 in review**: physical inventory
+variance investigation (with its dashboard), RBC opening on RMS-PRG-FND-CP only.
+Part 1 (SAP export definitions, closing stock by WBS, RBC accountability) is
+merged, as are Phases 0–4, 6, 8 and the Phase 9 tooling. Next: stock
+sufficiency against AMC (Q3 answered). Ferdinand asked (2026-10-21) to
+continue through all phases without stopping; each phase gets its own pull
+request, merged once CI is green. Still needs something from you: Q1, Q4–Q10
+below, Phase 7 choice (Q6), and a server and domain (G2).
 
 ---
 
@@ -161,7 +159,14 @@ compares totals line by line.
       laid out like your June 2026 report (version 6); its "CPDS Report" sheet
       is next quarter's opening. Local check on your files: opening by
       programme equals your June report to the franc.
-- [ ] Stock sufficiency against AMC (w6) — Q3
+- [x] Physical inventory variance investigation (the 30 June 2026 Variance
+      Investigation Report and its Detailed Variance Report): justification by
+      status, plant, root cause and required action; inventory accuracy by
+      stock category, programme and plant (Variance Management SOP); retained
+      earnings; dashboard and reports. Local check on your files: every figure
+      of the narrative report's tables 1, 2, 5 and 6 and the retained-earnings
+      finding is reproduced to the franc.
+- [ ] Stock sufficiency against AMC (w6) — next (Q3 answered)
 - [ ] Stock count reconciliation (w2 / w3 / w4) — Q4
 - [ ] Parity confirmed by you on real files (closing stock needs the G/L export, Q1)
 
@@ -216,6 +221,10 @@ Rules and fake-safe samples from you for each:
 | 2026-10-23 | From your June 2026 RBC report (version 6): line labels are Increase / Reduction / No change (R3); "new" when opening is 0 (R7, shown as "New product: Yes"); programme list and category names as in the report (R5); AMC belongs to the RBC workbook (R6, comes with Q3); closing = reconciled closing stock (R4). |
 | 2026-10-23 | RBC opening = every line of the previous report's "CPDS Report" sheet, whatever its WBS, because your June report counts the March lines on RMS-OWN-ESE-RM (as Cross Cutting) in the opening. To confirm (Q2). |
 | 2026-10-23 | A workbook upload no longer fails because one sheet has no table (notes, summaries): such sheets are skipped. |
+| 2026-10-23 | Q2 answered: the RBC report counts RMS-PRG-FND-CP only; RMS-OWN-ESE-RM lines are not RBC stock and are left out of the opening. (They may still give the programme name of an item that is new on RMS-PRG-FND-CP: Q7.) |
+| 2026-10-23 | Q3 answered: weekly-report product codes are linked to SAP materials through ZSTOCKREPORT column `NPC CODE`; when no code matches, through the description. |
+| 2026-10-23 | Variance investigation rules (narrative report, Variance Management SOP): stock variance = minus the amount on the difference account; positive and negative never offset; status Justified (any capitals) or Not Justified; inventory variance = Σ|Not Justified variance| ÷ final closing stock, accuracy = 100% − variance, tolerance 0.5% (a parameter). Retained earnings = lines with an "AMOUNT MOVED TO RETAINED EARNINGS" value (zero included), variance = minus that amount. Plant names as in the file (7000 = RMS-Kigali, as in OX10). |
+| 2026-10-23 | When several datasets fit a sheet, the most specific one (most required columns) is proposed first; absent optional columns keep their type. |
 | 2026-10-21 | Word templates: the report goes where the template has a paragraph `{{p body }}`; `{{ title }}`, `{{ subtitle }}`, `{{ report_date }}` may be used anywhere. PowerPoint uses the layouts "Title Slide", "Title and Content", "Title Only". |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
@@ -244,19 +253,14 @@ Answers will be recorded in section 4 (Decisions).
   copy, or will you?
 
 **Phase 5, part 2 (2026-10-23)**
-- Q1. The G/L line item export used for closing stock ("Stock 1" / "Stock2"):
+- Q1. (The variance file you sent is the G/L export of the inventory difference
+  accounts 42300600–42303000, used for the variance investigation.) The G/L
+  line item export used for closing stock ("Stock 1" / "Stock2"):
   same columns as your variance investigation sheet (`Document Number` …
   `Material Description`), only stock accounts 11000100–11001300, all lines up
   to the period end? Could you upload one (any period) so I can check parity?
-- Q2. RBC opening: keep counting the previous report's RMS-OWN-ESE-RM lines
-  (as your June report does), or only RMS-PRG-FND-CP lines (the closing is
-  RMS-PRG-FND-CP only, so ESE would show as a Cross Cutting reduction)?
-- Q3. Stock sufficiency (AMC): link weekly-report product codes to SAP
-  materials with ZSTOCKREPORT column `NPC CODE`, or with the material master
-  "Old material number" (then please send that export's headers)? The weekly
-  sheets name their columns differently (e.g. "RMS central warehouse" or "RMS
-  HQ", "AMC" or "Average Monthly consumption"); I will read them by header
-  text, not by position (A1).
+- Q2: answered (see Decisions).
+- Q3: answered (see Decisions).
 - Q4. Stock count reconciliation: base it on the EWM physical inventory
   documents you sent (book, counted, difference, reason per bin), or on the
   reconciliation workbook "Closing vs Counted branches" (headers still
@@ -268,6 +272,22 @@ Answers will be recorded in section 4 (Decisions).
   order fill rate (VA05 + outbound deliveries), expiry risk (ZSTOCKREPORT),
   stock in transit (MB5T), purchase order follow-up (ME2N + inbound
   deliveries), warehouse activity (EWM tasks). For each, the rules you use.
+
+- Q7. RBC: an item new on RMS-PRG-FND-CP takes its programme from the
+  previous report's lines on other WBS (as your June report did, "March MB5B
+  data – other WBS"). Keep that, or skip RMS-OWN-ESE-RM lines for naming too
+  (the item then goes to CPDS for review)?
+- Q8. Variance investigation: root cause and required action per line are in
+  the "Detailed Variance Report.xlsx" embedded in the Word report, not in the
+  G/L file. Could you upload that workbook (or add columns "Root cause" and
+  "Required action" to the G/L sheet)? The app then fills tables 3 and 4.
+- Q9. Inventory accuracy of RMS-own stock by material group (Medicines,
+  Medical consumables, Medical devices & equipment, Laboratory reagents &
+  supplies): which file gives each material's group?
+- Q10. Table 6 of the narrative report leaves out GICUMBI, KAMONYI and
+  RULINDO, which have Not Justified lines but almost no closing stock (their
+  percentage is meaningless). The app lists them; should it leave out plants
+  whose closing stock is below their Not Justified variance?
 
 **Stock count reconciliation**
 - S1. Use the `w3` cause list (14 causes, 6 themes, 5 sites)? Should the keyword
@@ -339,6 +359,7 @@ Answers will be recorded in section 4 (Decisions).
 | 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 | 2026-10-23 | Phase 5 part 1: SAP export definitions (13 exports), closing stock by WBS, RBC accountability report; workbook sheets without a table are skipped. Verified: 139 backend tests (hand-checked closing and RBC figures, report wording, next-quarter round trip), 27 frontend unit tests, 42 browser tests incl. an RBC run; your real files load without errors; RBC opening by programme equals your June report. | Q1–Q6. |
+| 2026-10-23 | Phase 5 part 2: physical inventory variance investigation (dashboard, Excel, Word, PowerPoint), RBC opening on RMS-PRG-FND-CP only, typed absent columns, most specific dataset first. Verified: 152 backend tests, 44 browser tests (desktop + mobile) incl. a variance run; your real files reproduce the narrative report's tables 1, 2, 5, 6 and the retained-earnings finding exactly. | AMC next; Q1, Q4–Q10. |
 
 Known gaps after Phase 1:
 - The cloud session could not pull from Docker Hub (rate limit) or GitHub's container registry, so the local stack test used mirror images and a local copy of the uv binary. The Dockerfiles themselves are unchanged; the `stack` job in GitHub Actions is the authoritative test.

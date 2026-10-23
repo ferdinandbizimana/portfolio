@@ -11,6 +11,7 @@ import pytest
 from openpyxl import load_workbook
 
 from app import datasets
+from app.analyses.common.programmes import normalise_category
 from app.analyses.rbc_accountability import (
     ANALYSIS,
     INCREASE,
@@ -22,7 +23,6 @@ from app.analyses.rbc_accountability import (
     SOURCE_OTHER_WBS,
     SOURCE_SAME_PLANT,
     Parameters,
-    normalise_category,
 )
 from app.ingest.parse import parse_file
 from app.jobs.analysis import result_hash
@@ -38,7 +38,7 @@ PREVIOUS = pd.DataFrame(
         ["1000", "102", PRG, "CPDS", 50, 5000, "Kit (fake)", "EA"],
         ["7000", "101", PRG, "MALARIA", 20, 2000, "Net (fake)", "EA"],
         ["7000", "103", PRG, "ARV&OI", 10, 1000, "Tablets (fake)", "BOX"],
-        ["1000", "104", OWN, "Oncology", 5, 500, "Vial (fake)", "EA"],  # other WBS, still opening
+        ["1000", "104", OWN, "Oncology", 5, 500, "Vial (fake)", "EA"],  # not RBC stock
     ],
     columns=[
         "Valuation Area",
@@ -122,11 +122,10 @@ def test_lines_hand_checked(result: Any) -> None:
 
     assert line(result, "7000", "103")["Category"] == "ARV and Opportunistic Infection"
 
-    vial = line(result, "1000", "104")  # opening on another WBS, closing on the RBC WBS
+    vial = line(result, "1000", "104")  # on RMS-OWN-ESE-RM before: not in the opening
     assert (vial["Category"], vial["Category Source"]) == ("Cross Cutting", SOURCE_OTHER_WBS)
-    assert (vial["Opening Value"], vial["Closing Value"]) == (500, 800)
-    assert vial["Difference %"] == pytest.approx(0.6)
-    assert pd.isna(line(result, "1000", "105")["Difference %"])  # nothing at the opening
+    assert (vial["Opening Value"], vial["Closing Value"]) == (0, 800)
+    assert pd.isna(vial["Difference %"])
     assert line(result, "7000", "102")["Category Source"] == SOURCE_OTHER_PLANT
     listed = line(result, "1000", "105")
     assert (listed["Category"], listed["Category Source"]) == ("TB", SOURCE_ITEM_LIST)
@@ -153,15 +152,15 @@ def test_summary_by_programme(result: Any) -> None:
     )
     assert summary.at["MALARIA AND NTD", "Difference"] == 2000
     assert summary.at["ARV and Opportunistic Infection", "Increase / Reduction"] == REDUCTION
-    assert summary.at["Cross Cutting", "Opening Value"] == 500
-    assert summary.at["Total", "Opening Value"] == 18500
+    assert summary.at["Cross Cutting", "Opening Value"] == 0
+    assert summary.at["Total", "Opening Value"] == 18000
     assert summary.at["Total", "Closing Value"] == 20800
-    assert summary.at["Total", "Difference %"] == pytest.approx(2300 / 18500)
+    assert summary.at["Total", "Difference %"] == pytest.approx(2800 / 18000)
     metrics = result.tables["metrics"].set_index("Category")
     assert metrics.at["CPDS", "Lines in stock"] == 3
     assert metrics.at["Total", "Lines in stock"] == 6
     assert metrics.at["Total", "Share of closing"] == pytest.approx(1.0)
-    assert result.extras["position"] == "Increase of 12.4%"
+    assert result.extras["position"] == "Increase of 15.6%"
     assert all(c.passed for c in result.checks), [c.label for c in result.checks if not c.passed]
     kpi = {k.label: k.value for k in result.metrics}
     assert kpi["New items to review"] == 1
@@ -171,7 +170,7 @@ def test_products_and_closing_lists(result: Any) -> None:
     top = result.tables["top_products"]
     assert list(top["Material"])[:2] == ["101", "102"]  # 14,000 then 5,600
     new = dict(zip(top["Material"], top["New product"], strict=True))
-    assert (new["105"], new["104"]) == ("Yes", "")
+    assert (new["105"], new["104"]) == ("Yes", "Yes")
     assert list(result.tables["top_reductions"]["Material"]) == ["103"]  # 101 nets to +2,000
     closing = result.tables["closing_list"]
     assert list(closing["#"]) == list(range(1, len(closing) + 1))
@@ -224,7 +223,8 @@ def test_report_data_sheet_is_next_quarters_opening(result: Any, tmp_path: Path)
     path.write_bytes(workbook)
     sheet = next(s for s in parse_file(path, tmp_path / "parsed") if s.name == "CPDS Report")
     spec = datasets.get("rbc_previous_report")
-    assert datasets.match_sheet(sheet.columns, sheet.name)[0].dataset == "rbc_previous_report"
+    matches = [m.dataset for m in datasets.match_sheet(sheet.columns, sheet.name)]
+    assert "rbc_previous_report" in matches
     raw = pq.read_table(tmp_path / "parsed" / sheet.parquet_path).to_pandas()
     coerced = datasets.coerce(spec, raw, sheet.header_row)
     assert coerced.ok, [i.message for i in coerced.issues]
