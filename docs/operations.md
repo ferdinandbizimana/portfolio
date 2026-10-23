@@ -108,6 +108,16 @@ next quarter, upload this workbook as the previous report. Items seen for the
 first time are put under CPDS and listed as "New item – assigned CPDS
 (review)" so you can correct their programme in the ITEM Category list.
 
+### Physical inventory variance investigation (after each count)
+
+Files: the G/L line items of the stock adjustments posted after the count, with
+the columns ACTION, REASON and Final Validation Status (and, if available, Root
+cause and Required action); optionally the final closing stock per item and WBS
+(sheet "Closing by ID and WBS" of the closing-stock-by-WBS workbook, or "Item
+Detail by WBS" of the count findings workbook) for the inventory accuracy, and
+the RBC report data sheet for the split by programme. Parameters: count date and
+tolerance (0.005 = 0.5%).
+
 ## Report templates
 
 In **Templates**, upload your Word (.docx) and PowerPoint (.pptx) templates and
