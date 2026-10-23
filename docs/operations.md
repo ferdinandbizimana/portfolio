@@ -92,8 +92,11 @@ Uploaded files and results are private. They are never shown on the public site.
 ### Closing stock by WBS
 
 Files: the G/L line items of the stock accounts up to the period end, the MB51
-list of expired stock scrapped at Finance level, and (optional) OX10 for plant
-names. Parameter: the period end.
+list of goods movements (MB51), and (optional) OX10 for plant names and the
+"Closing vs Counted branches" sheet to compare counted stock with the final
+closing. Parameters: the period end and the MB51 movement types that count as
+expired stock scrapped (551, 555 by default; other MB51 lines are left out and
+counted in the run).
 
 ### RBC accountability report (each quarter)
 
@@ -107,6 +110,26 @@ workbook contains a "CPDS Report" sheet in the same layout as the old one:
 next quarter, upload this workbook as the previous report. Items seen for the
 first time are put under CPDS and listed as "New item – assigned CPDS
 (review)" so you can correct their programme in the ITEM Category list.
+
+### Stock count reconciliation (after each count)
+
+File: the "Closing vs Counted branches" sheet of the reconciliation workbook
+(closing posted in Finance, counted quantity and value, difference, reason),
+and optionally OX10 for plant names. Parameter: the count date. Each line with
+a difference gets a cause from its reason; lines whose value does not match
+quantity × unit cost, "NO VARIANCE" lines with a difference and materials whose
+differences offset across plants are flagged.
+
+### Stock sufficiency against AMC (weekly or each quarter)
+
+Files: the weekly stock monitoring workbook (every programme sheet is read;
+sheets without the product table are skipped), ZSTOCKREPORT (links the weekly
+product codes to SAP materials through "NPC CODE", otherwise through the
+description) and, optionally, the final closing stock by WBS (sheet "Final
+Closing Stock" of the closing-stock workbook) to value the stock at closing as
+in the RBC report. Without it, the value is ZSTOCKREPORT quantity × unit cost.
+Parameters: the weekly report date and the WBS element. Weekly products that
+no SAP material matches are listed in the workbook ("Not linked to SAP").
 
 ### Physical inventory variance investigation (after each count)
 
