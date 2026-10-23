@@ -113,3 +113,30 @@ def test_coerce_reports_missing_columns() -> None:
     assert (
         issue.text("f.csv", "CSV") == "f.csv, sheet 'CSV', column 'Value': this column is missing"
     )
+
+
+def test_sheets_without_a_table_are_left_out(tmp_path: Path) -> None:
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    notes = workbook.active
+    assert notes is not None
+    notes.title = "Notes"
+    notes.append(["Prepared for the quarterly review"])
+    notes.append(["Stock value", 1000])  # label and value pairs: no table
+    data = workbook.create_sheet("Stock")
+    data.append(DEMO_HEADERS)
+    data.append(["P100", "M-1", "Gloves", 1, 2])
+    path = tmp_path / "mixed.xlsx"
+    workbook.save(path)
+
+    assert [s.name for s in parse_file(path, tmp_path / "out")] == ["Stock"]
+
+    only_notes = Workbook()
+    sheet = only_notes.active
+    assert sheet is not None
+    sheet.append(["Stock value", 1000])
+    path = tmp_path / "notes.xlsx"
+    only_notes.save(path)
+    with pytest.raises(ParseError, match="sheet 'Sheet': No header row"):
+        parse_file(path, tmp_path / "out2")
