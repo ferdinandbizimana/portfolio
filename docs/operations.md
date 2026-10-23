@@ -89,6 +89,25 @@ Long texts use Markdown: `**bold**`, `*italic*`, `## Heading`, `- list item`,
 
 Uploaded files and results are private. They are never shown on the public site.
 
+### Closing stock by WBS
+
+Files: the G/L line items of the stock accounts up to the period end, the MB51
+list of expired stock scrapped at Finance level, and (optional) OX10 for plant
+names. Parameter: the period end.
+
+### RBC accountability report (each quarter)
+
+Files: the previous RBC report (its "CPDS Report" sheet), the G/L line items
+and the MB51 scrapping list (as for the closing stock), and optionally OX10
+and the "ITEM Category" list. Parameters: opening date (e.g. 31 March 2026),
+closing date (e.g. 30 June 2026), WBS element (RMS-PRG-FND-CP).
+
+The report shows only opening stock, closing stock and the difference. Its
+workbook contains a "CPDS Report" sheet in the same layout as the old one:
+next quarter, upload this workbook as the previous report. Items seen for the
+first time are put under CPDS and listed as "New item – assigned CPDS
+(review)" so you can correct their programme in the ITEM Category list.
+
 ## Report templates
 
 In **Templates**, upload your Word (.docx) and PowerPoint (.pptx) templates and

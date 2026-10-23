@@ -1,12 +1,14 @@
 # Build plan
 
-Status: **All phases that can be built without your input are merged**
-(0–4, 6, 8 and the Phase 9 tooling, all on 2026-10-21). Ferdinand asked (2026-10-21) to continue through
-all phases without stopping; each phase gets its own pull request, merged once
-CI is green. What remains needs something from you:
+Status: **Phase 5 (first analyses) — part 1 in review**: SAP export
+definitions, closing stock by WBS, RBC accountability report. Phases 0–4, 6, 8
+and the Phase 9 tooling are merged. Ferdinand asked (2026-10-21) to continue
+through all phases without stopping; each phase gets its own pull request,
+merged once CI is green. What remains needs something from you:
 
-- Phase 5 (legacy analyses): the SAP export headers and preparation scripts (F1, F2).
-- Phase 7 (more analyses): the rules and fake-safe samples for each analysis.
+- Phase 5, part 2: answers to Q1–Q6 below (stock sufficiency against AMC,
+  stock count reconciliation, two confirmations on the files).
+- Phase 7 (more analyses): which analysis next and its rules (Q6).
 - Phase 9, the live site: a server and a domain (G2), then `docs/deploy.md`.
 
 ---
@@ -150,11 +152,18 @@ For each: input specs from real headers (you provide), fake fixtures, rules,
 checks, dashboard, reports, tests, and a **local parity script** that runs the
 new code and the legacy logic on your real files (kept outside git) and
 compares totals line by line.
-- [ ] Stock count reconciliation (w2 / w3 / w4)
-- [ ] Final closing stock by WBS (w5)
-- [ ] RBC accountability report (w6) — opening, closing, difference only
-- [ ] Stock sufficiency against AMC (w6)
-- [ ] Parity confirmed by you on real files for all four
+- [x] SAP export definitions: every export you sent (2026-10-23) is
+      recognised on upload by its exact headers (`docs/sap-exports.md`)
+- [x] Final closing stock by WBS (w5): G/L line items − expired stock scrapped
+      on its own WBS; WBS split, main WBS, flags, checks, dashboard, reports.
+      The comparison with counted stock (w5 rules 8–9) waits for Q4.
+- [x] RBC accountability report (w6): opening, closing, difference only;
+      laid out like your June 2026 report (version 6); its "CPDS Report" sheet
+      is next quarter's opening. Local check on your files: opening by
+      programme equals your June report to the franc.
+- [ ] Stock sufficiency against AMC (w6) — Q3
+- [ ] Stock count reconciliation (w2 / w3 / w4) — Q4
+- [ ] Parity confirmed by you on real files (closing stock needs the G/L export, Q1)
 
 ### Phase 6 — Publishing
 - [x] Visibility: private, secret link, public; unpublish
@@ -203,6 +212,10 @@ Rules and fake-safe samples from you for each:
 | 2026-10-21 | Backups use restic (encrypted, deduplicated) to any S3-compatible bucket; the backup password must be kept outside the server. The command-line password reset now also signs out every session. |
 | 2026-10-21 | Content Security Policy allows only the site itself; inline scripts and styles are allowed because Next.js and the charts need them. |
 | 2026-10-21 | P1 answered: no SAP APIs and no direct S/4HANA connection. All data comes from spreadsheets exported from SAP and uploaded (or saved in the shared folder). Phase 8 is complete as built. |
+| 2026-10-23 | From your files: exact headers of 13 SAP exports recorded in `docs/sap-exports.md`; analyses use only these names. |
+| 2026-10-23 | From your June 2026 RBC report (version 6): line labels are Increase / Reduction / No change (R3); "new" when opening is 0 (R7, shown as "New product: Yes"); programme list and category names as in the report (R5); AMC belongs to the RBC workbook (R6, comes with Q3); closing = reconciled closing stock (R4). |
+| 2026-10-23 | RBC opening = every line of the previous report's "CPDS Report" sheet, whatever its WBS, because your June report counts the March lines on RMS-OWN-ESE-RM (as Cross Cutting) in the opening. To confirm (Q2). |
+| 2026-10-23 | A workbook upload no longer fails because one sheet has no table (notes, summaries): such sheets are skipped. |
 | 2026-10-21 | Word templates: the report goes where the template has a paragraph `{{p body }}`; `{{ title }}`, `{{ subtitle }}`, `{{ report_date }}` may be used anywhere. PowerPoint uses the layouts "Title Slide", "Title and Content", "Title Only". |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
@@ -229,6 +242,32 @@ Answers will be recorded in section 4 (Decisions).
   `noamc.pkl`).
 - F3. RMS Word and PowerPoint templates. Shall I add the placeholders to a
   copy, or will you?
+
+**Phase 5, part 2 (2026-10-23)**
+- Q1. The G/L line item export used for closing stock ("Stock 1" / "Stock2"):
+  same columns as your variance investigation sheet (`Document Number` …
+  `Material Description`), only stock accounts 11000100–11001300, all lines up
+  to the period end? Could you upload one (any period) so I can check parity?
+- Q2. RBC opening: keep counting the previous report's RMS-OWN-ESE-RM lines
+  (as your June report does), or only RMS-PRG-FND-CP lines (the closing is
+  RMS-PRG-FND-CP only, so ESE would show as a Cross Cutting reduction)?
+- Q3. Stock sufficiency (AMC): link weekly-report product codes to SAP
+  materials with ZSTOCKREPORT column `NPC CODE`, or with the material master
+  "Old material number" (then please send that export's headers)? The weekly
+  sheets name their columns differently (e.g. "RMS central warehouse" or "RMS
+  HQ", "AMC" or "Average Monthly consumption"); I will read them by header
+  text, not by position (A1).
+- Q4. Stock count reconciliation: base it on the EWM physical inventory
+  documents you sent (book, counted, difference, reason per bin), or on the
+  reconciliation workbook "Closing vs Counted branches" (headers still
+  needed)? Your "Physical Inventory Count Findings" workbook looks like the
+  newer version of this analysis: should the app produce that one?
+- Q5. MB51 scrapping list: does it contain only scrapping lines, or should the
+  app keep only some movement types (which)?
+- Q6. Phase 7: which analysis next? With the files you sent, possible ones:
+  order fill rate (VA05 + outbound deliveries), expiry risk (ZSTOCKREPORT),
+  stock in transit (MB5T), purchase order follow-up (ME2N + inbound
+  deliveries), warehouse activity (EWM tasks). For each, the rules you use.
 
 **Stock count reconciliation**
 - S1. Use the `w3` cause list (14 causes, 6 themes, 5 sites)? Should the keyword
@@ -299,6 +338,7 @@ Answers will be recorded in section 4 (Decisions).
 | 2026-10-21 | Phase 9 merged. Decision: no SAP APIs; data only from uploaded SAP spreadsheet exports. | Waiting for you: SAP export headers and preparation scripts (F1/F2, Phase 5), rules and samples (Phase 7), server and domain (G2). |
 | 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
+| 2026-10-23 | Phase 5 part 1: SAP export definitions (13 exports), closing stock by WBS, RBC accountability report; workbook sheets without a table are skipped. Verified: 139 backend tests (hand-checked closing and RBC figures, report wording, next-quarter round trip), 27 frontend unit tests, 42 browser tests incl. an RBC run; your real files load without errors; RBC opening by programme equals your June report. | Q1–Q6. |
 
 Known gaps after Phase 1:
 - The cloud session could not pull from Docker Hub (rate limit) or GitHub's container registry, so the local stack test used mirror images and a local copy of the uv binary. The Dockerfiles themselves are unchanged; the `stack` job in GitHub Actions is the authoritative test.
