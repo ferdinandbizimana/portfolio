@@ -1,16 +1,14 @@
 # Build plan
 
-Status: **Phase 5 (first analyses) — part 3 in review**: stock count
-reconciliation (closing vs counted), stock sufficiency against AMC, MB51
-scrapping filter by movement type, counted stock in the closing analysis,
-inputs that take every sheet of a workbook. Parts 1 and 2 are merged, as are
-Phases 0–4, 6, 8 and the Phase 9 tooling. Next: Phase 7 with your rules of
-2026-10-23 (order fill rate, expiry risk, stock in transit, purchase order
-follow-up, warehouse activity). Ferdinand asked (2026-10-21) to continue
-through all phases without stopping; each phase gets its own pull request,
-merged once CI is green. Still needs something from you: Q1, Q7–Q12 below
-and a server and domain (G2). After going live: fillable copies of the
-templates you shared (2026-10-23).
+Status: **Phase 7 (more analyses) in review**: order fill rate, expiry
+risk, stock in transit, purchase order follow-up and warehouse activity, built
+with your rules of 2026-10-23 on the headers of the exports you sent (they had
+headers only, so they are tested on invented data; please check one real run of
+each, Q13). Phases 0–6, 8 and the Phase 9 tooling are merged. Next: going live
+(G2: a server and a domain), then fillable copies of the templates you shared.
+Ferdinand asked (2026-10-21) to continue through all phases without stopping;
+each phase gets its own pull request, merged once CI is green. Still needs
+something from you: Q1, Q7–Q19 below and G2.
 
 ---
 
@@ -191,15 +189,15 @@ compares totals line by line.
 
 ### Phase 7 — More analyses
 Rules from you (2026-10-23, Q6); headers from the exports you sent:
-- [ ] Order fill rate: VA05 sales orders, outbound deliveries, OX10
-- [ ] Expiry risk: ZSTOCKREPORT expiry dates with the AMC
-- [ ] Stock in transit: MB5T, and in MB51 the STO goods issue (movement type
+- [x] Order fill rate: VA05 sales orders, outbound deliveries, OX10
+- [x] Expiry risk: ZSTOCKREPORT expiry dates with the AMC
+- [x] Stock in transit: MB5T, and in MB51 the STO goods issue (movement type
       641) matched to the goods receipt (101) by purchase order and outbound
       delivery reference: time in transit
-- [ ] Purchase order follow-up: ME2N and inbound deliveries; delivery period
+- [x] Purchase order follow-up: ME2N and inbound deliveries; delivery period
       (PO creation date to goods receipt) and delivered in full (ordered vs
       delivered quantity and value)
-- [ ] Warehouse activity: EWM "All Movement for Products"; dock to stock
+- [x] Warehouse activity: EWM "All Movement for Products"; dock to stock
       (goods receipt to putaway) and picking (stock removal) to goods issue
 
 ### Phase 8 — SAP connection
@@ -251,6 +249,13 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
 | 2026-10-23 | Stock sufficiency (AMC): every sheet of the weekly report recognised as a programme sheet is read; the header row is the one with the most labels among the first 30 rows; a sheet stops at its next block ("STOCK STATUS …"). Status on national months of stock; min / max 6 / 12, MCCH 9 / 14; stock-out risk below 3. Value on the WBS from the final closing stock when given (as in your RBC report), otherwise ZSTOCKREPORT quantity × unit cost. A material reached from two products is valued once, under the first (A4). Materials without AMC are listed when their quantity is above zero and their value is at least RWF 0.5 (as your June list). |
 | 2026-10-23 | Q6 answered: Phase 7 analyses and rules (see Phase 7). |
 | 2026-10-23 | After going live, you receive fillable, well-formatted copies of the templates you shared. |
+| 2026-10-24 | Dates in uploads: ISO dates (Excel) and SAP day-first dates (30.06.2026, 30/06/2026) are read as dates. |
+| 2026-10-24 | Order fill rate (definitions to confirm, Q14): order line = VA05 item dated in the period, quantity above zero; delivered = "Actual delivery qty" (else "Delivery Quantity") of goods-issued outbound delivery items with that sales document and item (or material); in full when delivered ≥ ordered; line, order, quantity and value fill rate (quantities capped at the ordered quantity); plant = delivering plant, named from OX10; days from order date to the last goods issue. |
+| 2026-10-24 | Expiry risk (Q15): ZSTOCKREPORT unrestricted + QI + blocked per batch at the unit cost; bands expired / ≤3 / 3–6 / 6–12 / >12 months / no date; the batches of a product are used in order of expiry at the weekly-report AMC (national), what is left at expiry is at risk; expired stock is at risk in full; products without AMC are shown by band only. |
+| 2026-10-24 | Stock in transit: MB51 641 issues and 101 receipts per STO and material (642 and 102 reversals taken off); receipts matched to the issue with the same outbound delivery reference first, then the oldest open issue; transit time = receipt − issue posting date; MB5T lines aged from the oldest open issue; long transit over 30 days (a parameter). |
+| 2026-10-24 | Purchase order follow-up: ME2N items created in the period, not deleted; receipts = inbound delivery items with a goods movement date, matched by PO and item (or material); in full when received ≥ ordered; received value = net order value × received / ordered; delivery period = last goods receipt − PO document date; open POs aged to the report date. |
+| 2026-10-24 | Warehouse activity: task type from the warehouse process category (putaway, stock removal); cancelled tasks (status A) left out; dock to stock = putaway confirmation date − goods receipt date (target 1 day, a parameter); picking time = task creation to confirmation; picking to goods issue = last stock removal of a delivery to its goods issue in the outbound delivery list (EWM document = delivery number). |
+| 2026-10-24 | The outbound delivery list must have "Goods Issue Date" and the inbound list "Goods receipt date", so the two lists (same SAP layout) are never mistaken for each other. |
 | 2026-10-21 | Word templates: the report goes where the template has a paragraph `{{p body }}`; `{{ title }}`, `{{ subtitle }}`, `{{ report_date }}` may be used anywhere. PowerPoint uses the layouts "Title Slide", "Title and Content", "Title Only". |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
@@ -314,6 +319,28 @@ Answers will be recorded in section 4 (Decisions).
   pipeline (expected deliveries by month)? The ZSTOCKREPORT you sent has
   headers only, so the NPC CODE link was checked with the links in your June
   report; please check one run with a full ZSTOCKREPORT.
+
+- Q13. Phase 7: the VA05, OBD, ME2N, inbound delivery, MB5T, MB51,
+  ZSTOCKREPORT and EWM files you sent have headers only. Please run each new
+  analysis once on a real export and tell me if a figure looks wrong.
+- Q14. Order fill rate: count only goods-issued deliveries (default), or every
+  delivery created? Should rejected order lines (VA05 reason for rejection)
+  be left out? Which customers count (all sold-to parties, or only health
+  facilities)? What is the role of OX10 in your fill rate (plant names, as
+  built, or something else)?
+- Q15. Expiry risk: the AMC of the weekly report is national and in weekly
+  report units; ZSTOCKREPORT quantities are in SAP base units. Are the units
+  the same? Should the AMC used for RMS stock be the national AMC (as built)?
+  Expiry bands (3 / 6 / 12 months): right?
+- Q16. Stock in transit: is "Reference" in MB51 the outbound delivery number on
+  both the 641 and the 101 lines? Age bands (7 / 30 / 60 / 90 days) and the
+  30-day "long transit" limit: right?
+- Q17. PO follow-up: leave out STOs (document type UB) from ME2N? Count the
+  delivery period to the last receipt (as built) or to the first?
+- Q18. Warehouse activity: dock-to-stock target (1 day)? Is the EWM task
+  "Document" the same number as the outbound delivery in the OBD list? If not,
+  which column links them?
+- Q19. Which Phase 7 dashboards should be published, and at which detail level?
 
 **Stock count reconciliation**
 - S1. Use the `w3` cause list (14 causes, 6 themes, 5 sites)? Should the keyword
@@ -385,6 +412,7 @@ Answers will be recorded in section 4 (Decisions).
 | 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 | 2026-10-23 | Phase 5 part 1: SAP export definitions (13 exports), closing stock by WBS, RBC accountability report; workbook sheets without a table are skipped. Verified: 139 backend tests (hand-checked closing and RBC figures, report wording, next-quarter round trip), 27 frontend unit tests, 42 browser tests incl. an RBC run; your real files load without errors; RBC opening by programme equals your June report. | Q1–Q6. |
+| 2026-10-24 | Phase 5 part 3 merged. Phase 7: order fill rate, expiry risk, stock in transit, purchase order follow-up, warehouse activity; weekly report reading shared in `analyses/common/weekly.py`; SAP day-first dates. Verified: 228 backend tests, 27 frontend unit tests, 56 browser tests (desktop + mobile) incl. a run of each new analysis; every export you sent is recognised as the right dataset. | Going live (G2); Q13–Q19. |
 | 2026-10-23 | Phase 5 part 3: stock count reconciliation, stock sufficiency against AMC, MB51 movement-type filter, counted stock vs final closing, all-sheet inputs, better header detection. Verified: 191 backend tests, 27 frontend unit tests, 48 browser tests (desktop + mobile) incl. reconciliation and AMC runs; your June figures reproduced (AMC Summary, No-AMC list, reconciliation causes). | Phase 7 (your rules); Q1, Q7–Q12. |
 | 2026-10-23 | Phase 5 part 2: physical inventory variance investigation (dashboard, Excel, Word, PowerPoint), RBC opening on RMS-PRG-FND-CP only, typed absent columns, most specific dataset first. Verified: 152 backend tests, 44 browser tests (desktop + mobile) incl. a variance run; your real files reproduce the narrative report's tables 1, 2, 5, 6 and the retained-earnings finding exactly. | AMC next; Q1, Q4–Q10. |
 

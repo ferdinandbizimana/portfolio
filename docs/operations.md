@@ -141,6 +141,38 @@ Detail by WBS" of the count findings workbook) for the inventory accuracy, and
 the RBC report data sheet for the split by programme. Parameters: count date and
 tolerance (0.005 = 0.5%).
 
+### Order fill rate
+
+Files: VA05 sales orders and the list of outbound deliveries (optionally OX10
+for plant names). Parameters: first and last order date, and whether only
+goods-issued deliveries count (default yes). Shows lines and orders delivered
+in full, quantity and value fill rate by delivering plant, customer and month.
+
+### Expiry risk
+
+Files: ZSTOCKREPORT (batches with expiry dates) and the weekly stock monitoring
+workbook (AMC), optionally OX10. Parameters: stock report date and, if wanted,
+one WBS element. Shows stock by expiry band and the value that cannot be used
+before expiry at the AMC.
+
+### Stock in transit
+
+Files: MB5T and MB51 (the goods movements for the period of the transfers;
+MB51 must include the columns Purchase order, Reference and Posting Date),
+optionally OX10. Parameters: MB5T date and the "long transit" limit in days.
+
+### Purchase order follow-up
+
+Files: ME2N and the list of inbound deliveries, optionally OX10. Parameters:
+first and last PO creation date and the report date. Shows the delivery period
+from PO creation to goods receipt and what was delivered in full.
+
+### Warehouse activity
+
+Files: EWM "All Movement for Products" (warehouse tasks) and, for picking to
+goods issue, the list of outbound deliveries. Parameters: report date and the
+dock-to-stock target in days.
+
 ## Report templates
 
 In **Templates**, upload your Word (.docx) and PowerPoint (.pptx) templates and
