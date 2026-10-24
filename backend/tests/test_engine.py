@@ -254,6 +254,11 @@ def test_analyses_are_listed_with_their_inputs(logged_in: TestClient) -> None:
         "count_variance",
         "stock_count_reconciliation",
         "stock_sufficiency_amc",
+        "order_fill_rate",
+        "expiry_risk",
+        "stock_in_transit",
+        "po_follow_up",
+        "warehouse_activity",
     }
     demo = analyses["demo_stock_summary"]
     assert demo["inputs"][0]["dataset"] == "demo_stock_balance"

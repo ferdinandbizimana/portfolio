@@ -340,20 +340,29 @@ MB5T_STOCK_IN_TRANSIT = register(
         ),
     )
 )
-ME2N_PURCHASE_ORDERS = _recognised(
-    "me2n_purchase_orders",
-    "ME2N purchase orders",
-    "Purchase order items (ME2N).",
-    (
-        "Purchasing Document",
-        "Item",
-        "Document Date",
-        "Material",
-        "Plant",
-        "Order Quantity",
-        "Still to be delivered (qty)",
-        "Net Order Value",
-    ),
+ME2N_PURCHASE_ORDERS = register(
+    DatasetSpec(
+        key="me2n_purchase_orders",
+        title="ME2N purchase orders",
+        description="Purchase order items (ME2N): creation date, supplier, ordered and open qty.",
+        columns=(
+            ColumnSpec("Purchasing Document", "text"),
+            ColumnSpec("Item", "text"),
+            ColumnSpec("Document Date", "date"),
+            ColumnSpec("Material", "text"),
+            ColumnSpec("Plant", "text"),
+            ColumnSpec("Order Quantity", "number"),
+            ColumnSpec("Still to be delivered (qty)", "number"),
+            ColumnSpec("Net Order Value", "number", description="RWF"),
+            ColumnSpec("Supplier/Supplying Plant", "text", required=False),
+            ColumnSpec("Name of Supplier", "text", required=False),
+            ColumnSpec("Short Text", "text", required=False),
+            ColumnSpec("Purchasing Doc. Type", "text", required=False),
+            ColumnSpec("Deletion Indicator", "text", required=False),
+            ColumnSpec("Delivery Date", "date", required=False),
+            ColumnSpec("Still to be delivered (value)", "number", required=False),
+        ),
+    )
 )
 VA05_SALES_ORDERS = register(
     DatasetSpec(
@@ -391,29 +400,38 @@ OUTBOUND_DELIVERIES = register(
             ColumnSpec("Reference Item", "text", required=False),
             ColumnSpec("Actual delivery qty", "number", required=False),
             ColumnSpec("Act. Gds Mvmnt Date", "date", required=False),
-            ColumnSpec("Goods Issue Date", "date", required=False),
+            ColumnSpec("Goods Issue Date", "date"),
             ColumnSpec("Ship-to Party", "text", required=False),
             ColumnSpec("Name ship-to party", "text", required=False),
             ColumnSpec("Sold-to Party Name", "text", required=False),
             ColumnSpec("Item Description", "text", required=False),
             ColumnSpec("Purchasing Document", "text", required=False),
             ColumnSpec("Delivery Type", "text", required=False),
+            ColumnSpec("Goods Issue Time", "text", required=False),
         ),
     )
 )
-INBOUND_DELIVERIES = _recognised(
-    "inbound_deliveries",
-    "Inbound deliveries",
-    "Inbound delivery items.",
-    (
-        "Delivery",
-        "Vendor",
-        "Material",
-        "Delivery Quantity",
-        "Goods receipt date",
-        "Purchasing Document",
-        "Putaway status",
-    ),
+INBOUND_DELIVERIES = register(
+    DatasetSpec(
+        key="inbound_deliveries",
+        title="Inbound deliveries",
+        description="Inbound delivery items: purchase order, quantity, goods receipt date.",
+        columns=(
+            ColumnSpec("Delivery", "text"),
+            ColumnSpec("Purchasing Document", "text"),
+            ColumnSpec("Material", "text"),
+            ColumnSpec("Delivery Quantity", "number"),
+            ColumnSpec("Vendor", "text"),
+            ColumnSpec("Act. Gds Mvmnt Date", "date", required=False),
+            ColumnSpec("Goods receipt date", "date"),
+            ColumnSpec("Actual delivery qty", "number", required=False),
+            ColumnSpec("Reference Item", "text", required=False),
+            ColumnSpec("Plant", "text", required=False),
+            ColumnSpec("Supplier Name", "text", required=False),
+            ColumnSpec("Putaway status", "text", required=False),
+            ColumnSpec("Goods Movement Sts", "text", required=False),
+        ),
+    )
 )
 EWM_INBOUND_DELIVERIES = _recognised(
     "ewm_inbound_deliveries",
@@ -430,19 +448,35 @@ EWM_INBOUND_DELIVERIES = _recognised(
         "GR Date (Actual)",
     ),
 )
-EWM_WAREHOUSE_TASKS = _recognised(
-    "ewm_warehouse_tasks",
-    "EWM warehouse tasks",
-    "Warehouse tasks for products in the EWM warehouse monitor.",
-    (
-        "Warehouse Task",
-        "Whse Process Category Desc.",
-        "Source Storage Bin",
-        "Destination Bin",
-        "Product",
-        "Warehouse Task Status",
-        "Confirmation Date",
-    ),
+EWM_WAREHOUSE_TASKS = register(
+    DatasetSpec(
+        key="ewm_warehouse_tasks",
+        title="EWM warehouse tasks",
+        description=(
+            "Warehouse tasks for products in the EWM warehouse monitor (all movements): "
+            "putaway, stock removal and internal moves with creation and confirmation times."
+        ),
+        columns=(
+            ColumnSpec("Warehouse Task", "text"),
+            ColumnSpec("Whse Process Category Desc.", "text"),
+            ColumnSpec("Source Storage Bin", "text"),
+            ColumnSpec("Destination Bin", "text"),
+            ColumnSpec("Product", "text"),
+            ColumnSpec("Warehouse Task Status", "text"),
+            ColumnSpec("Confirmation Date", "date"),
+            ColumnSpec("Confirmation Time", "text", required=False),
+            ColumnSpec("Created On", "date", required=False),
+            ColumnSpec("Created At", "text", required=False),
+            ColumnSpec("Goods Receipt Date", "date", required=False),
+            ColumnSpec("Document", "text", required=False),
+            ColumnSpec("WT Item", "text", required=False),
+            ColumnSpec("Whse Proc. Category", "text", required=False),
+            ColumnSpec("Whse Process Type", "text", required=False),
+            ColumnSpec("Confirmed By", "text", required=False),
+            ColumnSpec("Product Description", "text", required=False),
+            ColumnSpec("Act. Qty Dest. BUoM", "number", required=False),
+        ),
+    )
 )
 EWM_PHYSICAL_INVENTORY = _recognised(
     "ewm_physical_inventory",
