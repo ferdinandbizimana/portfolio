@@ -6,7 +6,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from app import datasets
-from app.ingest.parse import ParseError, cell_text, detect_format, parse_file
+from app.ingest.parse import ParseError, _find_header, cell_text, detect_format, parse_file
 from tests.samples import DEMO_HEADERS, demo_csv, demo_workbook
 
 
@@ -163,3 +163,17 @@ def test_the_most_specific_dataset_is_listed_first() -> None:
     headers = ["Valuation Area", "Material", "WBS", "Category", "Closing Stock", "Closing Value"]
     matches = [m.dataset for m in datasets.match_sheet(headers, "CSV")]
     assert matches[:2] == ["rbc_previous_report", "rbc_material_categories"]
+
+
+def test_header_is_the_row_with_the_most_labels() -> None:
+    rows: list[list[str | None]] = [
+        ["WEEKLY STOCK MONITORING", None, None, None],
+        ["Legend:", "Overstock", None, None],
+        [None, "RMS", "RMS", None],  # group row above the column row
+        ["Product code", "Product description", "RMS central warehouse", "AMC"],
+        ["NPC1", "Drug A", "10", "5"],
+        ["Total", "of all", "products", "listed here too"],  # same count, later: not chosen
+    ]
+    assert _find_header(rows) == 3
+    with pytest.raises(ParseError):
+        _find_header([["1", "2"], ["Title", None]])

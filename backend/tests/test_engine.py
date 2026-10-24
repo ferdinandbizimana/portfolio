@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from docx import Document
 from fastapi.testclient import TestClient
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 from app.api import uploads
 from app.reporting.guard import docx_texts
@@ -252,6 +252,8 @@ def test_analyses_are_listed_with_their_inputs(logged_in: TestClient) -> None:
         "closing_stock_wbs",
         "rbc_accountability",
         "count_variance",
+        "stock_count_reconciliation",
+        "stock_sufficiency_amc",
     }
     demo = analyses["demo_stock_summary"]
     assert demo["inputs"][0]["dataset"] == "demo_stock_balance"
@@ -274,3 +276,64 @@ def test_a_template_without_body_placeholder_fails_with_a_clear_message(
 
     assert run["status"] == "failed"
     assert run["message"].startswith("The active report template cannot be used")
+
+
+def _weekly_workbook() -> bytes:
+    """Fake weekly report: one sheet per programme, a title above the header."""
+    book = Workbook()
+    header = [
+        "Product code",
+        "Product description",
+        "RMS central warehouse",
+        "RMS Branches",
+        "SDPs",
+        "AMC",
+    ]
+    sheets = {
+        "ARV": [["NPC1", "Drug A", 60, 0, 0, 10], ["NPC2", "Drug B", 5, 0, 0, 10]],
+        "MCCH": [["NPC3", "Drug C", 80, 0, 0, 10]],
+    }
+    book.remove(book.active)  # type: ignore[arg-type]
+    for name, rows in sheets.items():
+        sheet = book.create_sheet(name)
+        sheet.append(["WEEKLY STOCK MONITORING", None])
+        sheet.append([])
+        sheet.append(header)
+        for row in rows:
+            sheet.append(row)
+    book.create_sheet("Notes").append(["Prepared by the planning team"])
+    out = io.BytesIO()
+    book.save(out)
+    return out.getvalue()
+
+
+def test_an_input_can_take_every_recognised_sheet(logged_in: TestClient) -> None:
+    weekly = upload(logged_in, _weekly_workbook(), "weekly.xlsx")
+    stock_csv = (
+        b"Material,NPC CODE,Material Description,Plant,Unrestricted,Quality Inspection,Blocked,"
+        b"WBS Element,Unit Cost\n"
+        b"1001,NPC1,Drug A,1000,10,0,0,RMS-PRG-FND-CP,2\n"
+        b"1003,NPC3,Drug C,1000,5,0,0,RMS-PRG-FND-CP,4\n"
+    )
+    stock = upload(logged_in, stock_csv, "ZSTOCKREPORT.csv")
+    analyses = {a["key"]: a for a in logged_in.get("/api/admin/analyses").json()}
+    weekly_input = next(
+        i for i in analyses["stock_sufficiency_amc"]["inputs"] if i["key"] == "weekly"
+    )
+    assert weekly_input["all_sheets"] is True
+    run = start_run(
+        logged_in,
+        weekly["id"],
+        analysis="stock_sufficiency_amc",
+        parameters={"report_date": "2026-07-29"},
+        inputs={
+            "weekly": {"data_file_id": weekly["id"], "sheet": "*"},
+            "stock": {"data_file_id": stock["id"], "sheet": stock["sheets"][0]["name"]},
+        },
+    )
+    assert run["status"] == "succeeded", (run["message"], run["errors"])
+    kpis = {k["label"]: k["value"] for k in run["dashboard"]["kpis"]}
+    assert kpis["Products"] == 3  # two ARV lines and one MCCH line; the Notes sheet is skipped
+    summary = next(t for t in run["dashboard"]["tables"] if t["id"] == "summary")
+    assert [r["Program"] for r in summary["rows"]] == ["ARV and Opportunistic Infection", "MCCH"]
+    assert run["checks_passed"] == run["checks_total"]

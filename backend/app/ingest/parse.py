@@ -80,14 +80,24 @@ def detect_format(head: bytes) -> str | None:
 
 
 def _find_header(rows: list[list[str | None]]) -> int:
-    """Index of the first row that looks like a header (several non-empty text cells)."""
+    """Index of the header row among the first rows.
+
+    A candidate starts with text cells (not numbers). Of the candidates, the row
+    with the most text labels wins (the earliest on a tie): title and legend lines
+    above a table have fewer labels than its header, and in a two-row header the
+    column row has more labels than the group row above it.
+    """
+    best, best_count = -1, 0
     for index, row in enumerate(rows[:HEADER_SCAN_ROWS]):
         texts = [c for c in row if c is not None]
-        if len(texts) >= MIN_HEADER_CELLS and all(
-            not _is_number(c) for c in texts[:MIN_HEADER_CELLS]
-        ):
-            return index
-    raise ParseError("No header row found in the first 30 rows.")
+        if len(texts) < MIN_HEADER_CELLS or any(_is_number(c) for c in texts[:MIN_HEADER_CELLS]):
+            continue
+        labels = sum(1 for c in texts if not _is_number(c))
+        if labels > best_count:
+            best, best_count = index, labels
+    if best < 0:
+        raise ParseError("No header row found in the first 30 rows.")
+    return best
 
 
 def _is_number(text: str) -> bool:

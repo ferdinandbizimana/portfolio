@@ -120,7 +120,9 @@ export function RunView({ run }: { run: Run }) {
         <ul className="flex flex-col gap-1 text-muted">
           {Object.entries(run.inputs).map(([key, input]) => (
             <li key={key}>
-              {input.filename}, sheet {input.sheet} · SHA-256 {input.sha256.slice(0, 16)}…
+              {input.filename},{" "}
+              {input.sheet === "*" ? "all recognised sheets" : `sheet ${input.sheet}`} · SHA-256{" "}
+              {input.sha256.slice(0, 16)}…
             </li>
           ))}
           {Object.entries(run.parameters).map(([key, value]) => (

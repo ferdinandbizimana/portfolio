@@ -24,6 +24,9 @@ class InputSpec:
     dataset: str  # dataset key (app/datasets)
     label: str  # shown in the form, e.g. "Stock balance at period end"
     required: bool = True
+    # Take every sheet of the chosen file that is recognised as the dataset (for
+    # workbooks with one sheet per programme); a "Sheet" column says which.
+    all_sheets: bool = False
 
 
 @dataclass

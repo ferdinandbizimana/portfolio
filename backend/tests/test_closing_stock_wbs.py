@@ -192,3 +192,57 @@ def test_runs_end_to_end_on_uploaded_csv_files(logged_in: TestClient) -> None:
     assert run["message"] == "All checks passed."
     final = next(k for k in run["metrics"] if k["label"] == "Final closing stock")
     assert final["value"] == 15100
+
+
+def test_only_scrapping_movement_types_are_deducted() -> None:
+    """MB51 holds every movement; only 551 and 555 count as scrapping by default."""
+    data = inputs()
+    others = pd.DataFrame(
+        [
+            ["1000", "101", "601", PROGRAMS, -50, -5000],  # delivery: not scrapping
+            ["1000", "101", "555", PROGRAMS, -1, -100],  # scrapping from blocked stock
+        ],
+        columns=MB51_HEADERS,
+    ).assign(**{"Material Description": "Expired item (fake)"})
+    data["scrapping"] = pd.concat([data["scrapping"], others], ignore_index=True)
+    result = ANALYSIS.compute(data, PARAMS)
+    kpi = {k.label: k.value for k in result.metrics}
+    assert kpi["Expired stock scrapped"] == -3800 - 100
+    counts = dict(
+        zip(result.tables["counts"]["Count"], result.tables["counts"]["Number"], strict=True)
+    )
+    assert counts["MB51 lines of other movement types (left out)"] == 1
+    everything = ANALYSIS.compute(
+        data, Parameters(period_end=date(2026, 6, 30), scrapping_movement_types="551, 555, 601")
+    )
+    assert {k.label: k.value for k in everything.metrics}["Expired stock scrapped"] == -8900
+
+
+def test_counted_stock_without_expired() -> None:
+    """Legacy w5 rules 8-9: scrapped stock comes off the counted stock when it covers it."""
+    data = inputs()
+    data["counted"] = pd.DataFrame(
+        {
+            "ValA": ["1000", "7000", "7000"],
+            "Material": ["101", "201", "203"],
+            "Counted Quantities": [130, 50, 2],  # 203: 2 counted < 3 scrapped: unchanged
+            "Counted Value": [13000, 5000, 200],
+            "Reasons for differences where Applicable": ["NO VARIANCE", "NO VARIANCE", "x"],
+        }
+    )
+    result = ANALYSIS.compute(data, PARAMS)
+    gloves = item(result, "1000", "101")  # scrapped -20 / -2,000 comes off
+    assert (gloves["Counted Qty excl. Expired"], gloves["Counted Value excl. Expired"]) == (
+        110,
+        11000,
+    )
+    assert gloves["Difference after Scrapping"] == 0
+    moved = item(result, "7000", "201")  # scrapped -10 / -1,000
+    assert moved["Counted Value excl. Expired"] == 4000
+    short = item(result, "7000", "203")
+    assert (short["Counted Qty excl. Expired"], short["Difference after Scrapping"]) == (2, 500)
+    missing = item(result, "7000", "202")  # not in the count
+    assert (missing["Counted Value"], missing["Difference after Scrapping"]) == (0, -400)
+    kpi = {k.label: k.value for k in result.metrics}
+    assert kpi["Counted value excl. expired"] == 11000 + 4000 + 200
+    assert all(c.passed for c in result.checks)

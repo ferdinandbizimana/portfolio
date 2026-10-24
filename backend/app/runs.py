@@ -6,6 +6,7 @@ from rq import Queue
 from sqlalchemy.orm import Session
 
 from app.analyses.base import Analysis
+from app.datasets import ALL_SHEETS, recognised_sheets
 from app.db.models import AnalysisRun, DataFile
 from app.jobs.analysis import run_analysis
 
@@ -29,7 +30,12 @@ def resolve_inputs(
         if data_file is None or data_file.status != "ready":
             errors.append(f"The file chosen for {spec.label!r} is not ready.")
             continue
-        if not any(s["name"] == sheet for s in data_file.sheets):
+        if spec.all_sheets:
+            sheet = ALL_SHEETS
+            if not recognised_sheets(data_file.sheets, spec.dataset):
+                errors.append(f"{data_file.filename} has no sheet recognised for {spec.label!r}.")
+                continue
+        elif not any(s["name"] == sheet for s in data_file.sheets):
             errors.append(f"{data_file.filename} has no sheet {sheet!r}.")
             continue
         inputs[spec.key] = {

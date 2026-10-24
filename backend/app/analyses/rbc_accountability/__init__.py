@@ -24,7 +24,14 @@ import pandas as pd
 from pydantic import BaseModel, Field, model_validator
 
 from app.analyses.base import Analysis, AnalysisResult, Check, InputSpec
-from app.analyses.common.closing import final_closing, material_code, plant_code, plant_names
+from app.analyses.common.closing import (
+    SCRAPPING_MOVEMENT_TYPES,
+    final_closing,
+    material_code,
+    movement_types,
+    plant_code,
+    plant_names,
+)
 from app.analyses.common.programmes import (
     CATEGORY_NAMES,
     DEFAULT_CATEGORY,
@@ -89,6 +96,11 @@ class Parameters(BaseModel):
     )
     wbs: str = Field(
         default=RBC_WBS, title="WBS element", description="WBS element of the RBC programmes."
+    )
+    scrapping_movement_types: str = Field(
+        default=SCRAPPING_MOVEMENT_TYPES,
+        title="Scrapping movement types",
+        description="MB51 movement types counted as expired stock scrapped (comma-separated).",
     )
 
     @model_validator(mode="after")
@@ -263,7 +275,9 @@ class RbcAccountability(Analysis):
             .reset_index()
         )
 
-        stock = final_closing(data["gl_lines"], data["scrapping"])
+        stock = final_closing(
+            data["gl_lines"], data["scrapping"], movement_types(params.scrapping_movement_types)
+        )
         on_wbs_closing = stock.lines[stock.lines["WBS"] == wbs]
         closing = (
             on_wbs_closing.groupby(["Plant", "Material"], sort=True)
