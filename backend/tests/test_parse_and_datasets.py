@@ -177,3 +177,17 @@ def test_header_is_the_row_with_the_most_labels() -> None:
     assert _find_header(rows) == 3
     with pytest.raises(ParseError):
         _find_header([["1", "2"], ["Title", None]])
+
+
+def test_sap_day_first_dates() -> None:
+    spec = datasets.DatasetSpec(
+        key="dates_only", title="t", description="", columns=(datasets.ColumnSpec("Day", "date"),)
+    )
+    raw = pd.DataFrame({"Day": ["2026-06-30", "30.06.2026", "01/07/2026", "", "31.02.2026"]})
+    coerced = datasets.coerce(spec, raw, header_row=0)
+    days = coerced.frame["Day"]
+    assert days.iloc[0] == pd.Timestamp(2026, 6, 30)
+    assert days.iloc[1] == pd.Timestamp(2026, 6, 30)
+    assert days.iloc[2] == pd.Timestamp(2026, 7, 1)
+    assert pd.isna(days.iloc[3])
+    assert len(coerced.issues) == 1  # 31 February is not a date

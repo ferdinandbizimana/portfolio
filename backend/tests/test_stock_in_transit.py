@@ -1,0 +1,147 @@
+"""Stock in transit: STO tracing through MB51, hand-checked on fake data."""
+
+from datetime import date
+from typing import Any
+
+import pandas as pd
+import pytest
+
+from app.analyses.stock_in_transit import (
+    AGE_BANDS,
+    ANALYSIS,
+    NOT_ISSUED,
+    Movement,
+    Parameters,
+    age_band,
+    trace,
+)
+from app.jobs.analysis import result_hash
+from app.reporting.documents import Templates
+from app.reporting.guard import check_report
+
+MB51_COLUMNS = [
+    "Plant",
+    "Material",
+    "Movement Type",
+    "Quantity",
+    "Amt.in Loc.Cur.",
+    "WBS Element",
+    "Posting Date",
+    "Purchase order",
+    "Reference",
+]
+# Fake MB51 lines: plant, material, type, quantity, amount, WBS, posting date, PO, reference
+MB51: list[list[Any]] = [
+    ["1000", "1001", "641", -10, -1000, "W", "01.07.2026", "4500000001", "0080001"],
+    ["1000", "1001", "641", -5, -500, "W", "10.07.2026", "4500000001", "80002"],
+    ["7000", "1001", "101", 5, 500, "W", "15.07.2026", "4500000001", "80002"],  # 5 days
+    ["7000", "1001", "101", 4, 400, "W", "20.07.2026", "4500000001", None],  # oldest: 19 days
+    ["1000", "1002", "641", -8, -80, "W", "2026-05-01", "4500000002", "80003"],
+    ["1000", "1002", "642", 3, 30, "W", "2026-05-02", "4500000002", "80003"],  # reversal
+    ["7000", "1002", "101", 5, 50, "W", "2026-05-11", "4500000002", "80003"],  # 10 days
+    ["1000", "1003", "641", -2, -50, "W", "29.07.2026", "4500000003", "80004"],
+    ["1000", "1009", "101", 9, 90, "W", "05.07.2026", "4500009999", None],  # vendor PO
+    ["1000", "1009", "551", -1, -10, "W", "05.07.2026", None, None],  # scrapping
+]
+MB5T_COLUMNS = [
+    "Supplying Plant",
+    "Purchasing Document",
+    "Plant",
+    "Material",
+    "Material Description",
+    "Quantity",
+    "Amt.in Loc.Cur.",
+]
+MB5T: list[list[Any]] = [
+    ["1000", "4500000001", "7000", "1001", "Drug A", 6, 600],  # issued 1 July: 30 days
+    ["1000", "4500000003", "7000", "1003", "Drug C", 2, 50],  # issued 29 July: 2 days
+    ["7000", "4500000004", "1000", "1004", "Drug D", 1, 10],  # no goods issue in MB51
+]
+PARAMS = Parameters(report_date=date(2026, 7, 31))
+
+
+def data() -> dict[str, pd.DataFrame]:
+    return {
+        "movements": pd.DataFrame(MB51, columns=MB51_COLUMNS),
+        "in_transit": pd.DataFrame(MB5T, columns=MB5T_COLUMNS),
+        "plants": pd.DataFrame({"Plant": ["7000"], "Name 1": ["Kigali Hub"]}),
+    }
+
+
+@pytest.fixture(scope="module")
+def result() -> Any:
+    return ANALYSIS.compute(data(), PARAMS)
+
+
+def test_age_bands() -> None:
+    up_to_7, up_to_30, up_to_60, up_to_90, longer = AGE_BANDS[:5]
+    assert [age_band(d) for d in (None, 0, 7, 8, 30, 31, 90, 91)] == [
+        NOT_ISSUED,
+        up_to_7,
+        up_to_7,
+        up_to_30,
+        up_to_30,
+        up_to_60,
+        up_to_90,
+        longer,
+    ]
+
+
+def test_receipts_match_the_same_delivery_first() -> None:
+    day = pd.Timestamp
+    issues = [Movement(day(2026, 7, 1), 10, "A", "1"), Movement(day(2026, 7, 2), 5, "B", "1")]
+    receipts = [Movement(day(2026, 7, 5), 5, "B", "2"), Movement(day(2026, 7, 6), 12, "", "2")]
+    traced = trace(issues, receipts)
+    assert [(leg["Reference"], leg["Quantity"]) for leg in traced.legs] == [("B", 5), ("A", 10)]
+    assert traced.receipts_without_issue == 2
+    assert traced.open_issues == []
+
+
+def test_kpis_hand_checked(result: Any) -> None:
+    kpis = {k.label: k.value for k in result.metrics}
+    assert kpis["Value in transit"] == 660
+    assert kpis["Lines in transit"] == 3
+    assert kpis["In transit more than 30 days"] == 0  # 30 days is not more than 30
+    assert kpis["Average days in transit (open)"] == pytest.approx(23)  # (6 x 30 + 2 x 2) / 8
+    # (5 x 5 + 4 x 19 + 5 x 10) / 14
+    assert kpis["Average transit time (received)"] == pytest.approx(151 / 14)
+    assert kpis["Lines without a goods issue in MB51"] == 1
+    assert all(c.passed for c in result.checks), [c.label for c in result.checks if not c.passed]
+
+
+def test_lines_hand_checked(result: Any) -> None:
+    transit = result.tables["in_transit"].set_index("STO")
+    assert transit.loc["4500000001", "Days in Transit"] == 30
+    assert transit.loc["4500000001", "Open Qty in MB51"] == 6
+    assert transit.loc["4500000001", "Delivery References"] == "80001"
+    assert transit.loc["4500000001", "Receiving Plant Name"] == "Kigali Hub"
+    assert transit.loc["4500000003", "Age"] == AGE_BANDS[0]
+    assert transit.loc["4500000004", "Age"] == NOT_ISSUED
+    assert transit.loc["4500000004", "Difference with MB51"] == 1
+    received = result.tables["received"]
+    assert sorted(received["Transit Days"].tolist()) == [5, 10, 19]
+    assert received.loc[received["STO"] == "4500000002", "Quantity"].tolist() == [5]  # 8 - 3
+    by_age = result.tables["by_age"].set_index("Age")
+    assert by_age.loc["8 to 30 days", "Value"] == 600
+    receiving = result.tables["by_receiving"].set_index("Plant")
+    assert receiving.loc["7000", "Received Transfers"] == 3
+    assert receiving.loc["7000", "Lines in Transit"] == 2
+
+
+def test_long_transit_parameter() -> None:
+    params = PARAMS.model_copy(update={"long_transit_days": 20})
+    kpis = {k.label: k.value for k in ANALYSIS.compute(data(), params).metrics}
+    assert kpis["In transit more than 20 days"] == 1
+
+
+def test_same_inputs_same_result() -> None:
+    assert result_hash(ANALYSIS.compute(data(), PARAMS)) == result_hash(
+        ANALYSIS.compute(data(), PARAMS)
+    )
+
+
+def test_reports(result: Any) -> None:
+    files = ANALYSIS.reports(result, PARAMS, Templates())
+    assert [f.kind for f in files] == ["xlsx", "docx", "pptx"]
+    for report in files:
+        check_report(report.kind, report.content)

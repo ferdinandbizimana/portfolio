@@ -6,8 +6,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from app.analyses.stock_sufficiency_amc import (
-    ANALYSIS,
+from app.analyses.common.weekly import (
     BY_CODE,
     BY_DESCRIPTION,
     NO_AMC,
@@ -16,10 +15,10 @@ from app.analyses.stock_sufficiency_amc import (
     STOCK_OUT,
     TO_PLAN,
     UNDERSTOCK,
-    Parameters,
     programme_of,
     status_of,
 )
+from app.analyses.stock_sufficiency_amc import ANALYSIS, Parameters
 from app.jobs.analysis import result_hash
 from app.reporting.documents import Templates
 from app.reporting.guard import check_report

@@ -77,6 +77,8 @@ MB51_MATERIAL_DOCUMENTS = register(
             ColumnSpec("Material Document", "text", required=False),
             ColumnSpec("Movement Type Text", "text", required=False),
             ColumnSpec("Base Unit of Measure", "text", required=False),
+            ColumnSpec("Purchase order", "text", required=False),
+            ColumnSpec("Reference", "text", required=False),
         ),
         sheet_hints=("Details for scrapping",),
     )
@@ -319,11 +321,24 @@ ZSTOCKREPORT = register(
         ),
     )
 )
-MB5T_STOCK_IN_TRANSIT = _recognised(
-    "mb5t_stock_in_transit",
-    "MB5T stock in transit",
-    "Stock in transit between plants (MB5T).",
-    ("Supplying Plant", "Purchasing Document", "Plant", "Material", "Quantity", "Amt.in Loc.Cur."),
+MB5T_STOCK_IN_TRANSIT = register(
+    DatasetSpec(
+        key="mb5t_stock_in_transit",
+        title="MB5T stock in transit",
+        description="Stock in transit between plants (MB5T), per stock transport order.",
+        columns=(
+            ColumnSpec("Supplying Plant", "text"),
+            ColumnSpec("Purchasing Document", "text"),
+            ColumnSpec("Plant", "text"),
+            ColumnSpec("Material", "text"),
+            ColumnSpec("Quantity", "number"),
+            ColumnSpec("Amt.in Loc.Cur.", "number", description="RWF"),
+            ColumnSpec("Name 1", "text", required=False),
+            ColumnSpec("Material Description", "text", required=False),
+            ColumnSpec("Item", "text", required=False),
+            ColumnSpec("Base Unit of Measure", "text", required=False),
+        ),
+    )
 )
 ME2N_PURCHASE_ORDERS = _recognised(
     "me2n_purchase_orders",
@@ -340,33 +355,51 @@ ME2N_PURCHASE_ORDERS = _recognised(
         "Net Order Value",
     ),
 )
-VA05_SALES_ORDERS = _recognised(
-    "va05_sales_orders",
-    "VA05 sales orders",
-    "Sales order items (VA05), for the order fill rate.",
-    (
-        "Sales Document",
-        "Sales Document Item",
-        "Document Date",
-        "Sold-to Party",
-        "Material",
-        "Order Quantity (Item)",
-        "Net Value (Item)",
-    ),
+VA05_SALES_ORDERS = register(
+    DatasetSpec(
+        key="va05_sales_orders",
+        title="VA05 sales orders",
+        description="Sales order items (VA05), for the order fill rate.",
+        columns=(
+            ColumnSpec("Sales Document", "text"),
+            ColumnSpec("Sales Document Item", "text"),
+            ColumnSpec("Document Date", "date"),
+            ColumnSpec("Sold-to Party", "text"),
+            ColumnSpec("Material", "text"),
+            ColumnSpec("Order Quantity (Item)", "number"),
+            ColumnSpec("Net Value (Item)", "number"),
+            ColumnSpec("Customer Reference", "text", required=False),
+            ColumnSpec("Sales Document Type", "text", required=False),
+            ColumnSpec("Sales Unit", "text", required=False),
+        ),
+    )
 )
-OUTBOUND_DELIVERIES = _recognised(
-    "outbound_deliveries",
-    "Outbound deliveries",
-    "Outbound delivery items (OBDs).",
-    (
-        "Delivery",
-        "Ship-to Party",
-        "Material",
-        "Delivery Quantity",
-        "Actual delivery qty",
-        "Goods Issue Date",
-        "Reference Document",
-    ),
+OUTBOUND_DELIVERIES = register(
+    DatasetSpec(
+        key="outbound_deliveries",
+        title="Outbound deliveries",
+        description=(
+            "Outbound delivery items (OBDs): delivered quantity, goods issue date and the "
+            "sales order or STO each delivery refers to."
+        ),
+        columns=(
+            ColumnSpec("Delivery", "text"),
+            ColumnSpec("Material", "text"),
+            ColumnSpec("Plant", "text"),
+            ColumnSpec("Delivery Quantity", "number"),
+            ColumnSpec("Reference Document", "text"),
+            ColumnSpec("Reference Item", "text", required=False),
+            ColumnSpec("Actual delivery qty", "number", required=False),
+            ColumnSpec("Act. Gds Mvmnt Date", "date", required=False),
+            ColumnSpec("Goods Issue Date", "date", required=False),
+            ColumnSpec("Ship-to Party", "text", required=False),
+            ColumnSpec("Name ship-to party", "text", required=False),
+            ColumnSpec("Sold-to Party Name", "text", required=False),
+            ColumnSpec("Item Description", "text", required=False),
+            ColumnSpec("Purchasing Document", "text", required=False),
+            ColumnSpec("Delivery Type", "text", required=False),
+        ),
+    )
 )
 INBOUND_DELIVERIES = _recognised(
     "inbound_deliveries",
