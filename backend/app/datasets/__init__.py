@@ -68,6 +68,7 @@ class Coerced:
 
 _REGISTRY: dict[str, DatasetSpec] = {}
 
+DAY_FIRST_FORMATS = ("%d.%m.%Y", "%d/%m/%Y", "%d.%m.%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S")
 ALL_SHEETS = "*"  # the input takes every recognised sheet of the file
 
 
@@ -202,6 +203,12 @@ def coerce(spec: DatasetSpec, raw: pd.DataFrame, header_row: int) -> Coerced:
     return Coerced(pd.DataFrame(out).reset_index(drop=True), issues)
 
 
+def parse_dates(values: pd.Series) -> pd.Series:
+    """Dates from text cells (ISO or SAP day first); NaT where a cell is not a date."""
+    dates, _ = _convert(values, "date")
+    return dates
+
+
 def _empty(column_type: ColumnType, length: int) -> pd.Series:
     """An absent optional column, typed like a present one (all values missing)."""
     if column_type == "number":
@@ -234,5 +241,13 @@ def _convert(values: pd.Series, column_type: ColumnType) -> tuple[pd.Series, lis
                 numbers = numbers.round().astype("Int64")
         return numbers, [int(i) for i in bad_mask.to_numpy().nonzero()[0]]
     dates = pd.to_datetime(text, errors="coerce", format="ISO8601")
+    # SAP list exports write dates day first: 30.06.2026 or 30/06/2026.
+    for day_first in DAY_FIRST_FORMATS:
+        missing = dates.isna() & ~empty
+        if not missing.any():
+            break
+        dates = dates.where(
+            ~missing, pd.to_datetime(text.where(missing), errors="coerce", format=day_first)
+        )
     bad_mask = dates.isna() & ~empty
     return dates, [int(i) for i in bad_mask.to_numpy().nonzero()[0]]
