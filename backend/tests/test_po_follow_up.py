@@ -138,7 +138,11 @@ PARAMS = Parameters(
 
 def data() -> dict[str, pd.DataFrame]:
     orders = pd.DataFrame(ME2N, columns=ME2N_COLUMNS)
-    for column in ("Document Date", "Delivery Date"):
+    # ME2M dates: final approval of the first PO after 5 days; the second PO is not
+    # approved yet and required after the report date.
+    orders["Final Approval Date"] = ["2026-01-15", "2026-01-15", None, None, None]
+    orders.loc[2, "Delivery Date"] = "2026-08-15"
+    for column in ("Document Date", "Delivery Date", "Final Approval Date"):
         orders[column] = pd.to_datetime(orders[column])
     inbound = pd.DataFrame(INBOUND, columns=INBOUND_COLUMNS)
     inbound["Act. Gds Mvmnt Date"] = pd.to_datetime(inbound["Act. Gds Mvmnt Date"])
@@ -174,6 +178,10 @@ def test_kpis_hand_checked(result: Any) -> None:
     assert kpis["Value received"] == pytest.approx(13000 / 16000)  # 10000 + 3000
     assert kpis["Average delivery period"] == 60
     assert kpis["Open value"] == pytest.approx(3000)  # 5000 - 3000 + 1000
+    assert kpis["Average days to approval"] == 5
+    assert kpis["On time in full"] == 0  # the only line in full came 38 days late
+    assert kpis["Delivered on time"] == 0
+    assert kpis["Open lines past required date"] == 1  # item 20, required 1 February
     assert all(c.passed for c in result.checks), [c.label for c in result.checks if not c.passed]
 
 
@@ -226,3 +234,16 @@ def test_reports(result: Any) -> None:
     assert [f.kind for f in files] == ["xlsx", "docx", "pptx"]
     for report in files:
         check_report(report.kind, report.content)
+
+
+def test_on_time_against_the_required_date() -> None:
+    inputs = data()
+    inputs["orders"].loc[0, "Delivery Date"] = pd.Timestamp(2026, 3, 31)  # received 11 March
+    result = ANALYSIS.compute(inputs, PARAMS)
+    kpis = {k.label: k.value for k in result.metrics}
+    assert kpis["On time in full"] == pytest.approx(1 / 3)
+    assert kpis["Delivered on time"] == 1
+    lines = result.tables["lines"].set_index(["PO", "Item"])
+    assert lines.loc[("4100000001", "10"), "Approval to Receipt (days)"] == 55
+    assert lines.loc[("4100000001", "10"), "Days Late"] == -20
+    assert not lines.loc[("4100000002", "10"), "Overdue"]  # required 15 August

@@ -343,8 +343,8 @@ MB5T_STOCK_IN_TRANSIT = register(
 ME2N_PURCHASE_ORDERS = register(
     DatasetSpec(
         key="me2n_purchase_orders",
-        title="ME2N purchase orders",
-        description="Purchase order items (ME2N): creation date, supplier, ordered and open qty.",
+        title="ME2N / ME2M purchase orders",
+        description="Purchase order items (ME2N or ME2M): creation, approval and delivery dates.",
         columns=(
             ColumnSpec("Purchasing Document", "text"),
             ColumnSpec("Item", "text"),
@@ -360,6 +360,7 @@ ME2N_PURCHASE_ORDERS = register(
             ColumnSpec("Purchasing Doc. Type", "text", required=False),
             ColumnSpec("Deletion Indicator", "text", required=False),
             ColumnSpec("Delivery Date", "date", required=False),
+            ColumnSpec("Final Approval Date", "date", required=False),
             ColumnSpec("Still to be delivered (value)", "number", required=False),
         ),
     )
