@@ -14,7 +14,7 @@ from docx import Document as load_docx
 from openpyxl import load_workbook
 from pptx import Presentation
 
-from app.reporting.interactive import unpack
+from app.reporting.interactive import read_payload
 
 BANNED = (
     (re.compile(r"\bAI\b"), "AI"),
@@ -88,12 +88,9 @@ def _strings(value: object) -> list[str]:
 def html_texts(content: bytes) -> list[str]:
     """Visible text of an interactive dashboard and every text in its data."""
     page = content.decode("utf-8")
-    data = re.search(r'<script id="data"[^>]*>(.*?)</script>', page, re.S)
     visible = re.sub(r"<script[^>]*>.*?</script>|<style[^>]*>.*?</style>", " ", page, flags=re.S)
     texts = [html.unescape(t) for t in re.split(r"<[^>]+>", visible) if t.strip()]
-    if data:
-        texts += _strings(unpack(data.group(1)))
-    return texts
+    return texts + _strings(read_payload(content))
 
 
 def check_report(kind: str, content: bytes) -> None:

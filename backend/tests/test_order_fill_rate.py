@@ -1,6 +1,5 @@
 """Order fill rate: hand-checked figures on fake data."""
 
-import re
 from datetime import date
 from typing import Any
 
@@ -25,7 +24,7 @@ from app.analyses.order_fill_rate.dashboard_html import (
 from app.jobs.analysis import result_hash
 from app.reporting.documents import Templates
 from app.reporting.guard import check_report
-from app.reporting.interactive import unpack
+from app.reporting.interactive import read_payload
 
 ORDER_COLUMNS = [
     "Sales Document",
@@ -163,8 +162,8 @@ def test_reports(result: Any) -> None:
 
 def test_interactive_dashboard_facts(result: Any) -> None:
     html = next(f for f in ANALYSIS.reports(result, PARAMS, Templates()) if f.kind == "html")
-    page = html.content.decode()
-    data = unpack(re.search(r'<script id="data"[^>]*>(.*?)</script>', page, re.S).group(1))
+    data = read_payload(html.content)
+    assert data is not None
     lines = data["facts"]["lines"]
     assert lines["rows"] == 4
 

@@ -58,9 +58,15 @@ from app.analyses.common.periods import fiscal_quarter, fiscal_year
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
 from app.analyses.order_fill_rate import dashboard_html
 from app.analyses.order_fill_rate.dashboard_html import (
-    IN_FULL,
-    NOT_DELIVERED,
-    PARTLY,
+    IN_FULL as IN_FULL,
+)
+from app.analyses.order_fill_rate.dashboard_html import (
+    NOT_DELIVERED as NOT_DELIVERED,
+)
+from app.analyses.order_fill_rate.dashboard_html import (
+    PARTLY as PARTLY,
+)
+from app.analyses.order_fill_rate.dashboard_html import (
     WBS_OWN,
     WBS_PROGRAMME,
 )

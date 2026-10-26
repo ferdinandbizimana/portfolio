@@ -1,6 +1,6 @@
 """Interactive HTML dashboards: self-contained, data packed, banned wording caught."""
 
-import re
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -16,7 +16,7 @@ from app.reporting.interactive import (
     Measure,
     TableSpec,
     build_html,
-    unpack,
+    read_payload,
 )
 
 
@@ -57,9 +57,10 @@ def dashboard(description: str = "Gloves (fake)") -> InteractiveDashboard:
     )
 
 
-def payload(content: bytes) -> dict:
-    page = content.decode()
-    return unpack(re.search(r'<script id="data"[^>]*>(.*?)</script>', page, re.S).group(1))
+def payload(content: bytes) -> dict[str, Any]:
+    data = read_payload(content)
+    assert data is not None
+    return data
 
 
 def test_self_contained_and_packed() -> None:

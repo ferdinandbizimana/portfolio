@@ -13,6 +13,7 @@ import gzip
 import html
 import json
 import math
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
 from importlib import resources
@@ -212,6 +213,13 @@ def pack(data: dict[str, Any]) -> str:
 
 def unpack(text: str) -> Any:
     return json.loads(gzip.decompress(base64.b64decode(text.strip())))
+
+
+def read_payload(content: bytes) -> dict[str, Any] | None:
+    """The data packed in a dashboard file (None when it has none)."""
+    found = re.search(r'<script id="data"[^>]*>(.*?)</script>', content.decode("utf-8"), re.S)
+    data = unpack(found.group(1)) if found else None
+    return data if isinstance(data, dict) else None
 
 
 def build_html(dashboard: InteractiveDashboard) -> bytes:
