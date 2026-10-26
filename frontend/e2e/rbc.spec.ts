@@ -30,6 +30,7 @@ const GL = csv([
 const SCRAP = csv([
   ["Plant", "Material", "Movement Type", "WBS Element", "Quantity", "Amt.in Loc.Cur."],
   ["1000", "101", "551", "RMS-PRG-FND-CP", "-10", "-1000"],
+  ["1000", "101", "101", "RMS-PRG-FND-CP", "30", "3000"],
 ]);
 
 async function chooseFile(page: Page, input: string, fileName: string) {
@@ -53,7 +54,7 @@ test("RBC accountability report from uploaded SAP files", async ({ page }) => {
   await expect(page.getByLabel("WBS element")).toHaveValue("RMS-PRG-FND-CP");
   await chooseFile(page, "Previous RBC report", `previous-${tag}.csv`);
   await chooseFile(page, "G/L line items", `gl-${tag}.csv`);
-  await chooseFile(page, "Expired stock scrapped", `mb51-${tag}.csv`);
+  await chooseFile(page, "MB51 material documents of the period", `mb51-${tag}.csv`);
   await page.getByRole("button", { name: "Run analysis" }).click();
 
   await expect(page).toHaveURL(/\/admin\/runs\/\d+$/);
@@ -65,6 +66,9 @@ test("RBC accountability report from uploaded SAP files", async ({ page }) => {
   });
   await expect(programmes.getByRole("row", { name: /MALARIA AND NTD/ })).toContainText("Increase");
   await expect(programmes.getByRole("row", { name: /^CPDS/ })).toContainText("Reduction");
+  // MB51 receipts (101) on the WBS are shown next to opening and closing.
+  await expect(programmes.getByRole("columnheader", { name: "Receipts (RWF)" })).toBeVisible();
+  await expect(programmes.getByRole("row", { name: /MALARIA AND NTD/ })).toContainText("3,000");
   const workbook = await page.getByRole("link", { name: /Excel workbook/ }).getAttribute("href");
   expect((await page.request.get(workbook!)).status()).toBe(200);
 });
