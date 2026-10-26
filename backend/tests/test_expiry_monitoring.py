@@ -159,3 +159,19 @@ def test_without_movements_or_quarantine() -> None:
 def test_dates_must_be_in_order() -> None:
     with pytest.raises(ValidationError):
         Parameters(opening_date=date(2026, 6, 30), closing_date=date(2026, 3, 31))
+
+
+def test_quarantine_plant_9900() -> None:
+    """Default: the quarantine plant is 9900; another plant starting with 99 is not."""
+    data = inputs()
+    closing = data["closing"]
+    closing.loc[closing["Material"] == "M6", "Plant"] = "9900"  # expired gel moved to quarantine
+    params = PARAMS.model_copy(
+        update={"quarantine_plants": Parameters.model_fields["quarantine_plants"].default}
+    )
+    kpis = {k.label: k.value for k in ANALYSIS.compute(data, params).metrics}
+    # B2 at 1000 and B3 at 7002 are expired outside quarantine; B6 is at 9900.
+    assert kpis["Expired batches outside the quarantine plant"] == 2
+    closing.loc[closing["Material"] == "M6", "Plant"] = "9901"  # not the quarantine plant
+    kpis = {k.label: k.value for k in ANALYSIS.compute(data, params).metrics}
+    assert kpis["Expired batches outside the quarantine plant"] == 3

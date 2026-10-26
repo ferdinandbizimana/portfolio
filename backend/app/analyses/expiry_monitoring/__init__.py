@@ -4,7 +4,7 @@ Ferdinand's rules of 26 October 2026 (docs/PLAN.md, Decisions):
 
 - a batch has expired when the ZSTOCKREPORT shows its expiry date on or
   before the report date; every expired batch must be blocked and sent to the
-  quarantine plant (batches that are not are flagged);
+  quarantine plant 9900 (batches that are not are flagged);
 - a period (month, quarter, six months, financial year) compares the
   ZSTOCKREPORT of its opening month with the one of its closing month;
 - the batches that were to expire during the period (opening snapshot) end as
@@ -106,9 +106,12 @@ class Parameters(BaseModel):
         description="Date of the closing ZSTOCKREPORT, e.g. 30 June 2026.",
     )
     quarantine_plants: str = Field(
-        default="",
-        title="Quarantine plant(s)",
-        description="Plant codes where expired stock must be (comma-separated).",
+        default="9900",
+        title="Quarantine plants",
+        description=(
+            "Plant codes, or the start of plant codes, where expired stock must be "
+            "(comma-separated). The RMS quarantine plant is 9900."
+        ),
     )
     distribution_types: str = Field(
         default="601, Y01, Z01, X01, 641",
@@ -203,7 +206,7 @@ def _movements(raw: pd.DataFrame) -> pd.DataFrame:
 class ExpiryMonitoring(Analysis):
     key = "expiry_monitoring"
     title = "Expiry monitoring"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "Two monthly ZSTOCKREPORTs (opening and closing month of a period): expired batches "
         "per plant, batches due to expire that were cleared or expired, value saved, the "
@@ -228,14 +231,14 @@ class ExpiryMonitoring(Analysis):
         names = plant_names(data.get("plants"))
         opening = read_batches(data["opening"], params.opening_date, names)
         closing = read_batches(data["closing"], params.closing_date, names)
-        quarantine = set(_codes(params.quarantine_plants))
+        quarantine = tuple(_codes(params.quarantine_plants))
 
         # Expired at closing, with the blocking and quarantine flags.
         expired = closing[closing["Expiry Band"] == EXPIRED].copy()
         expired["Not Blocked Qty"] = (expired["Quantity"] - expired["Blocked"]).clip(lower=0.0)
         expired["Not Blocked"] = expired["Not Blocked Qty"] > 0
         expired["Outside Quarantine"] = (
-            ~expired["Plant"].str.upper().isin(quarantine) if quarantine else False
+            ~expired["Plant"].str.upper().str.startswith(quarantine) if quarantine else False
         )
 
         # Batches due to expire during the period, and what became of them.
