@@ -19,6 +19,18 @@ Definitions used (see docs/PLAN.md, Decisions):
   the first receipt, and to the last receipt of a line delivered in full;
 - the open quantity from ME2N ("Still to be delivered") is shown next to the
   quantity traced in the inbound deliveries.
+
+Ferdinand's addition of 25 October 2026: the ME2M report (same columns as ME2N)
+gives the approval date ("Final Approval Date") and the required delivery date
+("Delivery Date") of each PO line, next to its creation date ("Document Date"):
+
+- days to approval = approval date - creation date;
+- approval to receipt = last goods receipt - approval date (lines in full);
+- on time when the last goods receipt is on or before the required delivery
+  date; on time in full = delivered in full and on time, out of the lines
+  with a required delivery date;
+- an open line is overdue when its required delivery date is before the report
+  date.
 """
 
 from datetime import date
@@ -97,7 +109,7 @@ def _params(params: BaseModel) -> Parameters:
 class PoFollowUp(Analysis):
     key = "po_follow_up"
     title = "Purchase order follow-up"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "Purchase orders (ME2N) against inbound deliveries: delivery period from PO creation "
         "to goods receipt, lines delivered in full, received against ordered quantity and "
@@ -119,7 +131,8 @@ class PoFollowUp(Analysis):
                 "PO": _code(raw["Purchasing Document"]),
                 "Item": _code(raw["Item"]),
                 "Created": pd.to_datetime(raw["Document Date"]),
-                "Planned Delivery": pd.to_datetime(raw["Delivery Date"]),
+                "Approved": pd.to_datetime(raw["Final Approval Date"]),
+                "Required Delivery": pd.to_datetime(raw["Delivery Date"]),
                 "Supplier": _text(raw["Supplier/Supplying Plant"]),
                 "Supplier Name": supplier_name,
                 "Material": _code(raw["Material"]),
@@ -145,7 +158,8 @@ class PoFollowUp(Analysis):
                     c: (c, "first")
                     for c in [
                         "Created",
-                        "Planned Delivery",
+                        "Approved",
+                        "Required Delivery",
                         "Supplier",
                         "Supplier Name",
                         "Material",
@@ -222,9 +236,15 @@ class PoFollowUp(Analysis):
             (lines["Last Receipt"] - lines["Created"]).dt.days.astype(float).where(full)
         )
         lines["Days Late"] = (
-            (lines["Last Receipt"] - lines["Planned Delivery"]).dt.days.astype(float).where(full)
+            (lines["Last Receipt"] - lines["Required Delivery"]).dt.days.astype(float).where(full)
         )
+        lines["Days to Approval"] = (lines["Approved"] - lines["Created"]).dt.days.astype(float)
+        lines["Approval to Receipt (days)"] = (
+            (lines["Last Receipt"] - lines["Approved"]).dt.days.astype(float).where(full)
+        )
+        lines["On Time"] = full & (lines["Days Late"] <= 0)
         report = pd.Timestamp(params.report_date)
+        lines["Overdue"] = ~full & (lines["Required Delivery"] < report)
         lines["Age of Open PO (days)"] = (
             (report - lines["Created"]).dt.days.astype(float).where(~full)
         )
@@ -288,8 +308,38 @@ class PoFollowUp(Analysis):
             ["Age of Open PO (days)", "PO", "Item"], ascending=[False, True, True], kind="mergesort"
         )
 
+        with_required = lines["Required Delivery"].notna()
+        full_with_required = full & with_required
+        days_to_approval = lines["Days to Approval"].dropna()
         kpis = [
             Kpi(label="PO lines", value=len(lines), format="integer"),
+            Kpi(
+                label="Average days to approval",
+                value=float(days_to_approval.mean()) if len(days_to_approval) else None,
+                format="number",
+                unit="days",
+                note=f"PO creation to final approval; {int(lines['Approved'].isna().sum())} "
+                "lines without an approval date",
+            ),
+            Kpi(
+                label="On time in full",
+                value=_rate(int(lines["On Time"].sum()), int(with_required.sum())),
+                format="percent",
+                note="Received in full by the required delivery date",
+            ),
+            Kpi(
+                label="Delivered on time",
+                value=_rate(
+                    int((lines["On Time"] & with_required).sum()), int(full_with_required.sum())
+                ),
+                format="percent",
+                note="Of the lines delivered in full",
+            ),
+            Kpi(
+                label="Open lines past required date",
+                value=int(lines["Overdue"].sum()),
+                format="integer",
+            ),
             Kpi(
                 label="Lines delivered in full", value=totals.get("Lines in Full"), format="percent"
             ),
@@ -339,7 +389,13 @@ class PoFollowUp(Analysis):
 
         def dated(frame: pd.DataFrame) -> pd.DataFrame:
             out = frame.copy()
-            for column in ("Created", "Planned Delivery", "First Receipt", "Last Receipt"):
+            for column in (
+                "Created",
+                "Approved",
+                "Required Delivery",
+                "First Receipt",
+                "Last Receipt",
+            ):
                 out[column] = pd.to_datetime(out[column]).dt.strftime("%Y-%m-%d")
             return out
 
@@ -347,7 +403,8 @@ class PoFollowUp(Analysis):
             "PO",
             "Item",
             "Created",
-            "Planned Delivery",
+            "Approved",
+            "Required Delivery",
             "Supplier",
             "Supplier Name",
             "Material",
@@ -367,6 +424,10 @@ class PoFollowUp(Analysis):
             "Days to First Receipt",
             "Delivery Period (days)",
             "Days Late",
+            "On Time",
+            "Days to Approval",
+            "Approval to Receipt (days)",
+            "Overdue",
             "Age of Open PO (days)",
         ]
         line_table = dated(lines[line_columns])
@@ -457,6 +518,8 @@ class PoFollowUp(Analysis):
                         Column(key="PO", label="PO"),
                         Column(key="Item", label="Item"),
                         Column(key="Created", label="Created", format="date"),
+                        Column(key="Approved", label="Approved", format="date"),
+                        Column(key="Required Delivery", label="Required by", format="date"),
                         Column(key="Supplier Name", label="Supplier"),
                         Column(key="Material", label="Material"),
                         Column(key="Description", label="Description"),
@@ -532,6 +595,8 @@ class PoFollowUp(Analysis):
             "Days to First Receipt": "number",
             "Delivery Period (days)": "number",
             "Days Late": "number",
+            "Days to Approval": "number",
+            "Approval to Receipt (days)": "number",
             "Age of Open PO (days)": "number",
         }
         by_period = TableBlock("Delivery period", t["by_period"], formats, total_row=True)
@@ -542,6 +607,7 @@ class PoFollowUp(Analysis):
             return f"{float(value):.1%}" if isinstance(value, int | float) else "not available"
 
         average = kpi["Average delivery period"]
+        approval = kpi["Average days to approval"]
         document = ReportDocument(
             title="Purchase order follow-up",
             subtitle=str(result.extras["subtitle"]),
@@ -561,6 +627,15 @@ class PoFollowUp(Analysis):
                             else ""
                         )
                         + f"Value still open: RWF {float(kpi['Open value'] or 0):,.0f}.",
+                        f"{pct(kpi['On time in full'])} of the lines with a required delivery "
+                        "date were received in full by that date; "
+                        f"{kpi['Open lines past required date']} open lines are past it. "
+                        + (
+                            f"Approval took {float(approval):.0f} days on average after PO "
+                            "creation."
+                            if isinstance(approval, int | float)
+                            else ""
+                        ),
                     ],
                     tables=[by_period],
                     charts=[
@@ -580,7 +655,9 @@ class PoFollowUp(Analysis):
                         "and item (or material).",
                         "Delivered in full: received quantity at least the ordered quantity. "
                         "Received value = net order value x received / ordered quantity.",
-                        "Delivery period: from the PO document date to the last goods receipt.",
+                        "Delivery period: from the PO document date to the last goods receipt. "
+                        "Approval: the final approval date (ME2M / ME2N). On time: last goods "
+                        "receipt on or before the required delivery date.",
                     ],
                 ),
             ],

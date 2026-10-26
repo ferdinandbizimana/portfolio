@@ -256,6 +256,8 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
 | 2026-10-24 | Purchase order follow-up: ME2N items created in the period, not deleted; receipts = inbound delivery items with a goods movement date, matched by PO and item (or material); in full when received ≥ ordered; received value = net order value × received / ordered; delivery period = last goods receipt − PO document date; open POs aged to the report date. |
 | 2026-10-24 | Warehouse activity: task type from the warehouse process category (putaway, stock removal); cancelled tasks (status A) left out; dock to stock = putaway confirmation date − goods receipt date (target 1 day, a parameter); picking time = task creation to confirmation; picking to goods issue = last stock removal of a delivery to its goods issue in the outbound delivery list (EWM document = delivery number). |
 | 2026-10-24 | The outbound delivery list must have "Goods Issue Date" and the inbound list "Goods receipt date", so the two lists (same SAP layout) are never mistaken for each other. |
+| 2026-10-25 | PO follow-up uses the ME2M report (same columns as ME2N) for the creation date (Document Date), approval date (Final Approval Date) and required delivery date (Delivery Date): days to approval, approval to receipt, on time (last receipt on or before the required date), on time in full, open lines past the required date. Your ME2M file loads without errors (headers recorded in `docs/sap-exports.md`; no data kept). |
+| 2026-10-26 | Answers to Q14–Q18 and the AMC link (to be built in the next pull request): AMC and ZSTOCKREPORT quantities are always in the base unit of measure (pack sizes x30 / x60 are descriptions only). MB51 "Reference" holds the outbound delivery on 641, 101 and their reversals 642, 102 and 122; the STO creation date comes from ME2M, so stock in transit also measures STO creation → goods issue (641) → goods receipt (101). PO follow-up keeps STOs and flags them (document type ZSTO, numbers starting 71). Warehouse activity: dock-to-stock target 2 days; inbound deliveries (numbers starting 18) traced from goods receipt to putaway, with a check that MB51 has the 101 for the same inbound delivery; picking traced to post goods issue, with a check that MB51 has the 641 (STO) or 601 / Y01 / Z01 (customer deliveries) for the same outbound delivery; missing postings are flagged as EWM–ERP synchronisation issues. Order fill rate: goods-issued deliveries count; ordered vs confirmed quantity per line; net price = unit cost, net value = line value; ZRMS and ZSPO are normal sales, ZDON programme commodities at 100% discount, valued from MB51 601 / Y01 / Z01 / X01 by sales document; OX10 gives customer names (facility type in Name 1: HP, CS / HC, DH, RH, PH …), district (City) and region (Description), matched to the outbound delivery names; the fill rate is also analysed by facility type, region and border districts. Weekly product codes → SAP materials through the material master (MARA): "Old material number" = NPC code, "Material" = SAP code. |
 | 2026-10-21 | Word templates: the report goes where the template has a paragraph `{{p body }}`; `{{ title }}`, `{{ subtitle }}`, `{{ report_date }}` may be used anywhere. PowerPoint uses the layouts "Title Slide", "Title and Content", "Title Only". |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
@@ -340,6 +342,13 @@ Answers will be recorded in section 4 (Decisions).
 - Q18. Warehouse activity: dock-to-stock target (1 day)? Is the EWM task
   "Document" the same number as the outbound delivery in the OBD list? If not,
   which column links them?
+- Q20. ME2M has an approval date ("Final Approval Date") but no approval
+  time. Is the time in another export, or is the date enough? Many lines in
+  your file have no approval date: should those count as "not approved" (as
+  built) or be left out?
+- Q21. Your ME2M contains document types ZSTO and UB (stock transport
+  orders). Leave them out of the PO follow-up (they are followed in stock in
+  transit)? Same question as Q17.
 - Q19. Which Phase 7 dashboards should be published, and at which detail level?
 
 **Stock count reconciliation**
@@ -394,7 +403,9 @@ Answers will be recorded in section 4 (Decisions).
 - P1: answered (see Decisions): no SAP connection.
 - L1. "AI" check: whole word, upper case only (so "AID" or "maintain" pass)?
   "to be confirmed": any case. Also forbid "TBC"? (Implemented as described; "TBC" is not blocked yet.)
-- L2. The guard also scans data printed in reports (product names, reasons). A
+- L2. **Now blocking real reports** (found on your ME2M file, 2026-10-25): a
+  material description contains "AI" as part of a model name, so every report
+  listing that product fails. The guard also scans data printed in reports (product names, reasons). A
   material description containing the word "AI" would make a run fail. Should
   the guard check only the wording the application writes, or everything?
 
