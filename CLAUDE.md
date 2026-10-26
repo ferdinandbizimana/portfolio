@@ -110,9 +110,11 @@ including the browser tests on desktop and mobile layouts.
    differ, Ferdinand's instructions win. **Never invent a rule or an SAP
    column name.** If something is unclear, ask and record the answer in
    `docs/PLAN.md` (Decisions).
-7. **RBC accountability report**: only opening stock, closing stock and the
-   difference, labelled "Increase" or "Reduction", with percentages. Never
-   show receipts, issues or expired stock anywhere in that report.
+7. **RBC accountability report**: opening stock, receipts and goods issues
+   (MB51, by movement type), expired stock scrapped, other movements and
+   adjustments, closing stock and the difference, labelled "Increase" or
+   "Reduction", with percentages (Ferdinand, 26 October 2026; this replaces
+   the earlier "opening, closing and difference only" rule).
 8. **Writing**: plain, professional English. Reports must never contain the
    words "AI" or "to be confirmed". A language guard test scans every
    generated report and fails the run if they appear.

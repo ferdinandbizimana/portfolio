@@ -65,9 +65,27 @@ GL = pd.DataFrame(
     ],
     columns=["Plant", "Material", "WBS Element", "Quantity", "Amount in Local Currency"],
 )
+# Fake MB51 of the period (31 March to 30 June 2026).
 SCRAP = pd.DataFrame(
-    [["1000", "101", "551", PRG, -10, -1000]],
-    columns=["Plant", "Material", "Movement Type", "WBS Element", "Quantity", "Amt.in Loc.Cur."],
+    [
+        ["1000", "101", "551", PRG, -10, -1000, "15.06.2026"],  # scrapping
+        ["1000", "101", "101", PRG, 30, 3000, "10.04.2026"],  # receipt
+        ["1000", "101", "102", PRG, -5, -500, "11.04.2026"],  # receipt reversed
+        ["1000", "102", "601", PRG, -10, -1000, "20.05.2026"],  # goods issue
+        ["7000", "101", "641", PRG, -20, -2000, "02.04.2026"],  # goods issue (STO)
+        ["1000", "101", "101", OWN, 50, 5000, "10.04.2026"],  # other WBS: left out
+        ["1000", "102", "311", PRG, -1, -100, "10.04.2026"],  # other type: other movements
+        ["1000", "102", "601", PRG, -3, -300, "03.07.2026"],  # after the period: left out
+    ],
+    columns=[
+        "Plant",
+        "Material",
+        "Movement Type",
+        "WBS Element",
+        "Quantity",
+        "Amt.in Loc.Cur.",
+        "Posting Date",
+    ],
 )
 ITEMS = pd.DataFrame({"SAP MATERIAL": ["000105"], "Category": ["TB"]})
 PLANTS = pd.DataFrame({"Plant": ["1000", "7000"], "Name 1": ["Head office", "Hub"]})
@@ -199,20 +217,43 @@ def test_dates_must_be_in_order() -> None:
         Parameters(opening_date=date(2026, 6, 30), closing_date=date(2026, 3, 31))
 
 
-FORBIDDEN = ("receipt", "issue", "expired", "scrap")
+def test_receipts_and_goods_issues_hand_checked(result: Any) -> None:
+    """MB51 on the WBS in the period, by movement type (Ferdinand, 26 October 2026)."""
+    net = line(result, "1000", "101")  # 101 +3,000, 102 -500; scrapped -1,000
+    assert (net["Receipts Qty"], net["Receipts Value"]) == (25, 2500)
+    assert (net["Goods Issues Value"], net["Scrapped Value"]) == (0, -1000)
+    assert net["Other Movements Value"] == 14000 - 10000 - 2500 + 1000
+    kit = line(result, "1000", "102")  # 601 in the period; 311 and the July 601 are not issues
+    assert (kit["Goods Issues Qty"], kit["Goods Issues Value"]) == (-10, -1000)
+    assert kit["Other Movements Value"] == 1000
+    gone = line(result, "7000", "101")  # 641: the whole opening went out
+    assert (gone["Goods Issues Value"], gone["Other Movements Value"]) == (-2000, 0)
+
+    summary = result.tables["summary"].set_index("Category")
+    total = summary.loc["Total"]
+    assert (total["Receipts Value"], total["Goods Issues Value"]) == (2500, -3000)
+    assert (total["Scrapped Value"], total["Other Movements Value"]) == (-1000, 4300)
+    kpi = {k.label: k.value for k in result.metrics}
+    assert (kpi["Receipts"], kpi["Goods issues"], kpi["Scrapped (expired)"]) == (
+        2500,
+        -3000,
+        -1000,
+    )
+    assert kpi["MB51 lines outside the period (left out)"] == 1
+    checks = {c.key: c for c in result.checks}
+    assert checks["movements"].expected == -500 and checks["movements"].passed
+    assert checks["roll_forward"].passed
 
 
-def test_reports_never_show_receipts_issues_or_expired_stock(result: Any) -> None:
+def test_reports_show_receipts_and_goods_issues(result: Any) -> None:
     files = ANALYSIS.reports(result, PARAMS, Templates())
     readers = {"xlsx": xlsx_texts, "docx": docx_texts, "pptx": pptx_texts, "html": html_texts}
     for report in files:
         check_report(report.kind, report.content)  # banned wording
         text = " ".join(readers[report.kind](report.content)).lower()
-        for word in FORBIDDEN:
-            assert word not in text, (report.filename, word)
-    dashboard_text = result.dashboard.model_dump_json().lower()
-    for word in FORBIDDEN:
-        assert word not in dashboard_text, word
+        if report.kind != "pptx":
+            for word in ("receipts", "goods issues", "scrapped"):
+                assert word in text, (report.filename, word)
 
 
 def test_report_data_sheet_is_next_quarters_opening(result: Any, tmp_path: Path) -> None:

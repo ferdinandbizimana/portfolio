@@ -1,22 +1,30 @@
 """RBC accountability report: opening and closing stock of the RBC programmes.
 
 Business rules from the legacy script `w6` (docs/legacy-analysis.md, section 4)
-and from the RBC report of June 2026 (version 6), with Ferdinand's rule that
-the report shows only opening stock, closing stock and the difference,
-labelled "Increase" or "Reduction", with percentages. Receipts, issues and
-expired stock never appear anywhere in it.
+and from the RBC report of June 2026 (version 6). The report shows opening
+stock, receipts, goods issues, expired stock scrapped, closing stock and the
+difference, labelled "Increase" or "Reduction", with percentages (Ferdinand,
+26 October 2026: receipts and goods issues from MB51 in every RBC output).
 
 - Opening = closing stock of the previous RBC report (its "CPDS Report" data
   sheet) on the RBC WBS element only; RMS-OWN-ESE-RM stock is not RBC stock.
 - Closing = final closing stock on the same WBS after the period-end
   reconciliation: G/L line items of the stock accounts, less the expired stock
   scrapped at Finance level on that WBS (shared rule, see common/closing.py).
+- Receipts and goods issues = MB51 lines on the WBS posted in the period, split
+  by movement type (parameters: receipts 101 / 102, goods issues 601 / 602,
+  641 / 642, Y01, Z01, X01). Amounts keep the MB51 sign: issues are negative.
+- Scrapped (expired) = the scrapping deducted in the closing reconciliation.
+- Other movements and adjustments = closing - opening - receipts - goods issues
+  - scrapped: movements of other types and any gap between the reported
+  opening and the books, so each line rolls forward from opening to closing.
 - Category (programme) of each item, first match: previous report same plant,
   previous report other plant, previous report other WBS, item category list,
   otherwise CPDS marked for review. Category names are normalised.
 """
 
 from collections import Counter
+from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
@@ -31,6 +39,7 @@ from app.analyses.common.closing import (
     movement_types,
     plant_code,
     plant_names,
+    wbs_code,
 )
 from app.analyses.common.programmes import (
     CATEGORY_NAMES,
@@ -40,6 +49,7 @@ from app.analyses.common.programmes import (
 )
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
 from app.analyses.rbc_accountability import dashboard_html
+from app.datasets import parse_dates
 from app.reporting.documents import (
     ChartBlock,
     ReportDocument,
@@ -67,6 +77,22 @@ SOURCE_NEW = f"New item {DASH} assigned CPDS (review)"
 SOURCES = [SOURCE_SAME_PLANT, SOURCE_OTHER_PLANT, SOURCE_OTHER_WBS, SOURCE_ITEM_LIST, SOURCE_NEW]
 
 INCREASE, REDUCTION, NO_CHANGE = "Increase", "Reduction", "No change"
+
+RECEIPT_MOVEMENT_TYPES = "101, 102"
+ISSUE_MOVEMENT_TYPES = "601, 602, 641, 642, Y01, Z01, X01"
+
+# Movement columns of a line: (quantity, value), between opening and closing.
+RECEIPTS = ("Receipts Qty", "Receipts Value")
+ISSUES = ("Goods Issues Qty", "Goods Issues Value")
+SCRAPPED = ("Scrapped Qty", "Scrapped Value")
+OTHER = ("Other Movements Qty", "Other Movements Value")
+MOVEMENT_VALUES = [RECEIPTS[1], ISSUES[1], SCRAPPED[1], OTHER[1]]
+MOVEMENT_LABELS = {
+    RECEIPTS[1]: "Receipts",
+    ISSUES[1]: "Goods issues",
+    SCRAPPED[1]: "Scrapped (expired)",
+    OTHER[1]: "Other movements and adjustments",
+}
 
 
 def label(difference: float) -> str:
@@ -103,6 +129,17 @@ class Parameters(BaseModel):
         default=SCRAPPING_MOVEMENT_TYPES,
         title="Scrapping movement types",
         description="MB51 movement types counted as expired stock scrapped (comma-separated).",
+    )
+
+    receipt_movement_types: str = Field(
+        default=RECEIPT_MOVEMENT_TYPES,
+        title="Receipt movement types",
+        description="MB51 movement types counted as receipts (comma-separated).",
+    )
+    issue_movement_types: str = Field(
+        default=ISSUE_MOVEMENT_TYPES,
+        title="Goods issue movement types",
+        description="MB51 movement types counted as goods issues (comma-separated).",
     )
 
     @model_validator(mode="after")
@@ -172,6 +209,57 @@ def assign_categories(
     return categories, sources
 
 
+@dataclass
+class Movements:
+    lines: pd.DataFrame  # Plant, Material, receipts and goods issues (qty, value)
+    value: float  # receipts + goods issues used
+    used: int  # MB51 lines used
+    outside_period: int  # receipt / issue lines on the WBS posted outside the period
+
+
+def period_movements(
+    mb51: pd.DataFrame, wbs: str, receipt_types: set[str], issue_types: set[str], params: Any
+) -> Movements:
+    """Receipts and goods issues on the WBS in the period, per plant and material."""
+    types = mb51["Movement Type"].astype("string").str.strip().fillna("")
+    frame = pd.DataFrame(
+        {
+            "Plant": plant_code(mb51["Plant"]),
+            "Material": material_code(mb51["Material"]),
+            "WBS": wbs_code(mb51["WBS Element"]),
+            "Kind": [
+                "receipt" if t in receipt_types else "issue" if t in issue_types else ""
+                for t in types
+            ],
+            "Qty": mb51["Quantity"].astype(float).fillna(0.0),
+            "Value": mb51["Amt.in Loc.Cur."].astype(float).fillna(0.0),
+        }
+    )
+    frame = frame[(frame["WBS"] == wbs) & (frame["Kind"] != "") & (frame["Material"] != "")]
+    outside = 0
+    if "Posting Date" in mb51.columns:
+        # Lines without a readable date are kept: the export is the period's.
+        day = parse_dates(mb51.loc[frame.index, "Posting Date"])
+        start = pd.Timestamp(params.opening_date + timedelta(days=1))
+        end = pd.Timestamp(params.closing_date)
+        inside = day.isna() | ((day >= start) & (day <= end))
+        outside = int((~inside).sum())
+        frame = frame[inside.to_numpy()]
+    columns = {"receipt": RECEIPTS, "issue": ISSUES}
+    parts = []
+    for kind, (qty, value) in columns.items():
+        part = (
+            frame[frame["Kind"] == kind]
+            .groupby(["Plant", "Material"], sort=True)
+            .agg(**{qty: ("Qty", "sum"), value: ("Value", "sum")})
+        )
+        parts.append(part)
+    lines = pd.concat(parts, axis=1).fillna(0.0).reset_index()
+    if lines.empty:
+        lines = pd.DataFrame(columns=["Plant", "Material", *RECEIPTS, *ISSUES])
+    return Movements(lines, float(frame["Value"].sum()), len(frame), outside)
+
+
 def _order(categories: list[str]) -> list[str]:
     known = [p for p in PROGRAMMES if p in categories]
     return known + sorted(set(categories) - set(PROGRAMMES))
@@ -183,6 +271,7 @@ def _summary(lines: pd.DataFrame, by: list[str]) -> pd.DataFrame:
         .agg(
             **{
                 "Opening Value": ("Opening Value", "sum"),
+                **{c: (c, "sum") for c in MOVEMENT_VALUES},
                 "Closing Value": ("Closing Value", "sum"),
             }
         )
@@ -207,6 +296,7 @@ def _total_row(frame: pd.DataFrame, first: str) -> pd.DataFrame:
     total[first] = "Total"
     for column in (
         "Opening Value",
+        *MOVEMENT_VALUES,
         "Closing Value",
         "Lines in stock",
         "Share of opening",
@@ -225,7 +315,7 @@ def _total_row(frame: pd.DataFrame, first: str) -> pd.DataFrame:
 class RbcAccountability(Analysis):
     key = "rbc_accountability"
     title = "RBC accountability report"
-    version = "1.2.0"
+    version = "1.3.0"
     description = (
         "Opening and closing stock of the RBC programmes (WBS RMS-PRG-FND-CP) by programme, "
         "plant and product, with the difference labelled Increase or Reduction. Opening "
@@ -238,7 +328,11 @@ class RbcAccountability(Analysis):
             'Previous RBC report, data sheet ("CPDS Report")',
         ),
         InputSpec("gl_lines", "gl_stock_lines", "G/L line items of the stock accounts"),
-        InputSpec("scrapping", "mb51_material_documents", "Expired stock scrapped (MB51 lines)"),
+        InputSpec(
+            "scrapping",
+            "mb51_material_documents",
+            "MB51 material documents of the period (receipts, goods issues, scrapping)",
+        ),
         InputSpec("plants", "ox10_plants", "Plant names (OX10)", required=False),
         InputSpec("item_categories", "rbc_item_categories", "Item category list", required=False),
     )
@@ -287,10 +381,42 @@ class RbcAccountability(Analysis):
             .reset_index()
         )
 
+        scrapped = (
+            on_wbs_closing.groupby(["Plant", "Material"], sort=True)
+            .agg(**{SCRAPPED[0]: ("Scrapped Qty", "sum"), SCRAPPED[1]: ("Scrapped Value", "sum")})
+            .reset_index()
+        )
+        moves = period_movements(
+            data["scrapping"],
+            wbs,
+            movement_types(params.receipt_movement_types),
+            movement_types(params.issue_movement_types),
+            params,
+        )
+
         lines = opening.merge(closing, on=["Plant", "Material"], how="outer")
-        amounts = ["Opening Qty", "Opening Value", "Closing Qty", "Closing Value"]
+        lines = lines.merge(moves.lines, on=["Plant", "Material"], how="outer")
+        lines = lines.merge(scrapped, on=["Plant", "Material"], how="outer")
+        amounts = [
+            "Opening Qty",
+            "Opening Value",
+            *RECEIPTS,
+            *ISSUES,
+            *SCRAPPED,
+            "Closing Qty",
+            "Closing Value",
+        ]
         lines[amounts] = lines[amounts].astype(float).fillna(0.0)
-        lines = lines[(lines[amounts].round(6) != 0).any(axis=1)]
+        lines = lines[(lines[amounts].round(6) != 0).any(axis=1)].copy()
+        for i, other in enumerate(OTHER):
+            kind = "Qty" if i == 0 else "Value"
+            lines[other] = (
+                lines[f"Closing {kind}"]
+                - lines[f"Opening {kind}"]
+                - lines[RECEIPTS[i]]
+                - lines[ISSUES[i]]
+                - lines[SCRAPPED[i]]
+            )
         lines = lines.sort_values(["Plant", "Material"], kind="mergesort").reset_index(drop=True)
 
         descriptions = {
@@ -318,6 +444,7 @@ class RbcAccountability(Analysis):
         opening_total = float(lines["Opening Value"].sum())
         closing_total = float(lines["Closing Value"].sum())
         difference_total = closing_total - opening_total
+        totals = {c: float(lines[c].sum()) for c in MOVEMENT_VALUES}
 
         # By programme, in report order, with shares and lines in stock.
         by_programme = _summary(lines, ["Category"])
@@ -339,6 +466,7 @@ class RbcAccountability(Analysis):
                 [
                     "Category",
                     "Opening Value",
+                    *MOVEMENT_VALUES,
                     "Closing Value",
                     "Difference",
                     "Difference %",
@@ -470,9 +598,17 @@ class RbcAccountability(Analysis):
                 "Category": lines["Category"],
                 "Category Source": lines["Category Source"],
                 "Opening Stock": lines["Opening Qty"],
+                "Total Receipt Qties": lines[RECEIPTS[0]],
+                "Total Issue Quantities": lines[ISSUES[0]],
+                "Scrapped (Expired) Qty": lines[SCRAPPED[0]],
+                "Other Movements Qty": lines[OTHER[0]],
                 "Closing Stock": lines["Closing Qty"],
                 "Base Unit of Measure": lines["Base Unit of Measure"],
                 "Opening Value": lines["Opening Value"],
+                "Total Receipt Values": lines[RECEIPTS[1]],
+                "Total Issue Values": lines[ISSUES[1]],
+                "Scrapped (Expired) Value": lines[SCRAPPED[1]],
+                "Other Movements Value": lines[OTHER[1]],
                 "Closing Value": lines["Closing Value"],
                 "Currency": "RWF",
                 "Difference Value": lines["Difference"],
@@ -517,6 +653,24 @@ class RbcAccountability(Analysis):
                 actual=opening_total + float(lines["Difference"].sum()),
             ),
             Check(
+                "movements",
+                "Receipts and goods issues equal the MB51 lines used on the WBS",
+                expected=moves.value,
+                actual=totals[RECEIPTS[1]] + totals[ISSUES[1]],
+            ),
+            Check(
+                "scrapped",
+                "Scrapped (expired) equals the scrapping deducted on the WBS",
+                expected=float(on_wbs_closing["Scrapped Value"].sum()),
+                actual=totals[SCRAPPED[1]],
+            ),
+            Check(
+                "roll_forward",
+                "Opening + receipts + goods issues + scrapped + other movements = closing",
+                expected=closing_total,
+                actual=opening_total + sum(totals.values()),
+            ),
+            Check(
                 "programme_total",
                 "Summary by programme adds up to the closing stock",
                 expected=closing_total,
@@ -544,6 +698,14 @@ class RbcAccountability(Analysis):
                 format="money",
                 unit="RWF",
             ),
+            Kpi(label="Receipts", value=totals[RECEIPTS[1]], format="money", unit="RWF"),
+            Kpi(label="Goods issues", value=totals[ISSUES[1]], format="money", unit="RWF"),
+            Kpi(
+                label="Scrapped (expired)",
+                value=totals[SCRAPPED[1]],
+                format="money",
+                unit="RWF",
+            ),
             Kpi(
                 label=f"Closing stock ({params.closing_date:%d %b %Y})",
                 value=closing_total,
@@ -565,6 +727,14 @@ class RbcAccountability(Analysis):
             ),
             Kpi(label="New items to review", value=new_items, format="integer"),
         ]
+        if moves.outside_period:
+            kpis.append(
+                Kpi(
+                    label="MB51 lines outside the period (left out)",
+                    value=moves.outside_period,
+                    format="integer",
+                )
+            )
         period = _period_text(period_start, params.closing_date)
         subtitle = f"{wbs} · {period} · RWF"
         position = (
@@ -584,6 +754,10 @@ class RbcAccountability(Analysis):
             Column(key="Difference", label="Difference (RWF)", format=money),
             Column(key="Difference %", label="Difference %", format="percent"),
             Column(key="Increase / Reduction", label="Increase / Reduction"),
+        ]
+        move_columns = [
+            Column(key=c, label=f"{MOVEMENT_LABELS[c]} (RWF)", format=money)
+            for c in MOVEMENT_VALUES
         ]
         dashboard = Dashboard(
             title=f"RBC accountability {DASH} {period}",
@@ -619,7 +793,9 @@ class RbcAccountability(Analysis):
                     title="Summary by programme",
                     columns=[
                         Column(key="Category", label="Programme"),
-                        *diff_columns,
+                        diff_columns[0],
+                        *move_columns,
+                        *diff_columns[1:],
                         Column(key="Share of closing", label="Share", format="percent"),
                         Column(key="Lines in stock", label="Lines in stock", format="integer"),
                     ],
@@ -631,7 +807,9 @@ class RbcAccountability(Analysis):
                     columns=[
                         Column(key="Plant", label="Plant"),
                         Column(key="Plant Name", label="Plant name"),
-                        *diff_columns,
+                        diff_columns[0],
+                        *move_columns,
+                        *diff_columns[1:],
                         Column(key="Share of closing", label="Share", format="percent"),
                     ],
                     rows=rows_of(by_plant),
@@ -656,7 +834,9 @@ class RbcAccountability(Analysis):
                         Column(key="Plant Name", label="Plant"),
                         Column(key="Material", label="Material"),
                         Column(key="Material Description", label="Description"),
-                        *diff_columns,
+                        diff_columns[0],
+                        *move_columns,
+                        *diff_columns[1:],
                         Column(key="Category Source", label="Category source"),
                     ],
                     rows=rows_of(lines),
@@ -701,6 +881,7 @@ class RbcAccountability(Analysis):
                 "position": position,
                 "new_items": new_items,
                 "opening_total": opening_total,
+                **{MOVEMENT_LABELS[c]: v for c, v in totals.items()},
                 "closing_total": closing_total,
             },
         )
@@ -713,10 +894,15 @@ class RbcAccountability(Analysis):
         period = str(result.extras["period"])
         opening_label = f"Opening Value ({params.opening_date:%d %b %Y})"
         closing_label = f"Closing Value ({params.closing_date:%d %b %Y})"
-        renamed = {"Opening Value": opening_label, "Closing Value": closing_label}
+        renamed = {
+            "Opening Value": opening_label,
+            "Closing Value": closing_label,
+            **MOVEMENT_LABELS,
+        }
         diff: dict[str, ValueFormat] = {
             opening_label: "money",
             closing_label: "money",
+            **{label: "money" for label in MOVEMENT_LABELS.values()},
             "Difference": "money",
             "Difference %": "percent",
             "Share of opening": "percent",
@@ -769,8 +955,16 @@ class RbcAccountability(Analysis):
             t["data_sheet"],
             {
                 "Opening Stock": "number",
+                "Total Receipt Qties": "number",
+                "Total Issue Quantities": "number",
+                "Scrapped (Expired) Qty": "number",
+                "Other Movements Qty": "number",
                 "Closing Stock": "number",
                 "Opening Value": "money",
+                "Total Receipt Values": "money",
+                "Total Issue Values": "money",
+                "Scrapped (Expired) Value": "money",
+                "Other Movements Value": "money",
                 "Closing Value": "money",
                 "Difference Value": "money",
             },
@@ -785,6 +979,10 @@ class RbcAccountability(Analysis):
         opening_total = float(result.extras["opening_total"])  # type: ignore[arg-type]
         closing_total = float(result.extras["closing_total"])  # type: ignore[arg-type]
         position = str(result.extras["position"])
+        moved = {
+            label: float(result.extras[label])  # type: ignore[arg-type]
+            for label in MOVEMENT_LABELS.values()
+        }
         programmes = t["summary"][t["summary"]["Category"] != "Total"]
         bullets = [
             f"{row['Category']}: RWF {row['Opening Value']:,.0f} to RWF "
@@ -807,6 +1005,11 @@ class RbcAccountability(Analysis):
                         f"The stock of the RBC programmes was RWF {opening_total:,.0f} on "
                         f"{params.opening_date:%d %B %Y} and RWF {closing_total:,.0f} on "
                         f"{params.closing_date:%d %B %Y}: an overall {position.lower()}.",
+                        f"In the period the programmes received RWF {moved['Receipts']:,.0f} "
+                        f"and issued RWF {-moved['Goods issues']:,.0f}; expired stock "
+                        f"scrapped came to RWF {-moved['Scrapped (expired)']:,.0f} and other "
+                        "movements and adjustments to RWF "
+                        f"{moved['Other movements and adjustments']:,.0f}.",
                     ],
                     bullets=bullets,
                     tables=[summary],
@@ -831,6 +1034,16 @@ class RbcAccountability(Analysis):
                         "Opening stock is the closing stock reported in the previous RBC report.",
                         "Closing stock is the reconciled closing stock on the WBS element at "
                         "the closing date.",
+                        "Receipts and goods issues are the MB51 material documents on the WBS "
+                        "element posted in the period, by movement type (receipts: "
+                        f"{params.receipt_movement_types}; goods issues: "
+                        f"{params.issue_movement_types}). Goods issues and scrapping are "
+                        "negative.",
+                        "Scrapped (expired) is the expired stock scrapped (movement types "
+                        f"{params.scrapping_movement_types}) deducted from the closing stock.",
+                        "Other movements and adjustments = closing - opening - receipts - "
+                        "goods issues - scrapped: other movement types and any gap between "
+                        "the reported opening stock and the books.",
                         "Difference = closing stock minus opening stock; it is labelled "
                         "Increase or Reduction, and the percentage is the difference divided "
                         "by the opening stock.",

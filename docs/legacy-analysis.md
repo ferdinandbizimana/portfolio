@@ -237,9 +237,9 @@ match), Analysis Prompt.
 - Check: opening + adjustment + receipts + issues + scrapping − closing = 0.
 - Material numbers: leading zeros removed; plant trimmed.
 
-Under your current rule, receipts, issues, scrapping and the adjustment are
-**not shown** in the RBC report. The roll-forward may still run in the
-background as a check; see question R1.
+Since 26 October 2026 (your instruction) receipts, goods issues and
+scrapping are shown in the RBC report, from MB51 by movement type; the
+adjustment is shown as "Other movements and adjustments".
 
 ### Category assignment (first match wins)
 

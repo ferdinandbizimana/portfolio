@@ -1,8 +1,8 @@
 """Interactive dashboard of the RBC accountability report.
 
-Only opening stock, closing stock and the difference (Increase / Reduction,
-with percentages), as the report rule requires: no receipts, issues or
-expired stock anywhere.
+Opening stock, receipts, goods issues and expired stock scrapped (MB51),
+other movements and adjustments, closing stock and the difference (Increase /
+Reduction, with percentages).
 
 The layout follows Ferdinand's RBC programme stock dashboard: filters for
 programme, plant, item and value, opening against closing by programme and by
@@ -39,11 +39,26 @@ MEASURES = (
     ),
     Measure("in_stock", "Lines in stock", count=True, where=("In stock", ("Yes",))),
     Measure("opening", "Opening stock (RWF)", "rwf", sum="Opening Value"),
+    Measure("receipts", "Receipts (RWF)", "rwf", sum="Receipts Value"),
+    Measure("issues", "Goods issues (RWF)", "rwf", sum="Goods Issues Value"),
+    Measure("scrapped", "Scrapped, expired (RWF)", "rwf", sum="Scrapped Value"),
+    Measure("other", "Other movements (RWF)", "rwf", sum="Other Movements Value"),
     Measure("closing", "Closing stock (RWF)", "rwf", sum="Closing Value"),
     Measure("difference", "Difference (RWF)", "rwf", diff=("closing", "opening")),
     Measure("change", "Increase / Reduction", "change", ratio=("difference", "opening")),
 )
-COLUMNS = ("opening", "closing", "difference", "change", "in_stock")
+COLUMNS = (
+    "opening",
+    "receipts",
+    "issues",
+    "scrapped",
+    "other",
+    "closing",
+    "difference",
+    "change",
+    "in_stock",
+)
+CHANGE_COLUMNS = ("opening", "closing", "difference", "change")
 CLOSING_MEASURES = (
     Measure("lines", "Lines", count=True),
     Measure("materials", "Materials", distinct="Material"),
@@ -75,6 +90,10 @@ def facts(lines: pd.DataFrame) -> pd.DataFrame:
                 for o, c in zip(lines["Opening Value"], lines["Closing Value"], strict=True)
             ],
             "Opening Value": lines["Opening Value"].astype(float),
+            "Receipts Value": lines["Receipts Value"].astype(float),
+            "Goods Issues Value": lines["Goods Issues Value"].astype(float),
+            "Scrapped Value": lines["Scrapped Value"].astype(float),
+            "Other Movements Value": lines["Other Movements Value"].astype(float),
             "Closing Value": lines["Closing Value"].astype(float),
             "Difference": lines["Difference"].astype(float),
             "Increase / Reduction": lines["Increase / Reduction"].astype(str),
@@ -103,8 +122,9 @@ def build(
         title=title,
         subtitle=subtitle,
         intro=(
-            f"Opening stock ({opening_label}), closing stock ({closing_label}) and the difference, "
-            "labelled Increase or Reduction, by programme, plant and item."
+            f"Opening stock ({opening_label}), receipts and goods issues (MB51), expired stock "
+            f"scrapped, closing stock ({closing_label}) and the difference, labelled Increase "
+            "or Reduction, by programme, plant and item."
         ),
         facts={"lines": facts(lines), "closing": closing_facts(lines)},
         measures={"lines": MEASURES, "closing": CLOSING_MEASURES},
@@ -122,6 +142,9 @@ def build(
         ),
         kpis=(
             KpiTile(f"Opening stock ({opening_label})", "opening", "lines"),
+            KpiTile("Receipts", "receipts", "lines", "MB51, in the period", "green"),
+            KpiTile("Goods issues", "issues", "lines", "MB51, in the period", "red"),
+            KpiTile("Scrapped (expired)", "scrapped", "lines", "other movements {other}", "grey"),
             KpiTile(f"Closing stock ({closing_label})", "closing", "lines"),
             KpiTile("Difference", "difference", "lines", "{change}", "amber"),
             KpiTile(
@@ -144,6 +167,15 @@ def build(
                         ignore=("Programme",),
                         sort="desc",
                         sort_by="closing",
+                    ),
+                    ChartSpec(
+                        "Receipts and goods issues by programme",
+                        "lines",
+                        "Programme",
+                        ("receipts", "issues", "scrapped"),
+                        ignore=("Programme",),
+                        sort="desc",
+                        sort_by="receipts",
                     ),
                     TableSpec(
                         "Summary by programme",
@@ -186,7 +218,7 @@ def build(
                         "Largest increases",
                         "lines",
                         ("Item",),
-                        COLUMNS[:4],
+                        CHANGE_COLUMNS,
                         sort_by="difference",
                         limit=15,
                     ),
@@ -194,7 +226,7 @@ def build(
                         "Largest reductions",
                         "lines",
                         ("Item",),
-                        COLUMNS[:4],
+                        CHANGE_COLUMNS,
                         sort_by="difference",
                         descending=False,
                         limit=15,
@@ -231,13 +263,17 @@ def build(
                 "E · Products by plant",
                 blocks=(
                     DetailSpec(
-                        "Opening, closing and difference by plant and product",
+                        "Opening, movements, closing and difference by plant and product",
                         "lines",
                         (
                             ("Plant", "Plant", "text"),
                             ("Item", "Product", "text"),
                             ("Programme", "Programme", "text"),
                             ("Opening Value", "Opening (RWF)", "rwf"),
+                            ("Receipts Value", "Receipts (RWF)", "rwf"),
+                            ("Goods Issues Value", "Goods issues (RWF)", "rwf"),
+                            ("Scrapped Value", "Scrapped, expired (RWF)", "rwf"),
+                            ("Other Movements Value", "Other movements (RWF)", "rwf"),
                             ("Closing Value", "Closing (RWF)", "rwf"),
                             ("Difference", "Difference (RWF)", "rwf"),
                             ("Increase / Reduction", "Increase / reduction", "text"),
@@ -250,8 +286,11 @@ def build(
         ),
         footer=(
             f"Opening = closing stock reported to RBC at {opening_label}; closing = reconciled "
-            f"stock on the RBC WBS at {closing_label}. Difference = closing less opening, shown "
-            "as an increase or a reduction. Values in RWF."
+            f"stock on the RBC WBS at {closing_label}. Receipts and goods issues are MB51 "
+            "material documents on the WBS posted in the period; goods issues and scrapping "
+            "are negative. Other movements = closing less opening, receipts, goods issues "
+            "and scrapping. Difference = closing less opening, shown as an increase or a "
+            "reduction. Values in RWF."
         ),
         checks=checks,
     )
