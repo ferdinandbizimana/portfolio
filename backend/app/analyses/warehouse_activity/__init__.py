@@ -15,6 +15,15 @@ docs/PLAN.md, Decisions):
   time, from the outbound delivery list) - the last picking confirmation of that
   delivery; the task's document is matched to the delivery number;
 - open tasks are aged from their creation to the report date.
+
+Answers of 26 October 2026: the dock-to-stock target is 2 days; inbound
+deliveries (numbers starting with 18) are traced from goods receipt to putaway,
+and picking to post goods issue. Every inbound delivery received in EWM must
+have its goods receipt (101) in MB51 with the same inbound delivery in
+"Reference", and every outbound delivery goods-issued must have its goods issue
+in MB51: 641 for an STO, 601 / Y01 / Z01 for a delivery to a customer. A missing
+posting means EWM did not synchronise with ERP (it blocks operations and
+affects valuation and prices), so it is flagged.
 """
 
 from datetime import date, timedelta
@@ -43,6 +52,10 @@ from app.reporting.word import build_docx
 PUTAWAY, PICKING, OTHER = "Putaway", "Stock removal", "Other movement"
 KINDS = [PUTAWAY, PICKING, OTHER]
 CANCELLED = "A"
+INBOUND_PREFIX = "18"
+GOODS_RECEIPT = "101"
+GOODS_ISSUE_TYPES = ("641", "601", "Y01", "Z01")
+MISSING = "Missing in MB51"
 DOCK_BANDS = ["Same day", "1 day", "2 to 3 days", "4 to 7 days", "More than 7 days"]
 
 
@@ -88,7 +101,7 @@ class Parameters(BaseModel):
         title="Report date", description="Date of the export; open tasks are aged to this date."
     )
     dock_to_stock_target_days: int = Field(
-        default=1,
+        default=2,
         ge=0,
         title="Dock to stock target (days)",
         description="Putaways confirmed within this many days of goods receipt are on target.",
@@ -109,7 +122,7 @@ def _mean(values: pd.Series) -> float | None:
 class WarehouseActivity(Analysis):
     key = "warehouse_activity"
     title = "Warehouse activity"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "EWM warehouse tasks: dock to stock from goods receipt to putaway, picking time, "
         "picking to goods issue (with the outbound delivery list), open tasks and tasks "
@@ -121,6 +134,12 @@ class WarehouseActivity(Analysis):
             "deliveries",
             "outbound_deliveries",
             "Outbound deliveries (goods issue date and time)",
+            required=False,
+        ),
+        InputSpec(
+            "movements",
+            "mb51_material_documents",
+            "Goods movements (MB51), to check that EWM postings reached ERP",
             required=False,
         ),
     )
@@ -205,6 +224,53 @@ class WarehouseActivity(Analysis):
             ).dt.total_seconds() / 3600
             to_gi = joined.reset_index().rename(columns={"index": "Document"})
             matched_deliveries = len(to_gi)
+
+        # EWM postings that must be in MB51 (synchronisation with ERP).
+        movements = data.get("movements")
+        sync_columns = ["Document", "Posting", "EWM Date", "Expected in MB51", "Status"]
+        sync = pd.DataFrame(columns=sync_columns)
+        if movements is not None:
+            kinds = _text(movements["Movement Type"]).str.upper()
+            references = material_code(movements["Reference"]).astype(str)
+            receipts_in_erp = set(references[kinds == GOODS_RECEIPT])
+            issues_in_erp = set(references[kinds.isin(GOODS_ISSUE_TYPES)])
+            received = (
+                putaways[
+                    putaways["Goods Receipt Date"].notna()
+                    & putaways["Document"].str.startswith(INBOUND_PREFIX)
+                ]
+                .groupby("Document")["Goods Receipt Date"]
+                .min()
+            )
+            if deliveries is not None:
+                goods_issued = issued if len(picks) else pd.Series(dtype="datetime64[ns]")
+                to_check = goods_issued[goods_issued.index.isin(set(picks["Document"]))]
+            else:
+                to_check = picks[picks["Document"] != ""].groupby("Document")["Confirmed"].max()
+            rows = [
+                {
+                    "Document": doc,
+                    "Posting": "Goods receipt",
+                    "EWM Date": day,
+                    "Expected in MB51": GOODS_RECEIPT,
+                    "Status": MISSING,
+                }
+                for doc, day in received.items()
+                if doc not in receipts_in_erp
+            ] + [
+                {
+                    "Document": doc,
+                    "Posting": "Goods issue",
+                    "EWM Date": day,
+                    "Expected in MB51": " / ".join(GOODS_ISSUE_TYPES),
+                    "Status": MISSING,
+                }
+                for doc, day in to_check.items()
+                if doc not in issues_in_erp
+            ]
+            sync = pd.DataFrame(rows, columns=sync_columns)
+        missing_receipts = int((sync["Posting"] == "Goods receipt").sum())
+        missing_issues = int((sync["Posting"] == "Goods issue").sum())
 
         open_tasks = tasks[~done].copy()
         open_tasks["Age (days)"] = (report - open_tasks["Created"]).dt.days.astype(float)
@@ -312,6 +378,22 @@ class WarehouseActivity(Analysis):
                 else "Add the outbound delivery list",
             ),
             Kpi(label="Open tasks", value=len(open_tasks), format="integer"),
+            Kpi(
+                label="Inbound deliveries without 101 in MB51",
+                value=missing_receipts if movements is not None else None,
+                format="integer",
+                note="EWM goods receipt not posted in ERP"
+                if movements is not None
+                else "Add MB51 to check",
+            ),
+            Kpi(
+                label="Outbound deliveries without goods issue in MB51",
+                value=missing_issues if movements is not None else None,
+                format="integer",
+                note="641 / 601 / Y01 / Z01 not posted in ERP"
+                if movements is not None
+                else "Add MB51 to check",
+            ),
         ]
         checks = [
             Check(
@@ -382,6 +464,11 @@ class WarehouseActivity(Analysis):
         open_table = stamp(
             open_tasks[[*task_columns, "Age (days)"]], ["Created", "Confirmed"]
         ).reset_index(drop=True)
+        sync_table = (
+            stamp(sync, ["EWM Date"])
+            .sort_values(["Posting", "EWM Date", "Document"], kind="mergesort")
+            .reset_index(drop=True)
+        )
         subtitle = f"EWM warehouse tasks up to {params.report_date:%d %B %Y}"
         number, integer = "number", "integer"
         dashboard = Dashboard(
@@ -471,6 +558,24 @@ class WarehouseActivity(Analysis):
                     searchable=["Product", "Document", "Warehouse Task"],
                 ),
                 Table(
+                    id="sync-issues",
+                    title="EWM postings missing in ERP (MB51)",
+                    columns=[
+                        Column(key="Document", label="Delivery"),
+                        Column(key="Posting", label="Posting"),
+                        Column(key="EWM Date", label="In EWM"),
+                        Column(key="Expected in MB51", label="Movement type expected"),
+                        Column(key="Status", label="Status"),
+                    ],
+                    rows=rows_of(sync_table),
+                    total_rows=len(sync_table),
+                    level="detail",
+                    filters=["Posting"],
+                    searchable=["Document"],
+                    note="EWM did not synchronise these deliveries with ERP: correct them, "
+                    "as they block operations and affect valuation and prices.",
+                ),
+                Table(
                     id="open-tasks",
                     title="Open tasks (oldest first)",
                     columns=[
@@ -497,6 +602,9 @@ class WarehouseActivity(Analysis):
                     "Picking to goods issue needs the outbound delivery list."
                     if deliveries is None
                     else "",
+                    f"{len(sync)} EWM deliveries have no matching posting in MB51."
+                    if len(sync)
+                    else "",
                 ]
                 if note
             ],
@@ -511,6 +619,7 @@ class WarehouseActivity(Analysis):
                 "picks": pick_table,
                 "picking_to_goods_issue": to_gi_table,
                 "open_tasks": open_table,
+                "sync_issues": sync_table,
             },
             metrics=kpis,
             checks=checks,
@@ -579,6 +688,24 @@ class WarehouseActivity(Analysis):
                     ],
                 ),
                 Section(
+                    "EWM and ERP synchronisation",
+                    paragraphs=[
+                        (
+                            f"{kpi['Inbound deliveries without 101 in MB51']} inbound deliveries "
+                            "received in EWM have no goods receipt (101) in MB51, and "
+                            f"{kpi['Outbound deliveries without goods issue in MB51']} outbound "
+                            "deliveries goods-issued in EWM have no goods issue (641, 601, Y01, "
+                            "Z01) in MB51. They block operations and affect valuation and prices "
+                            "until they are posted in ERP."
+                        )
+                        if kpi["Inbound deliveries without 101 in MB51"] is not None
+                        else "The check needs the MB51 goods movements of the same period.",
+                    ],
+                    tables=[TableBlock("Missing in ERP (MB51)", t["sync_issues"], formats)]
+                    if len(t["sync_issues"])
+                    else [],
+                ),
+                Section(
                     "Method",
                     bullets=[
                         "Tasks are typed by warehouse process category (putaway, stock removal); "
@@ -600,6 +727,7 @@ class WarehouseActivity(Analysis):
             TableBlock("Putaways", t["putaways"], formats),
             TableBlock("Picking to goods issue", t["picking_to_goods_issue"], formats),
             TableBlock("Open tasks", t["open_tasks"], formats),
+            TableBlock("Missing in ERP (MB51)", t["sync_issues"], formats),
         ]
         return [
             ReportFile(
