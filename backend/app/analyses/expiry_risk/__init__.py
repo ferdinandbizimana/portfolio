@@ -12,7 +12,14 @@ expiries and use it with AMC". Definitions used (see docs/PLAN.md, Decisions):
 - quantity at risk, first expiry first out: the batches of a product are used in
   order of expiry at the AMC; what cannot be used before its expiry date is at
   risk (expired stock is at risk in full);
-- products without an AMC are shown by expiry band only.
+- products without an AMC are shown by expiry band only;
+- projection (Ferdinand, "Projection of Expiration for items received", 26
+  October 2026), per material and WBS on unrestricted stock: remaining shelf
+  life (RSL) = average of the months to expiry of its unexpired batches;
+  months of stock (MOS) = quantity / AMC; at-risk quantity = quantity - AMC x
+  RSL; "Overstock" when MOS - RSL > 0 (stock left at expiry), "Risk of
+  stockout" when MOS - RSL < 0 (stock runs out before it expires); value at
+  risk = at-risk quantity x average unit cost (negative = shortfall).
 """
 
 from datetime import date
@@ -52,6 +59,8 @@ BANDS = [
 ]
 DAYS_PER_MONTH = 365.25 / 12
 NOT_ASSESSED = "No AMC (not assessed)"
+OVERSTOCK, STOCKOUT, BALANCED = "Overstock", "Risk of stockout", "Balanced"
+ALL_EXPIRED = "All batches expired"
 
 
 def band_of(months: float | None) -> str:
@@ -85,6 +94,74 @@ def at_risk(quantities: list[float], months: list[float | None], amc: float) -> 
     return risks
 
 
+def project(batches: pd.DataFrame) -> pd.DataFrame:
+    """Months of stock against remaining shelf life, per material and WBS."""
+    columns = [
+        "Material",
+        "Material Description",
+        "WBS",
+        "Program",
+        "Batches",
+        "RSL Months",
+        "Quantity",
+        "Average Unit Cost",
+        "AMC",
+        "MOS",
+        "MOS - RSL",
+        "AMC x RSL",
+        "At-Risk Quantity",
+        "Stock Level Status",
+        "Value of Unrestricted",
+        "Value at Risk",
+    ]
+    stock = batches[(batches["Unrestricted"] != 0) & (batches["AMC"] > 0)]
+    rows = []
+    for (material, wbs), part in stock.groupby(["Material", "WBS"], sort=True):
+        months = part["Months to Expiry"]
+        live = months[months > 0]
+        rsl = float(live.mean()) if len(live) else None
+        quantity = float(part["Unrestricted"].sum())
+        amc = float(part["AMC"].iloc[0])
+        cost = float(part["Unit Cost"].mean())
+        mos = quantity / amc
+        if rsl is None:
+            gap = keep = risk = None
+            status = ALL_EXPIRED if months.notna().any() else NO_DATE
+        else:
+            gap, keep = mos - rsl, amc * rsl
+            risk = quantity - keep
+            status = OVERSTOCK if gap > 0 else STOCKOUT if gap < 0 else BALANCED
+        rows.append(
+            {
+                "Material": material,
+                "Material Description": str(part["Material Description"].iloc[0]),
+                "WBS": wbs,
+                "Program": str(part["Program"].iloc[0]),
+                "Batches": len(part),
+                "RSL Months": rsl,
+                "Quantity": quantity,
+                "Average Unit Cost": cost,
+                "AMC": amc,
+                "MOS": mos,
+                "MOS - RSL": gap,
+                "AMC x RSL": keep,
+                "At-Risk Quantity": risk,
+                "Stock Level Status": status,
+                "Value of Unrestricted": float((part["Unrestricted"] * part["Unit Cost"]).sum()),
+                "Value at Risk": risk * cost if risk is not None else None,
+            }
+        )
+    frame = pd.DataFrame(rows, columns=columns)
+    if len(frame):
+        frame["_v"] = frame["Value at Risk"].fillna(0.0)
+        frame = (
+            frame.sort_values(["_v", "Material", "WBS"], ascending=[False, True, True])
+            .drop(columns="_v")
+            .reset_index(drop=True)
+        )
+    return frame
+
+
 class Parameters(BaseModel):
     report_date: date = Field(
         title="Stock report date", description="Date of the ZSTOCKREPORT stock, e.g. 31 July 2026."
@@ -105,7 +182,7 @@ def _params(params: BaseModel) -> Parameters:
 class ExpiryRisk(Analysis):
     key = "expiry_risk"
     title = "Expiry risk"
-    version = "1.2.0"
+    version = "1.3.0"
     description = (
         "Stock on hand (ZSTOCKREPORT) by expiry date and the quantity and value that cannot "
         "be used before expiry at the average monthly consumption of the weekly stock "
@@ -153,6 +230,7 @@ class ExpiryRisk(Analysis):
                 .fillna(0.0)
                 .sum(axis=1),
                 "Unit Cost": raw["Unit Cost"].astype(float).fillna(0.0),
+                "Unrestricted": raw["Unrestricted"].astype(float).fillna(0.0),
             }
         )
         batches = batches[batches["Material"] != ""]
@@ -254,6 +332,8 @@ class ExpiryRisk(Analysis):
             .reset_index()
         )
 
+        projection = project(batches)
+
         batch_columns = [
             "Plant",
             "Plant Name",
@@ -305,6 +385,21 @@ class ExpiryRisk(Analysis):
                 format="percent",
             ),
             Kpi(label="Batches not assessed (no AMC)", value=len(not_assessed), format="integer"),
+            Kpi(
+                label="Products at risk of stockout (MOS below shelf life)",
+                value=int((projection["Stock Level Status"] == STOCKOUT).sum()),
+                format="integer",
+            ),
+            Kpi(
+                label="Overstock value at risk (MOS above shelf life)",
+                value=float(
+                    projection.loc[
+                        projection["Stock Level Status"] == OVERSTOCK, "Value at Risk"
+                    ].sum()
+                ),
+                format="money",
+                unit="RWF",
+            ),
         ]
         checks = [
             Check(
@@ -393,6 +488,28 @@ class ExpiryRisk(Analysis):
                     rows=rows_of(by_plant),
                 ),
                 Table(
+                    id="projection",
+                    title="Months of stock against remaining shelf life (per material and WBS)",
+                    columns=[
+                        Column(key="Material", label="Material"),
+                        Column(key="Material Description", label="Description"),
+                        Column(key="WBS", label="WBS"),
+                        Column(key="RSL Months", label="RSL (months)", format=number),
+                        Column(key="Quantity", label="Unrestricted", format=number),
+                        Column(key="AMC", label="AMC", format=number),
+                        Column(key="MOS", label="MOS", format=number),
+                        Column(key="MOS - RSL", label="MOS - RSL", format=number),
+                        Column(key="At-Risk Quantity", label="At-risk qty", format=number),
+                        Column(key="Value at Risk", label="Value at risk (RWF)", format=money),
+                        Column(key="Stock Level Status", label="Status"),
+                    ],
+                    rows=rows_of(projection),
+                    total_rows=len(projection),
+                    level="detail",
+                    filters=["Stock Level Status", "WBS"],
+                    searchable=["Material", "Material Description"],
+                ),
+                Table(
                     id="batches-at-risk",
                     title="Batches at risk of expiry (highest value first)",
                     columns=[
@@ -428,6 +545,7 @@ class ExpiryRisk(Analysis):
                 "by_programme": by_programme,
                 "at_risk": risky,
                 "not_assessed": not_assessed,
+                "projection": projection,
             },
             metrics=kpis,
             checks=checks,
@@ -452,6 +570,12 @@ class ExpiryRisk(Analysis):
             "Months to Expiry": "number",
             "AMC": "number",
             "Qty at Risk": "number",
+            "RSL Months": "number",
+            "MOS": "number",
+            "MOS - RSL": "number",
+            "AMC x RSL": "number",
+            "At-Risk Quantity": "number",
+            "Average Unit Cost": "money",
         }
         by_band = TableBlock("By expiry band", t["by_band"], formats, total_row=True)
         by_programme = TableBlock("By programme", t["by_programme"], formats, total_row=True)
@@ -489,6 +613,23 @@ class ExpiryRisk(Analysis):
                 ),
                 Section("By programme", tables=[by_programme]),
                 Section(
+                    "Months of stock against remaining shelf life",
+                    paragraphs=[
+                        f"{(t['projection']['Stock Level Status'] == STOCKOUT).sum():,} products "
+                        "will run out before their stock expires (risk of stockout) and "
+                        f"{(t['projection']['Stock Level Status'] == OVERSTOCK).sum():,} hold "
+                        "more months of stock than their remaining shelf life (overstock)."
+                    ],
+                    tables=[
+                        TableBlock(
+                            "Overstock: stock left at expiry",
+                            t["projection"][t["projection"]["Stock Level Status"] == OVERSTOCK],
+                            formats,
+                            max_rows=25,
+                        )
+                    ],
+                ),
+                Section(
                     "Method",
                     bullets=[
                         "Stock: ZSTOCKREPORT unrestricted, quality inspection and blocked stock "
@@ -498,6 +639,10 @@ class ExpiryRisk(Analysis):
                         "left at the expiry date is at risk. Expired stock is at risk in full.",
                         "Products are linked by NPC code, otherwise by description. Products "
                         "without AMC are shown by expiry band only.",
+                        "Projection per material and WBS on unrestricted stock: RSL = average "
+                        "months to expiry of its unexpired batches; MOS = quantity / AMC; "
+                        "at-risk quantity = quantity - AMC x RSL; overstock when MOS > RSL, "
+                        "risk of stockout when MOS < RSL.",
                     ],
                 ),
             ],
@@ -508,6 +653,7 @@ class ExpiryRisk(Analysis):
             by_band,
             by_programme,
             TableBlock("By plant", t["by_plant"], formats),
+            TableBlock("MOS against shelf life", t["projection"], formats),
             TableBlock("Batches at risk", t["at_risk"], formats),
             TableBlock("Not assessed (no AMC)", t["not_assessed"], formats),
         ]
@@ -532,6 +678,7 @@ class ExpiryRisk(Analysis):
                     f"Expiry risk: {params.report_date:%d %B %Y}",
                     document.subtitle,
                     check_rows(result.checks),
+                    result.tables["projection"],
                 ),
             ),
             ReportFile(
