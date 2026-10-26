@@ -29,6 +29,7 @@ from app.jobs.ingest import parsed_dir_key
 from app.jobs.notify import notify_run_finished
 from app.reporting.documents import Templates
 from app.reporting.guard import BannedWordingError, check_report, find_banned
+from app.reporting.standard import ensure_downloads
 from app.reporting.word import TemplateError
 from app.storage import LocalStorage
 
@@ -205,6 +206,16 @@ def _execute(db: Session, storage: LocalStorage, run: AnalysisRun) -> None:
         reports = analysis.reports(result, params, _templates(db, storage))
     except TemplateError as error:
         raise RunFailed(f"The active report template cannot be used: {error}") from None
+    # Every run gives at least an Excel workbook and an HTML dashboard.
+    reports = ensure_downloads(
+        reports,
+        title=analysis.title,
+        subtitle=result.dashboard.subtitle,
+        name=f"{analysis.title.replace(' ', '_')}_run_{run.id}",
+        tables=result.tables,
+        metrics=result.metrics,
+        checks=result.checks,
+    )
     for report in reports:
         try:
             check_report(report.kind, report.content)
