@@ -46,6 +46,7 @@ from app.reporting.documents import (
     check_lines,
 )
 from app.reporting.excel import build_workbook
+from app.reporting.interactive import check_rows, dashboard_file
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
@@ -168,7 +169,7 @@ def _code(values: pd.Series) -> pd.Series:
 class StockInTransit(Analysis):
     key = "stock_in_transit"
     title = "Stock in transit"
-    version = "1.1.0"
+    version = "1.2.0"
     description = (
         "Stock in transit between plants (MB5T) with the days since its goods issue, traced "
         "in MB51 by STO and outbound delivery (641 goods issue, 101 goods receipt), and the "
@@ -624,6 +625,8 @@ class StockInTransit(Analysis):
     def reports(
         self, result: AnalysisResult, params: BaseModel, templates: Templates
     ) -> list[ReportFile]:
+        from app.analyses.stock_in_transit import dashboard_html
+
         params = _params(params)
         t = result.tables
         formats: dict[str, ValueFormat] = {
@@ -712,6 +715,16 @@ class StockInTransit(Analysis):
                     [(k.label, k.value, k.format) for k in result.metrics],
                     blocks,
                     document.checks,
+                ),
+            ),
+            dashboard_file(
+                name,
+                dashboard_html.build(
+                    result.tables["in_transit"],
+                    result.tables["received"],
+                    f"Stock in transit: {params.report_date:%d %B %Y}",
+                    document.subtitle,
+                    check_rows(result.checks),
                 ),
             ),
             ReportFile(

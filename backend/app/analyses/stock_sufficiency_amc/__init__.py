@@ -57,6 +57,7 @@ from app.reporting.documents import (
     check_lines,
 )
 from app.reporting.excel import build_workbook
+from app.reporting.interactive import check_rows, dashboard_file
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
@@ -85,7 +86,7 @@ def _params(params: BaseModel) -> Parameters:
 class StockSufficiencyAmc(Analysis):
     key = "stock_sufficiency_amc"
     title = "Stock sufficiency against AMC"
-    version = "1.1.0"
+    version = "1.2.0"
     description = (
         "Months of stock at RMS and nationally for every programme product of the weekly "
         "stock monitoring report, against its average monthly consumption: status "
@@ -426,6 +427,8 @@ class StockSufficiencyAmc(Analysis):
     def reports(
         self, result: AnalysisResult, params: BaseModel, templates: Templates
     ) -> list[ReportFile]:
+        from app.analyses.stock_sufficiency_amc import dashboard_html
+
         params = _params(params)
         t = result.tables
         formats: dict[str, ValueFormat] = {
@@ -513,6 +516,15 @@ class StockSufficiencyAmc(Analysis):
                     [(k.label, k.value, k.format) for k in result.metrics],
                     [summary, analysis, risk, no_amc, not_linked],
                     document.checks,
+                ),
+            ),
+            dashboard_file(
+                name,
+                dashboard_html.build(
+                    result.tables["analysis"],
+                    f"Stock sufficiency: {params.report_date:%d %B %Y}",
+                    document.subtitle,
+                    check_rows(result.checks),
                 ),
             ),
             ReportFile(

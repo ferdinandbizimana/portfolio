@@ -141,6 +141,17 @@ Detail by WBS" of the count findings workbook) for the inventory accuracy, and
 the RBC report data sheet for the split by programme. Parameters: count date and
 tolerance (0.005 = 0.5%).
 
+### Interactive dashboards (every analysis)
+
+Every run also gives an **interactive dashboard**: the button "Open interactive
+dashboard" on the run page opens it, and it is listed with the reports as one
+HTML file you can download, keep and e-mail (it opens offline in any recent
+browser; the data is inside the file). Filters at the top apply to every
+section unless a section says otherwise; tables have totals; the detailed lines
+can be searched and downloaded as CSV. The self-checks are at the bottom. The
+variance investigation shows inventory accuracy before and after justification;
+the RBC dashboard shows only opening stock, closing stock and the difference.
+
 ### Order fill rate
 
 Files: VA05 sales orders and the list of outbound deliveries (optionally OX10

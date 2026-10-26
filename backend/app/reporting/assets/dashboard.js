@@ -500,6 +500,9 @@
       rows.sort((x, y) => {
         const a = raw(t, b.sort_by, x);
         const c = raw(t, b.sort_by, y);
+        const aEmpty = a === null || a === undefined || a === "";
+        const cEmpty = c === null || c === undefined || c === "";
+        if (aEmpty || cEmpty) return aEmpty === cEmpty ? x - y : aEmpty ? 1 : -1;
         if (typeof a === "number" && typeof c === "number") return dir * (a - c) || x - y;
         return dir * natural(a ?? "", c ?? "") || x - y;
       });

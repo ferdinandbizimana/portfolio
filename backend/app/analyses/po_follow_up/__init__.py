@@ -57,6 +57,7 @@ from app.reporting.documents import (
     check_lines,
 )
 from app.reporting.excel import build_workbook
+from app.reporting.interactive import check_rows, dashboard_file
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
@@ -116,7 +117,7 @@ def _params(params: BaseModel) -> Parameters:
 class PoFollowUp(Analysis):
     key = "po_follow_up"
     title = "Purchase order follow-up"
-    version = "1.2.0"
+    version = "1.3.0"
     description = (
         "Purchase orders (ME2N) against inbound deliveries: delivery period from PO creation "
         "to goods receipt, lines delivered in full, received against ordered quantity and "
@@ -601,6 +602,8 @@ class PoFollowUp(Analysis):
     def reports(
         self, result: AnalysisResult, params: BaseModel, templates: Templates
     ) -> list[ReportFile]:
+        from app.analyses.po_follow_up import dashboard_html
+
         params = _params(params)
         t = result.tables
         formats: dict[str, ValueFormat] = {
@@ -713,6 +716,15 @@ class PoFollowUp(Analysis):
                     [(k.label, k.value, k.format) for k in result.metrics],
                     blocks,
                     document.checks,
+                ),
+            ),
+            dashboard_file(
+                name,
+                dashboard_html.build(
+                    result.tables["lines"],
+                    "Purchase order follow-up",
+                    document.subtitle,
+                    check_rows(result.checks),
                 ),
             ),
             ReportFile(

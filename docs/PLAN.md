@@ -247,7 +247,7 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
       districts, facility type); filters: quarter, month, plant, WBS, order
       type, customer, item, region, district, border
 - [x] Excel workbook of every detail line
-- [ ] Same dashboard style for the other analyses (variance investigation,
+- [x] Same dashboard style for the other analyses (variance investigation,
       RBC, stock sufficiency, expiry, warehouse, PO, transit, picker)
 
 ### Phase 12 — Expiry monitoring (monthly ZSTOCKREPORT)

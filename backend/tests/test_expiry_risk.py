@@ -145,6 +145,6 @@ def test_same_inputs_same_result() -> None:
 
 def test_reports(result: Any) -> None:
     files = ANALYSIS.reports(result, PARAMS, Templates())
-    assert [f.kind for f in files] == ["xlsx", "docx", "pptx"]
+    assert [f.kind for f in files] == ["xlsx", "html", "docx", "pptx"]
     for report in files:
         check_report(report.kind, report.content)

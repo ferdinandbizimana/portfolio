@@ -34,6 +34,7 @@ from app.reporting.documents import (
     check_lines,
 )
 from app.reporting.excel import build_workbook
+from app.reporting.interactive import check_rows, dashboard_file
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
@@ -160,7 +161,7 @@ def _grouped(frame: pd.DataFrame, by: list[str]) -> pd.DataFrame:
 class StockCountReconciliation(Analysis):
     key = "stock_count_reconciliation"
     title = "Stock count reconciliation"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "Counted stock against the closing stock posted in Finance, per plant and material: "
         "differences classified by cause and SAP root-cause theme, by site and plant, with "
@@ -484,6 +485,8 @@ class StockCountReconciliation(Analysis):
     def reports(
         self, result: AnalysisResult, params: BaseModel, templates: Templates
     ) -> list[ReportFile]:
+        from app.analyses.stock_count_reconciliation import dashboard_html
+
         params = _params(params)
         t = result.tables
         group: dict[str, ValueFormat] = {
@@ -635,6 +638,15 @@ class StockCountReconciliation(Analysis):
                     [(k.label, k.value, k.format) for k in result.metrics],
                     [summary, themes, causes, sites, plants, matrix, integrity, offsetting, lines],
                     document.checks,
+                ),
+            ),
+            dashboard_file(
+                name,
+                dashboard_html.build(
+                    result.tables["lines"],
+                    "Stock count reconciliation",
+                    document.subtitle,
+                    check_rows(result.checks),
                 ),
             ),
             ReportFile(

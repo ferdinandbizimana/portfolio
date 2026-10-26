@@ -46,6 +46,7 @@ from app.reporting.documents import (
     check_lines,
 )
 from app.reporting.excel import build_workbook
+from app.reporting.interactive import check_rows, dashboard_file
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
@@ -122,7 +123,7 @@ def _mean(values: pd.Series) -> float | None:
 class WarehouseActivity(Analysis):
     key = "warehouse_activity"
     title = "Warehouse activity"
-    version = "1.1.0"
+    version = "1.2.0"
     description = (
         "EWM warehouse tasks: dock to stock from goods receipt to putaway, picking time, "
         "picking to goods issue (with the outbound delivery list), open tasks and tasks "
@@ -630,6 +631,8 @@ class WarehouseActivity(Analysis):
     def reports(
         self, result: AnalysisResult, params: BaseModel, templates: Templates
     ) -> list[ReportFile]:
+        from app.analyses.warehouse_activity import dashboard_html
+
         params = _params(params)
         t = result.tables
         formats: dict[str, ValueFormat] = {
@@ -741,6 +744,18 @@ class WarehouseActivity(Analysis):
                     [(k.label, k.value, k.format) for k in result.metrics],
                     blocks,
                     document.checks,
+                ),
+            ),
+            dashboard_file(
+                name,
+                dashboard_html.build(
+                    result.tables["putaways"],
+                    result.tables["picks"],
+                    result.tables["open_tasks"],
+                    params.dock_to_stock_target_days,
+                    f"Warehouse activity: {params.report_date:%d %B %Y}",
+                    document.subtitle,
+                    check_rows(result.checks),
                 ),
             ),
             ReportFile(

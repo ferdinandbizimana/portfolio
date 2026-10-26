@@ -21,6 +21,8 @@ from typing import Any, Literal
 
 import pandas as pd
 
+from app.reporting.documents import ReportFile
+
 # "change": a share shown as "Increase 12.3%" or "Reduction 4.0%".
 Fmt = Literal["int", "num", "rwf", "pct", "text", "days", "change"]
 
@@ -265,3 +267,19 @@ def build_html(dashboard: InteractiveDashboard) -> bytes:
 </body></html>
 """
     return page.encode("utf-8")
+
+
+def month_of(values: pd.Series) -> pd.Series:
+    """ "2026-06" for each date (empty when there is none)."""
+    return pd.to_datetime(values, errors="coerce").dt.strftime("%Y-%m").fillna("")
+
+
+def check_rows(checks: Any) -> list[tuple[str, float, float, bool]]:
+    return [(c.label, float(c.expected), float(c.actual), bool(c.passed)) for c in checks]
+
+
+def dashboard_file(name: str, dashboard: InteractiveDashboard) -> ReportFile:
+    """The interactive dashboard as a report file of the run."""
+    return ReportFile(
+        "dashboard", "Interactive dashboard (HTML)", f"{name}.html", "html", build_html(dashboard)
+    )

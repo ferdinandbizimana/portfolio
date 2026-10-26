@@ -34,6 +34,7 @@ from app.reporting.documents import (
     check_lines,
 )
 from app.reporting.excel import build_workbook
+from app.reporting.interactive import check_rows, dashboard_file
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
@@ -122,7 +123,7 @@ def _accuracy(lines: float, wrong: float) -> float | None:
 class PickerAccuracy(Analysis):
     key = "picker_accuracy"
     title = "Picker accuracy"
-    version = "1.1.0"
+    version = "1.2.0"
     description = (
         "Lines picked and discrepancies per picker and per day from the picking register, "
         "accuracy against a target, and by customer and order type where the register has "
@@ -429,6 +430,8 @@ class PickerAccuracy(Analysis):
     def reports(
         self, result: AnalysisResult, params: BaseModel, templates: Templates
     ) -> list[ReportFile]:
+        from app.analyses.picker_accuracy import dashboard_html
+
         params = _params(params)
         t = result.tables
         formats: dict[str, ValueFormat] = {
@@ -504,6 +507,18 @@ class PickerAccuracy(Analysis):
                     [(k.label, k.value, k.format) for k in result.metrics],
                     blocks,
                     document.checks,
+                ),
+            ),
+            dashboard_file(
+                name,
+                dashboard_html.build(
+                    result.tables["by_picker_day"],
+                    result.tables["by_customer"],
+                    result.tables["by_type"],
+                    params.target,
+                    "Picker accuracy",
+                    document.subtitle,
+                    check_rows(result.checks),
                 ),
             ),
             ReportFile(
