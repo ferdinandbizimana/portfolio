@@ -249,6 +249,16 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
 - [x] Excel workbook of every detail line
 - [x] Same dashboard style for the other analyses (variance investigation,
       RBC, stock sufficiency, expiry, warehouse, PO, transit, picker)
+- [x] RBC dashboard laid out like your "RBC Program Stock" dashboard: filters
+      for programme, plant, product and value band (the larger of opening and
+      closing), KPIs (opening, closing, difference with Increase / Reduction
+      %, products in stock at closing), opening against closing by programme
+      and by plant (top 15), the closing stock list with a summary by
+      programme and CSV download, and every plant-product line with its
+      difference and closing quantity. Still only opening, closing and the
+      difference. Not taken over: the two-quarter switch (one run covers one
+      period; compare runs instead) and the AMC section (that is the stock
+      sufficiency analysis, which has its own dashboard)
 
 ### Phase 12 — Expiry monitoring (monthly ZSTOCKREPORT)
 - [x] Snapshot of each monthly ZSTOCKREPORT kept; any period (month, quarter,
@@ -436,8 +446,9 @@ Answers will be recorded in section 4 (Decisions).
 - Q29: answered 2026-10-26: the quarantine plant is 9900.
 - Q30. Donations made to save expiries: please send one list of donated products
   from Sales (headers are enough) so the app reads its exact columns.
-- Q31. The RBC report and spot check dashboards you linked are inside Claude chats,
-  which the app cannot open: please attach their HTML or share them as artifacts.
+- Q31. RBC dashboard: received as an artifact on 2026-10-26 and applied. The spot
+  check dashboard you linked is inside a Claude chat, which the app cannot open:
+  please attach its HTML or share it as an artifact.
 - Q26: answered 2026-10-26: keep it; the variance Excel export is not passed through the language guard.
 - Q27: answered (yes): built as the Picker accuracy analysis.
 - Q19. Which Phase 7 dashboards should be published, and at which detail level?
@@ -514,6 +525,7 @@ Answers will be recorded in section 4 (Decisions).
 | 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 | 2026-10-23 | Phase 5 part 1: SAP export definitions (13 exports), closing stock by WBS, RBC accountability report; workbook sheets without a table are skipped. Verified: 139 backend tests (hand-checked closing and RBC figures, report wording, next-quarter round trip), 27 frontend unit tests, 42 browser tests incl. an RBC run; your real files load without errors; RBC opening by programme equals your June report. | Q1–Q6. |
+| 2026-10-26 | RBC dashboard follows your "RBC Program Stock" layout (value band filter, products in stock, opening vs closing by plant, closing stock list, products by plant). Verified: RBC tests incl. a new layout test, ruff, mypy, rendering in Chromium on desktop and mobile with no errors. | Spot check dashboard (Q31), donations list (Q30), going live (G2). |
 | 2026-10-26 | Phase 7 answers merged (PR 15). Phase 10 built: variance follow-up (bin list, three sources, secure link, e-mails, morning list, admin page, export). Verified: 247 backend tests, 30 frontend unit tests, browser test of the whole flow (bin list → variance → e-mail with BCC via Mailpit → link → corrected) on desktop and mobile; your real bin list gives exactly the six people with their e-mails; your PI document gives 624 variances, the picking register 321. | Going live (G2). |
 | 2026-10-24 | Phase 5 part 3 merged. Phase 7: order fill rate, expiry risk, stock in transit, purchase order follow-up, warehouse activity; weekly report reading shared in `analyses/common/weekly.py`; SAP day-first dates. Verified: 228 backend tests, 27 frontend unit tests, 56 browser tests (desktop + mobile) incl. a run of each new analysis; every export you sent is recognised as the right dataset. | Going live (G2); Q13–Q19. |
 | 2026-10-23 | Phase 5 part 3: stock count reconciliation, stock sufficiency against AMC, MB51 movement-type filter, counted stock vs final closing, all-sheet inputs, better header detection. Verified: 191 backend tests, 27 frontend unit tests, 48 browser tests (desktop + mobile) incl. reconciliation and AMC runs; your June figures reproduced (AMC Summary, No-AMC list, reconciliation causes). | Phase 7 (your rules); Q1, Q7–Q12. |

@@ -2,7 +2,12 @@
 
 Only opening stock, closing stock and the difference (Increase / Reduction,
 with percentages), as the report rule requires: no receipts, issues or
-expired stock anywhere."""
+expired stock anywhere.
+
+The layout follows Ferdinand's RBC programme stock dashboard: filters for
+programme, plant, item and value, opening against closing by programme and by
+plant, the closing stock list with a summary by programme, and every
+plant-product line with its difference."""
 
 import pandas as pd
 
@@ -17,8 +22,21 @@ from app.reporting.interactive import (
     TableSpec,
 )
 
+# Value bands for the "Minimum value" filter: the larger of opening and closing.
+VALUE_BANDS = (
+    (1_000_000_000, "RWF 1B and over"),
+    (100_000_000, "RWF 100M to 1B"),
+    (10_000_000, "RWF 10M to 100M"),
+    (1_000_000, "RWF 1M to 10M"),
+    (0, "Under RWF 1M"),
+)
+
 MEASURES = (
     Measure("lines", "Lines", count=True),
+    Measure("materials", "Materials", distinct="Material"),
+    Measure(
+        "materials_in_stock", "Products in stock", distinct="Material", where=("In stock", ("Yes",))
+    ),
     Measure("in_stock", "Lines in stock", count=True, where=("In stock", ("Yes",))),
     Measure("opening", "Opening stock (RWF)", "rwf", sum="Opening Value"),
     Measure("closing", "Closing stock (RWF)", "rwf", sum="Closing Value"),
@@ -26,6 +44,16 @@ MEASURES = (
     Measure("change", "Increase / Reduction", "change", ratio=("difference", "opening")),
 )
 COLUMNS = ("opening", "closing", "difference", "change", "in_stock")
+CLOSING_MEASURES = (
+    Measure("lines", "Lines", count=True),
+    Measure("materials", "Materials", distinct="Material"),
+    Measure("closing", "Closing stock (RWF)", "rwf", sum="Closing Value"),
+)
+
+
+def value_band(opening: float, closing: float) -> str:
+    largest = max(abs(opening), abs(closing))
+    return next(name for floor, name in VALUE_BANDS if largest >= floor)
 
 
 def facts(lines: pd.DataFrame) -> pd.DataFrame:
@@ -40,11 +68,27 @@ def facts(lines: pd.DataFrame) -> pd.DataFrame:
                 f"{d} [{m}]" if d else m
                 for d, m in zip(lines["Material Description"], lines["Material"], strict=True)
             ],
+            "Material": lines["Material"].astype(str),
+            "UoM": lines["Base Unit of Measure"].astype(str),
+            "Value": [
+                value_band(o, c)
+                for o, c in zip(lines["Opening Value"], lines["Closing Value"], strict=True)
+            ],
             "Opening Value": lines["Opening Value"].astype(float),
             "Closing Value": lines["Closing Value"].astype(float),
+            "Difference": lines["Difference"].astype(float),
+            "Increase / Reduction": lines["Increase / Reduction"].astype(str),
+            "Closing Qty": lines["Closing Qty"].astype(float),
             "In stock": (lines["Closing Value"] > 0).map({True: "Yes", False: "No"}),
         }
     ).reset_index(drop=True)
+
+
+def closing_facts(lines: pd.DataFrame) -> pd.DataFrame:
+    """The closing stock list: every plant-material line with stock at closing."""
+    frame = facts(lines)
+    held = (frame["Closing Value"].round(2) != 0) | (frame["Closing Qty"].round(3) != 0)
+    return frame[held].reset_index(drop=True)
 
 
 def build(
@@ -62,18 +106,31 @@ def build(
             f"Opening stock ({opening_label}), closing stock ({closing_label}) and the difference, "
             "labelled Increase or Reduction, by programme, plant and item."
         ),
-        facts={"lines": facts(lines)},
-        measures={"lines": MEASURES},
+        facts={"lines": facts(lines), "closing": closing_facts(lines)},
+        measures={"lines": MEASURES, "closing": CLOSING_MEASURES},
         filters=(
             Filter("Programme", "Programme", "All programmes"),
             Filter("Plant", "Plant", "All plants"),
-            Filter("Item", "Item", "All items"),
+            Filter("Item", "Product", "All products"),
+            Filter(
+                "Value",
+                "Value (larger of opening and closing)",
+                "Any value",
+                order="given",
+                values=tuple(name for _, name in VALUE_BANDS),
+            ),
         ),
         kpis=(
             KpiTile(f"Opening stock ({opening_label})", "opening", "lines"),
             KpiTile(f"Closing stock ({closing_label})", "closing", "lines"),
             KpiTile("Difference", "difference", "lines", "{change}", "amber"),
-            KpiTile("Lines in stock", "in_stock", "lines", "of {lines} lines", "grey"),
+            KpiTile(
+                f"Products in stock ({closing_label})",
+                "materials_in_stock",
+                "lines",
+                "distinct SAP materials, on {in_stock} lines",
+                "grey",
+            ),
         ),
         sections=(
             DashSection(
@@ -102,14 +159,15 @@ def build(
                 "B · By plant",
                 blocks=(
                     ChartSpec(
-                        "Closing stock by plant",
+                        "Opening and closing stock by plant (top 15)",
                         "lines",
                         "Plant",
-                        ("closing",),
+                        ("opening", "closing"),
                         kind="hbar",
                         ignore=("Plant",),
                         sort="desc",
                         sort_by="closing",
+                        limit=15,
                     ),
                     TableSpec(
                         "Summary by plant",
@@ -144,23 +202,56 @@ def build(
                 ),
             ),
             DashSection(
-                "D · Lines",
+                f"D · Closing stock list ({closing_label})",
+                note="Every plant-product line with stock at closing; follows the filters above.",
                 blocks=(
+                    TableSpec(
+                        "Closing stock by programme",
+                        "closing",
+                        ("Programme",),
+                        ("lines", "materials", "closing"),
+                        sort_by="closing",
+                    ),
                     DetailSpec(
-                        "Stock lines by plant and item",
-                        "lines",
+                        "Closing stock list",
+                        "closing",
                         (
                             ("Programme", "Programme", "text"),
                             ("Plant", "Plant", "text"),
-                            ("Item", "Item", "text"),
+                            ("Item", "Product", "text"),
+                            ("UoM", "UoM", "text"),
+                            ("Closing Qty", "Closing quantity", "num"),
+                            ("Closing Value", "Closing value (RWF)", "rwf"),
+                        ),
+                        sort_by="Closing Value",
+                    ),
+                ),
+            ),
+            DashSection(
+                "E · Products by plant",
+                blocks=(
+                    DetailSpec(
+                        "Opening, closing and difference by plant and product",
+                        "lines",
+                        (
+                            ("Plant", "Plant", "text"),
+                            ("Item", "Product", "text"),
+                            ("Programme", "Programme", "text"),
                             ("Opening Value", "Opening (RWF)", "rwf"),
                             ("Closing Value", "Closing (RWF)", "rwf"),
+                            ("Difference", "Difference (RWF)", "rwf"),
+                            ("Increase / Reduction", "Increase / reduction", "text"),
+                            ("Closing Qty", "Quantity at closing", "num"),
                         ),
                         sort_by="Closing Value",
                     ),
                 ),
             ),
         ),
-        footer="Rwanda Medical Supply · RBC accountability report · values in RWF.",
+        footer=(
+            f"Opening = closing stock reported to RBC at {opening_label}; closing = reconciled "
+            f"stock on the RBC WBS at {closing_label}. Difference = closing less opening, shown "
+            "as an increase or a reduction. Values in RWF."
+        ),
         checks=checks,
     )

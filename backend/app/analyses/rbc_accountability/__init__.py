@@ -225,7 +225,7 @@ def _total_row(frame: pd.DataFrame, first: str) -> pd.DataFrame:
 class RbcAccountability(Analysis):
     key = "rbc_accountability"
     title = "RBC accountability report"
-    version = "1.1.0"
+    version = "1.2.0"
     description = (
         "Opening and closing stock of the RBC programmes (WBS RMS-PRG-FND-CP) by programme, "
         "plant and product, with the difference labelled Increase or Reduction. Opening "

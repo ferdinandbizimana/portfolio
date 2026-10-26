@@ -235,3 +235,23 @@ def test_report_data_sheet_is_next_quarters_opening(result: Any, tmp_path: Path)
     assert kpi["Opening stock (30 Jun 2026)"] == 20800
     assert kpi["New items to review"] == 0  # every item now has a category
     assert all(c.passed for c in next_quarter.checks)
+
+
+def test_dashboard_follows_the_rbc_programme_stock_layout(result: Any) -> None:
+    """Value bands, products in stock and the closing stock list (Ferdinand's layout)."""
+    from app.analyses.rbc_accountability import dashboard_html
+
+    assert dashboard_html.value_band(0, 1_000_000) == "RWF 1M to 10M"
+    assert dashboard_html.value_band(-2_000_000_000, 5) == "RWF 1B and over"
+    assert dashboard_html.value_band(999_999, 0) == "Under RWF 1M"
+
+    lines = result.tables["lines"]
+    closing = dashboard_html.closing_facts(lines)
+    held = lines[(lines["Closing Value"].round(2) != 0) | (lines["Closing Qty"].round(3) != 0)]
+    assert len(closing) == len(held)
+    assert closing["Closing Value"].sum() == pytest.approx(lines["Closing Value"].sum())
+
+    [page] = [r for r in ANALYSIS.reports(result, PARAMS, Templates()) if r.kind == "html"]
+    text = " ".join(html_texts(page.content))
+    for heading in ("Closing stock list", "Products by plant", "Products in stock"):
+        assert heading in text, heading
