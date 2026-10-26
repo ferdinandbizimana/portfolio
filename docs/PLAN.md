@@ -1,12 +1,10 @@
 # Build plan
 
-Status: **Phase 10 (spot-check variance follow-up) in review**: variances from
-spot checks, the picking register and physical inventory documents are assigned
-to the person responsible for the bin, e-mailed with a secure link to record
-the correction, and followed up green / amber / red with a list every working
-morning. Phases 0–9 tooling are merged. Next: going live (G2: a server and a
-domain), then fillable copies of the templates you shared. Still needs
-something from you: Q1, Q7–Q24, L2 and G2.
+Status: **Phase 13 (spot check accuracy, expiry projection, donations) in
+progress**. Phases 0–12 and the RBC receipts and goods issues are merged.
+Phase 13 adds spot check accuracy, the months-of-stock projection in Expiry
+risk and the donations list in Expiry monitoring. Next: going live (G2: a
+server and a domain) and fillable copies of the templates you shared. Still needs something from you: Q1, Q7–Q24, L2 and G2.
 
 ---
 
@@ -270,7 +268,8 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
 - [x] Batches due to expire in the period: cleared, expired or still in stock;
       projection (opening) against actual expiries (closing): the difference is
       the value saved; reports saved per period
-- [ ] Donations made to save expiries (list of donated products from Sales)
+- [x] Donations made to save expiries (list of donated products from Sales;
+      see Phase 13)
 - [x] Distributed with less than 3 months of shelf life left (all distribution
       movement types; for 641, whether the receiving plant issued or expired it)
 - [x] Batches whose expiry date changed between two snapshots
@@ -282,6 +281,24 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
 - [x] E-mail on the last day of each month: expired, 0–3 and 3–6 months, value
       per plant; Excel attached and a secure link; to the sales pharmacist, CC
       managers and you, BCC the manager address
+### Phase 13 — Spot check accuracy, expiry projection, donations
+- [x] Spot check accuracy from the weekly spot check sheet (EWM bin stock with
+      the quantity found, variance and comment; both layouts you sent):
+      quantity and line accuracy, raw and "true" (variances explained by the
+      comment left out), variance value, data-integrity flags (wrong batch,
+      expiry or description), by WBS, storage type and responsible person (bin
+      list), comparison with the previous spot check; Excel, Word, PowerPoint
+      and interactive dashboard
+- [x] Expiry projection in Expiry risk: per material and WBS on unrestricted
+      stock, remaining shelf life (average months to expiry of the unexpired
+      batches), months of stock from the AMC, at-risk quantity = quantity −
+      AMC × remaining shelf life; Overstock / Risk of stockout. ZSTOCKREPORT
+      has no goods receipt date, so it covers all stock, not only the week's
+      receipts
+- [x] Donations to save expiries in Expiry monitoring: Sales' list (the
+      ZSTOCKREPORT lines of the donated products with Total Value, Status,
+      Customer, Reason for Donation); donated value, value saved by donation,
+      by reason and by customer
 
 ## 4. Decisions
 
@@ -295,6 +312,8 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
 | 2026-10-20 | Report generation is done in Python only (openpyxl, docxtpl, python-docx, python-pptx); the legacy Node scripts are not reused. |
 | 2026-10-20 | Analyses are pure functions over named datasets; data sources are separate (upload now, folder and SAP later). |
 | 2026-10-20 | Your instructions override legacy behaviour; for the RBC report receipts, issues and expired stock are never shown (replaced on 2026-10-26, below). |
+| 2026-10-26 | Spot check accuracy (Ferdinand; from the spot check progress report): quantity accuracy = 1 − \|sum of variances\| / sum of system quantities ("Qty AUoM", else the available quantity); line accuracy = 1 − lines with a variance / lines checked. True accuracy leaves out variance lines whose comment explains them: picked, served, delivered, bin to bin, moved, corrected (a parameter). Data-integrity flags: comments mentioning batch, lot, expiry ("EXPIR", "EX:") or description ("DESC"), a parameter. Variance value = "variance on cost", else variance × "Uunit cost". Rows without a product code are left out. Headers read: ONHAND QTY / SOH (counted), VARIANCE, COMMENT / Comments. |
+| 2026-10-26 | Expiry projection (Ferdinand, from "Projection of Expiration for items received"): remaining shelf life (months) from the expiry date at the report date; MOS = quantity / AMC; at-risk quantity = quantity − AMC × remaining shelf life; Overstock when MOS − remaining shelf life > 0, Risk of stockout when < 0; built from ZSTOCKREPORT and the AMC. Donations list (Ferdinand): the ZSTOCKREPORT lines of the donated products plus total value, status (donated), customer if any and reason for donation. Built as: a line counts as donated when its status is empty or says "donated" (other statuses are listed only); a donated batch that was due to expire in the period counts as saved by donation (by material when the line has no batch). Headers expected: Total Value, Status, Customer, Reason for Donation (send a sample to confirm, Q30). |
 | 2026-10-26 | RBC report (Ferdinand): receipts and goods issues from MB51 in every RBC output (Excel, Word, PowerPoint, HTML), split by movement type; scrapping shown as its own column "Scrapped (expired)". Defaults (parameters, change them on the run form if needed): receipts 101, 102; goods issues 601, 602, 641, 642, Y01, Z01, X01; scrapping 551, 555. Only MB51 lines on the WBS posted in the period (after the opening date, up to the closing date) count; amounts keep the MB51 sign (issues negative). "Other movements and adjustments" = closing − opening − receipts − goods issues − scrapped, so every line rolls forward. The CPDS Report data sheet gets the legacy columns Total Receipt Qties / Values and Total Issue Quantities / Values again. |
 | 2026-10-20 | G1 answered: the legacy scripts are never put on GitHub. They stay with you; `legacy/` is git-ignored and blocked by the data guard. `docs/legacy-analysis.md` holds the rules without real figures. |
 | 2026-10-20 | G4 answered: a simple login page (e-mail + password). No two-factor, no recovery codes. Passwords are still stored hashed, sessions use secure cookies, and repeated failed logins are slowed down. |
@@ -445,8 +464,9 @@ Answers will be recorded in section 4 (Decisions).
   missed by picking" list.
 - Q28: answered 2026-10-26: the target is 100% (default of the parameter).
 - Q29: answered 2026-10-26: the quarantine plant is 9900.
-- Q30. Donations made to save expiries: please send one list of donated products
-  from Sales (headers are enough) so the app reads its exact columns.
+- Q30. Donations: built from your description (ZSTOCKREPORT columns plus
+  Total Value, Status, Customer, Reason for Donation). Please send one list
+  from Sales (headers are enough) to confirm the exact header names.
 - Q31. RBC dashboard: received as an artifact on 2026-10-26 and applied. The spot
   check dashboard you linked is inside a Claude chat, which the app cannot open:
   please attach its HTML or share it as an artifact.
@@ -524,6 +544,7 @@ Answers will be recorded in section 4 (Decisions).
 | 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 | 2026-10-23 | Phase 5 part 1: SAP export definitions (13 exports), closing stock by WBS, RBC accountability report; workbook sheets without a table are skipped. Verified: 139 backend tests (hand-checked closing and RBC figures, report wording, next-quarter round trip), 27 frontend unit tests, 42 browser tests incl. an RBC run; your real files load without errors; RBC opening by programme equals your June report. | Q1–Q6. |
+| 2026-10-26 | Spot check accuracy analysis built from your two spot check files and progress report. Verified: hand-checked tests, browser test (desktop + mobile), your 17 September sheet locally (outside git): 685 lines, 36 with a variance, every check passes, quantities as in your progress report except one row without a product code (left out). | Expiry projection; donations list. |
 | 2026-10-26 | RBC report shows receipts, goods issues (MB51 by movement type) and scrapped (expired) stock in every output, with other movements and adjustments so each line rolls forward. Verified: hand-checked fake MB51 lines (reversals, other WBS, other types, posting after the period), round trip of the data sheet. | Spot check files received: build the spot check analysis from them. |
 | 2026-10-26 | RBC dashboard follows your "RBC Program Stock" layout (value band filter, products in stock, opening vs closing by plant, closing stock list, products by plant). Verified: RBC tests incl. a new layout test, ruff, mypy, rendering in Chromium on desktop and mobile with no errors. | Spot check dashboard (Q31), donations list (Q30), going live (G2). |
 | 2026-10-26 | Phase 7 answers merged (PR 15). Phase 10 built: variance follow-up (bin list, three sources, secure link, e-mails, morning list, admin page, export). Verified: 247 backend tests, 30 frontend unit tests, browser test of the whole flow (bin list → variance → e-mail with BCC via Mailpit → link → corrected) on desktop and mobile; your real bin list gives exactly the six people with their e-mails; your PI document gives 624 variances, the picking register 321. | Going live (G2). |

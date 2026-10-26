@@ -175,3 +175,54 @@ def test_quarantine_plant_9900() -> None:
     closing.loc[closing["Material"] == "M6", "Plant"] = "9901"  # not the quarantine plant
     kpis = {k.label: k.value for k in ANALYSIS.compute(data, params).metrics}
     assert kpis["Expired batches outside the quarantine plant"] == 3
+
+
+# Fake donation list from Sales: ZSTOCKREPORT lines plus value, status, customer, reason.
+DONATIONS = pd.DataFrame(
+    [
+        ["M1", "B1", "1000", 600, "Donated", "Clinic (fake)", "Short expiry"],  # due: saved
+        ["M4", "B4", "1000", 40, "DONATED", None, "Overstock"],  # not due in the period
+        ["M5", "B5", "7001", 90, "Pending", "Hospital (fake)", "Short expiry"],  # not counted
+        ["M2", None, "1000", 100, None, None, "Short expiry"],  # no batch: M2 was due
+    ],
+    columns=[
+        "Material",
+        "Batch",
+        "Plant",
+        "Total Value",
+        "Status",
+        "Customer",
+        "Reason for Donation",
+    ],
+).assign(
+    **{
+        "Material Description": None,
+        "NPC CODE": None,
+        "WBS Element": PRG,
+        "Unrestricted": None,
+        "Unit Cost": None,
+        "Expiry Date": None,
+    }
+)
+
+
+def test_donations_to_save_expiries() -> None:
+    result = ANALYSIS.compute({**inputs(), "donations": DONATIONS.copy()}, PARAMS)
+    kpi = {k.label: k.value for k in result.metrics}
+    assert kpi["Donated to save expiries"] == 740  # the pending line is not counted
+    assert kpi["Saved by donation (due to expire in the period)"] == 700
+    reasons = result.tables["donations_by_reason"].set_index("Reason for Donation")
+    assert reasons.at["Short expiry", "Total Value"] == 700
+    assert reasons.at["Overstock", "Lines"] == 1
+    customers = result.tables["donations_by_customer"].set_index("Customer")
+    assert customers.at["No customer given", "Total Value"] == 140
+    donations = result.tables["donations"]
+    assert list(donations["Material"]) == ["M1", "M2", "M5", "M4"]  # largest value first
+    assert all(c.passed for c in result.checks)
+    for report in ANALYSIS.reports(result, PARAMS, Templates()):
+        check_report(report.kind, report.content)
+
+
+def test_without_donations_the_figures_are_not_given(result: Any) -> None:
+    kpi = {k.label: k.value for k in result.metrics}
+    assert kpi["Donated to save expiries"] is None
