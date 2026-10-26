@@ -180,7 +180,8 @@ customer) is used.
 Files: the ZSTOCKREPORT of the opening month and the one of the closing month of
 a period (a month, a quarter, six months or the financial year: the two dates
 decide), optionally MB51 (with batches: distributions and scrapping) and OX10.
-Parameters: the two dates, the quarantine plant(s), the distribution and
+Parameters: the two dates, the quarantine plants (codes or starts of codes;
+default 99, as RMS quarantine plants start with 99), the distribution and
 scrapping movement types and the short shelf life (3 months).
 
 It shows the expired stock per plant (and expired batches not blocked or outside
