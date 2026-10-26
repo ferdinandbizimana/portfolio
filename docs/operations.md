@@ -194,6 +194,12 @@ RMS-OWN WBS elements, programme stock on RMS-PRG. The interactive dashboard has
 the board views per plant (executive expiry outlook, intervention and savings,
 expired stock per plant).
 
+Donations: add Sales' list of donated products (the ZSTOCKREPORT lines of those
+products with Total Value, Status, Customer and Reason for Donation) as the
+optional "Donations to save expiries" input. Lines whose status is not
+"donated" are listed but not counted; donated batches that were due to expire
+in the period are shown as saved by donation.
+
 **Expiry follow-up** (admin menu): for each run, "Prepare the follow-up" lists the
 expired items. The sales pharmacist opens the secure link (no account), chooses
 the root cause of each expired item ("Other" needs the reason written out) and
@@ -209,7 +215,9 @@ programme loss, root causes, top 20 of each with their reasons).
 Files: ZSTOCKREPORT (batches with expiry dates) and the weekly stock monitoring
 workbook (AMC), optionally OX10. Parameters: stock report date and, if wanted,
 one WBS element. Shows stock by expiry band and the value that cannot be used
-before expiry at the AMC.
+before expiry at the AMC, and months of stock against remaining shelf life per
+material and WBS: overstock (stock left at expiry, value at risk) or risk of
+stockout (stock runs out before it expires).
 
 ### Stock in transit
 
@@ -256,6 +264,17 @@ Admin → Stock variances.
 File: the picking register (its daily sheets with lines and discrepancies per
 picker; the sheets with one row per outbound delivery are optional). Choose the
 same file for both inputs. Parameter: the accuracy target (1.0 = 100%, the default).
+
+### Spot check accuracy (each week)
+
+Upload the week's spot check sheet (the EWM bin list with ONHAND QTY or SOH,
+VARIANCE and COMMENT) and, to compare, last week's sheet and the bin list with
+the responsible person of each bin. Run "Spot check accuracy" with the day of
+the check. The comment decides two things, both editable on the run form:
+variances explained by the comment (picked, served, delivered, bin to bin,
+moved, corrected) are left out of the "true" accuracy, and comments about a
+wrong batch, lot, expiry date or description are listed as data-integrity
+flags.
 
 ## Report templates
 

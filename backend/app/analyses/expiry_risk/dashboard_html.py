@@ -26,6 +26,35 @@ MEASURES = (
     Measure("risk_share", "Share of stock at risk", "pct", ratio=("at_risk", "value")),
 )
 VALUE_COLUMNS = ("batches", "value", "expired", "at_risk", "risk_share")
+PROJECTION_MEASURES = (
+    Measure("products", "Products", count=True),
+    Measure("unrestricted", "Value of unrestricted (RWF)", "rwf", sum="Value of Unrestricted"),
+    Measure("at_risk", "Value at risk (RWF)", "rwf", sum="Value at Risk"),
+)
+
+
+def projection_facts(projection: pd.DataFrame) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "Programme": projection["Program"].replace("", "Not in the weekly report"),
+            "WBS": projection["WBS"],
+            "Status": projection["Stock Level Status"],
+            "Item": [
+                f"{d} [{m}]" if d else m
+                for d, m in zip(
+                    projection["Material Description"], projection["Material"], strict=True
+                )
+            ],
+            "RSL": projection["RSL Months"].astype(float),
+            "Quantity": projection["Quantity"].astype(float),
+            "AMC": projection["AMC"].astype(float),
+            "MOS": projection["MOS"].astype(float),
+            "MOS - RSL": projection["MOS - RSL"].astype(float),
+            "At-risk quantity": projection["At-Risk Quantity"].astype(float),
+            "Value of Unrestricted": projection["Value of Unrestricted"].astype(float),
+            "Value at Risk": projection["Value at Risk"].astype(float),
+        }
+    ).reset_index(drop=True)
 
 
 def facts(batches: pd.DataFrame) -> pd.DataFrame:
@@ -54,8 +83,51 @@ def facts(batches: pd.DataFrame) -> pd.DataFrame:
 
 
 def build(
-    batches: pd.DataFrame, title: str, subtitle: str, checks: list[tuple[str, float, float, bool]]
+    batches: pd.DataFrame,
+    title: str,
+    subtitle: str,
+    checks: list[tuple[str, float, float, bool]],
+    projection: pd.DataFrame | None = None,
 ) -> InteractiveDashboard:
+    extra = (
+        (
+            DashSection(
+                "E · Months of stock against remaining shelf life",
+                note=(
+                    "Per material and WBS: overstock when months of stock exceed the remaining "
+                    "shelf life (stock left at expiry), risk of stockout when they fall short."
+                ),
+                blocks=(
+                    TableSpec(
+                        "By status",
+                        "projection",
+                        ("Status",),
+                        ("products", "unrestricted", "at_risk"),
+                        ignore=("Status",),
+                    ),
+                    DetailSpec(
+                        "Products",
+                        "projection",
+                        (
+                            ("Item", "Product", "text"),
+                            ("WBS", "WBS", "text"),
+                            ("RSL", "RSL (months)", "num"),
+                            ("Quantity", "Unrestricted", "int"),
+                            ("AMC", "AMC", "num"),
+                            ("MOS", "MOS", "num"),
+                            ("MOS - RSL", "MOS - RSL", "num"),
+                            ("At-risk quantity", "At-risk qty", "num"),
+                            ("Value at Risk", "Value at risk (RWF)", "rwf"),
+                            ("Status", "Status", "text"),
+                        ),
+                        sort_by="Value at Risk",
+                    ),
+                ),
+            ),
+        )
+        if projection is not None and len(projection)
+        else ()
+    )
     return InteractiveDashboard(
         title=title,
         subtitle=subtitle,
@@ -63,8 +135,15 @@ def build(
             "Stock by batch and expiry date: what has expired, what expires in the coming months "
             "and the value that cannot be used before expiry at the AMC."
         ),
-        facts={"batches": facts(batches)},
-        measures={"batches": MEASURES},
+        facts={
+            "batches": facts(batches),
+            **(
+                {"projection": projection_facts(projection)}
+                if projection is not None and extra
+                else {}
+            ),
+        },
+        measures={"batches": MEASURES, **({"projection": PROJECTION_MEASURES} if extra else {})},
         filters=(
             Filter("Plant", "Plant", "All plants"),
             Filter("Programme", "Programme", "All programmes"),
@@ -157,6 +236,7 @@ def build(
                     ),
                 ),
             ),
+            *extra,
         ),
         footer="Rwanda Medical Supply · Expiry risk · ZSTOCKREPORT batches and the weekly AMC.",
         checks=checks,

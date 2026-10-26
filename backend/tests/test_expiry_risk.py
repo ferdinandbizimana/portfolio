@@ -159,3 +159,23 @@ def test_sap_text_dates_are_day_first() -> None:
     text = ANALYSIS.compute(inputs, PARAMS)
     dated = ANALYSIS.compute(data(), PARAMS)
     pd.testing.assert_frame_equal(text.tables["batches"], dated.tables["batches"])
+
+
+def test_months_of_stock_against_shelf_life(result: Any) -> None:
+    """Ferdinand's projection: MOS against the remaining shelf life (RSL)."""
+    from app.analyses.expiry_risk import OVERSTOCK
+
+    [row] = result.tables["projection"].to_dict(orient="records")  # Drug B has AMC 0
+    assert (row["Material"], row["WBS"], row["Batches"]) == ("1001", WBS, 4)
+    # Unrestricted 20 + 25 + 50 + 5 = 100; RSL = mean of 20 and 100 days (expired and
+    # undated batches have no shelf life left to average); one unit a day.
+    assert row["Quantity"] == 100
+    assert row["RSL Months"] == pytest.approx(60 / DAILY)
+    assert row["MOS"] == pytest.approx(100 / DAILY)
+    assert row["AMC x RSL"] == pytest.approx(60)
+    assert row["At-Risk Quantity"] == pytest.approx(40)
+    assert row["Value at Risk"] == pytest.approx(80)  # 40 x 2
+    assert row["Stock Level Status"] == OVERSTOCK
+    kpi = {k.label: k.value for k in result.metrics}
+    assert kpi["Products at risk of stockout (MOS below shelf life)"] == 0
+    assert kpi["Overstock value at risk (MOS above shelf life)"] == pytest.approx(80)

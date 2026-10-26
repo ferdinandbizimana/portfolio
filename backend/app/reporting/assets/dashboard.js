@@ -150,7 +150,7 @@
   function aggregate(t, keyFn, ignore) {
     const ms = Object.values(M[t] || {});
     const base = ms.filter((m) => m.sum || m.count || m.distinct);
-    const derived = ms.filter((m) => m.ratio || m.diff || m.complement);
+    const derived = ms.filter((m) => m.ratio || m.diff || m.complement || m.absolute);
     const wh = base.map((m) => (m.where ? whereFn(t, m.where) : null));
     const cols = base.map((m) => F[t].cols[m.sum || m.distinct] || null);
     const preds = predicates(t, ignore);
@@ -198,6 +198,9 @@
         } else if (m.complement) {
           const a = r[m.complement];
           r[m.key] = a === null || a === undefined ? null : 1 - a;
+        } else if (m.absolute) {
+          const a = r[m.absolute];
+          r[m.key] = a === null || a === undefined ? null : Math.abs(a);
         } else {
           const a = r[m.diff[0]];
           const b = r[m.diff[1]];

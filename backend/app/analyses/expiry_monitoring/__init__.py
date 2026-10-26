@@ -16,7 +16,11 @@ Ferdinand's rules of 26 October 2026 (docs/PLAN.md, Decisions):
   it or let it expire there;
 - batches whose expiry date changed between the two snapshots are flagged;
 - MB51 scrapping (551 / 555) gives the days from expiry to scrapping;
-- commercial stock is on RMS-OWN WBS elements, programme stock on RMS-PRG.
+- commercial stock is on RMS-OWN WBS elements, programme stock on RMS-PRG;
+- donations to save expiries come from Sales' list: the ZSTOCKREPORT lines of
+  the donated products with total value, status, customer and reason. Lines
+  whose status is given and is not "donated" are listed but not counted; a
+  donated batch that was due to expire in the period counts as saved by donation.
 
 Batches are matched by plant, material and batch; a batch that moved to another
 plant is followed by material and batch for the value saved.
@@ -61,6 +65,7 @@ NOT_RECEIVED = "Not received yet"
 AT_RECEIVER_EXPIRED = "Expired at the receiving plant"
 AT_RECEIVER_STOCK = "Still in stock at the receiving plant"
 AT_RECEIVER_ISSUED = "No longer in stock at the receiving plant"
+DONATED = "DONATED"
 TRANSFER = "641"
 GOODS_RECEIPT = "101"
 
@@ -187,6 +192,67 @@ def read_batches(raw: pd.DataFrame, report: date, names: dict[str, str]) -> pd.D
     return grouped
 
 
+def read_donations(
+    raw: pd.DataFrame | None, due: pd.DataFrame, names: dict[str, str]
+) -> pd.DataFrame:
+    """Sales' donation list, with whether each batch was due to expire in the period."""
+    columns = [
+        "Plant",
+        "Plant Name",
+        "Material",
+        "Description",
+        "Batch",
+        "WBS",
+        "Owner",
+        "Expiry Date",
+        "Quantity",
+        "Total Value",
+        "Status",
+        "Customer",
+        "Reason for Donation",
+        "Due in Period",
+        "Counted",
+    ]
+    if raw is None or not len(raw):
+        return pd.DataFrame(columns=columns)
+    material = material_code(raw["Material"]).astype(str)
+    batch = _text(raw["Batch"])
+    status = _text(raw["Status"])
+    due_batches = set(zip(due["Material"], due["Batch"], strict=True))
+    due_materials = set(due["Material"])
+    plants = plant_code(raw["Plant"]).astype(str)
+    wbs = _text(raw["WBS Element"])
+    frame = pd.DataFrame(
+        {
+            "Plant": plants,
+            "Plant Name": plants.map(names).fillna(""),
+            "Material": material,
+            "Description": _text(raw["Material Description"]),
+            "Batch": batch,
+            "WBS": wbs,
+            "Owner": wbs.map(owner_of),
+            "Expiry Date": parse_dates(raw["Expiry Date"]).dt.strftime("%Y-%m-%d").fillna(""),
+            "Quantity": raw["Unrestricted"].astype(float),
+            "Total Value": raw["Total Value"].astype(float).fillna(0.0),
+            "Status": status,
+            "Customer": _text(raw["Customer"]).replace("", "No customer given"),
+            "Reason for Donation": _text(raw["Reason for Donation"]).replace("", "Not given"),
+            # Without a batch the material decides.
+            "Due in Period": [
+                "Yes" if ((m, b) in due_batches if b else m in due_materials) else "No"
+                for m, b in zip(material, batch, strict=True)
+            ],
+            "Counted": ["Yes" if not s or DONATED in s.upper() else "No" for s in status],
+        }
+    )
+    frame = frame[frame["Material"] != ""]
+    return frame.sort_values(
+        ["Total Value", "Material", "Batch", "Plant"],
+        ascending=[False, True, True, True],
+        kind="mergesort",
+    ).reset_index(drop=True)[columns]
+
+
 def _movements(raw: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(
         {
@@ -206,7 +272,7 @@ def _movements(raw: pd.DataFrame) -> pd.DataFrame:
 class ExpiryMonitoring(Analysis):
     key = "expiry_monitoring"
     title = "Expiry monitoring"
-    version = "1.1.0"
+    version = "1.2.0"
     description = (
         "Two monthly ZSTOCKREPORTs (opening and closing month of a period): expired batches "
         "per plant, batches due to expire that were cleared or expired, value saved, the "
@@ -220,6 +286,12 @@ class ExpiryMonitoring(Analysis):
             "movements",
             "mb51_material_documents",
             "Goods movements (MB51) with batches: distributions and scrapping",
+            required=False,
+        ),
+        InputSpec(
+            "donations",
+            "expiry_donations",
+            "Donations to save expiries (list from Sales)",
             required=False,
         ),
         InputSpec("plants", "ox10_plants", "Plant names (OX10)", required=False),
@@ -371,6 +443,29 @@ class ExpiryMonitoring(Analysis):
                 scrapping["Posting Date"] - scrapping["Expiry Date"]
             ).dt.days
 
+        donations = read_donations(data.get("donations"), due, names)
+        counted = donations[donations["Counted"] == "Yes"] if len(donations) else donations
+        donated_value = float(counted["Total Value"].sum()) if len(counted) else 0.0
+        saved_by_donation = (
+            float(counted.loc[counted["Due in Period"] == "Yes", "Total Value"].sum())
+            if len(counted)
+            else 0.0
+        )
+        by_reason = (
+            counted.groupby("Reason for Donation", sort=True)
+            .agg(Lines=("Material", "size"), **{"Total Value": ("Total Value", "sum")})
+            .reset_index()
+            if len(counted)
+            else pd.DataFrame(columns=["Reason for Donation", "Lines", "Total Value"])
+        )
+        by_customer = (
+            counted.groupby("Customer", sort=True)
+            .agg(Lines=("Material", "size"), **{"Total Value": ("Total Value", "sum")})
+            .reset_index()
+            if len(counted)
+            else pd.DataFrame(columns=["Customer", "Lines", "Total Value"])
+        )
+
         short = (
             distributions[distributions["Short Shelf Life"]]
             if len(distributions)
@@ -493,6 +588,19 @@ class ExpiryMonitoring(Analysis):
             ),
             Kpi(label="Value saved", value=saved, format="money", unit="RWF"),
             Kpi(
+                label="Donated to save expiries",
+                value=donated_value if data.get("donations") is not None else None,
+                format="money",
+                unit="RWF",
+                note="" if data.get("donations") is not None else "Add the donations list",
+            ),
+            Kpi(
+                label="Saved by donation (due to expire in the period)",
+                value=saved_by_donation if data.get("donations") is not None else None,
+                format="money",
+                unit="RWF",
+            ),
+            Kpi(
                 label="Expiring within 3 months",
                 value=float(closing.loc[closing["Expiry Band"] == BANDS[1], "Value"].sum()),
                 format="money",
@@ -540,6 +648,12 @@ class ExpiryMonitoring(Analysis):
                 expected=saved,
                 actual=float(by_plant["Value Saved"].sum()),
                 description="Batches moved between plants are counted where they are at closing.",
+            ),
+            Check(
+                "donations_by_reason",
+                "Donations by reason = donated value",
+                expected=donated_value,
+                actual=float(by_reason["Total Value"].sum()) if len(by_reason) else 0.0,
             ),
             Check(
                 "bands",
@@ -703,6 +817,9 @@ class ExpiryMonitoring(Analysis):
                 "by_plant": by_plant,
                 "by_band": by_band,
                 "by_owner": by_owner,
+                "donations": donations,
+                "donations_by_reason": by_reason,
+                "donations_by_customer": by_customer,
             },
             metrics=kpis,
             checks=checks,
@@ -780,6 +897,32 @@ class ExpiryMonitoring(Analysis):
                     "Commercial and programme stock",
                     tables=[TableBlock("By stock owner", t["by_owner"], formats)],
                 ),
+                *(
+                    [
+                        Section(
+                            "Donations to save expiries",
+                            paragraphs=[
+                                f"{rwf('Donated to save expiries')} was donated; "
+                                f"{rwf('Saved by donation (due to expire in the period)')} of it "
+                                "was stock due to expire in the period.",
+                            ],
+                            tables=[
+                                TableBlock(
+                                    "By reason for donation",
+                                    t["donations_by_reason"],
+                                    {**formats, "Lines": "integer", "Total Value": "money"},
+                                ),
+                                TableBlock(
+                                    "By customer",
+                                    t["donations_by_customer"],
+                                    {**formats, "Lines": "integer", "Total Value": "money"},
+                                ),
+                            ],
+                        )
+                    ]
+                    if len(t["donations"])
+                    else []
+                ),
                 Section(
                     "Method",
                     bullets=[
@@ -809,6 +952,17 @@ class ExpiryMonitoring(Analysis):
             blocks.append(TableBlock("Distributions", t["distributions"], formats))
         if len(t["scrapping"]):
             blocks.append(TableBlock("Scrapping", t["scrapping"], formats))
+        if len(t["donations"]):
+            money_formats: dict[str, ValueFormat] = {
+                **formats,
+                "Lines": "integer",
+                "Total Value": "money",
+            }
+            blocks += [
+                TableBlock("Donations", t["donations"], money_formats),
+                TableBlock("Donations by reason", t["donations_by_reason"], money_formats),
+                TableBlock("Donations by customer", t["donations_by_customer"], money_formats),
+            ]
         return [
             ReportFile(
                 "workbook",

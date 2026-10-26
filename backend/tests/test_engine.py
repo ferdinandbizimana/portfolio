@@ -265,6 +265,7 @@ def test_analyses_are_listed_with_their_inputs(logged_in: TestClient) -> None:
         "po_follow_up",
         "warehouse_activity",
         "picker_accuracy",
+        "spot_check_accuracy",
     }
     demo = analyses["demo_stock_summary"]
     assert demo["inputs"][0]["dataset"] == "demo_stock_balance"
