@@ -24,6 +24,7 @@ const NAV: NavItem[] = [
   { href: "/admin/analyses", label: "Analyses" },
   { href: "/admin/runs", label: "Runs" },
   { href: "/admin/schedules", label: "Schedules" },
+  { href: "/admin/variances", label: "Stock variances" },
   { href: "/admin/templates", label: "Templates" },
   { href: "/admin/publications", label: "Published" },
   { href: "/admin/activity", label: "Activity log" },

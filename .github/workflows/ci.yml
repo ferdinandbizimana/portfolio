@@ -87,11 +87,12 @@ jobs:
         run: |
           cp .env.example .env
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci-$(openssl rand -hex 12)/" .env
-          # Contact form mail goes to the Mailpit catcher, checked by the browser tests.
+          # Contact form and variance mail go to the Mailpit catcher, checked by the browser tests.
           sed -i -e "s/^SMTP_HOST=.*/SMTP_HOST=mailpit/" -e "s/^SMTP_PORT=.*/SMTP_PORT=1025/" \
             -e "s/^SMTP_SECURITY=.*/SMTP_SECURITY=none/" \
             -e "s/^MAIL_FROM=.*/MAIL_FROM=portfolio@example.com/" \
-            -e "s/^CONTACT_TO_EMAIL=.*/CONTACT_TO_EMAIL=owner@example.com/" .env
+            -e "s/^CONTACT_TO_EMAIL=.*/CONTACT_TO_EMAIL=owner@example.com/" \
+            -e "s/^VARIANCE_BCC=.*/VARIANCE_BCC=manager@example.com/" .env
           echo "COMPOSE_PROFILES=dev-mail" >> .env
           echo "E2E_PASSWORD=ci-admin-$(openssl rand -hex 12)" >> "$GITHUB_ENV"
       - name: Shared folder for the folder pickup tests
