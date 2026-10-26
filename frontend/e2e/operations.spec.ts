@@ -150,7 +150,7 @@ test("purchase order follow-up from ME2N and inbound deliveries", async ({ page 
     ],
     ["IB1", po, "1001", "100", "V1", "11.03.2026", "11.03.2026"],
   ]);
-  await uploadCsv(page, `me2n-${tag}.csv`, me2n, "ME2N purchase orders");
+  await uploadCsv(page, `me2n-${tag}.csv`, me2n, "ME2N / ME2M purchase orders");
   await uploadCsv(page, `inbound-${tag}.csv`, inbound, "Inbound deliveries");
   await run(page, "po_follow_up", `PO ${tag}`, async () => {
     await page.getByLabel("POs created from").fill("2025-07-01");
@@ -164,7 +164,7 @@ test("purchase order follow-up from ME2N and inbound deliveries", async ({ page 
   await expect(kpi(page, "Average delivery period")).toContainText("60");
 });
 
-test("warehouse activity and expiry risk", async ({ page }) => {
+test("warehouse activity from EWM tasks", async ({ page }) => {
   const tag = unique();
   await signInOk(page);
   const tasks = csv([
@@ -188,6 +188,11 @@ test("warehouse activity and expiry risk", async ({ page }) => {
     await clearFile(page, "Outbound deliveries");
   });
   await expect(kpi(page, "Average dock to stock")).toContainText("2");
+});
+
+test("expiry risk at the AMC", async ({ page }) => {
+  const tag = unique();
+  await signInOk(page);
 
   const stock = csv([
     [
