@@ -504,23 +504,78 @@ EWM_WAREHOUSE_TASKS = register(
         ),
     )
 )
-EWM_PHYSICAL_INVENTORY = _recognised(
-    "ewm_physical_inventory",
-    "EWM physical inventory documents",
-    "Physical inventory document items in EWM: book, counted and difference quantity.",
-    (
-        "Phys. Inventory Doc.",
-        "Storage Bin",
-        "Product",
-        "Book Quantity",
-        "Counted Quantity",
-        "Difference Quantity",
-        "Count Date",
-    ),
+EWM_PHYSICAL_INVENTORY = register(
+    DatasetSpec(
+        key="ewm_physical_inventory",
+        title="EWM physical inventory documents",
+        description=(
+            "Physical inventory document items in EWM (PI document counting template): "
+            "book, counted and difference quantity per bin."
+        ),
+        columns=(
+            ColumnSpec("Phys. Inventory Doc.", "text"),
+            ColumnSpec("Storage Bin", "text"),
+            ColumnSpec("Book Quantity", "number"),
+            ColumnSpec("Counted Quantity", "number"),
+            ColumnSpec("Difference Quantity", "number"),
+            ColumnSpec("Product", "text", required=False),
+            ColumnSpec("Item", "text", required=False),
+            ColumnSpec("Product Description", "text", required=False),
+            ColumnSpec("Batch", "text", required=False),
+            ColumnSpec("Count Date", "date", required=False),
+            ColumnSpec("Counter", "text", required=False),
+            ColumnSpec("Base Unit of Measure", "text", required=False),
+        ),
+    )
 )
-SPOT_CHECK = _recognised(
-    "spot_check",
-    "Spot check sheet",
-    "Spot check of bins: system quantity, quantity on hand and variance.",
-    ("Storage Bin", "Product", "Avail. Qty in AUoM", "ON HAND Quantity", "VARIANCE"),
+SPOT_CHECK = register(
+    DatasetSpec(
+        key="spot_check",
+        title="Spot check sheet",
+        description="Spot check of bins: quantity available, quantity counted and variance.",
+        columns=(
+            ColumnSpec("Storage Bin", "text"),
+            ColumnSpec("Product", "text"),
+            ColumnSpec("Variance", "number"),
+            ColumnSpec("Product Description", "text", required=False),
+            ColumnSpec("Batch", "text", required=False),
+            ColumnSpec("Avail. Qty in AUoM", "number", required=False),
+            ColumnSpec(
+                "Counted Quantities", "number", required=False, aliases=("ON HAND Quantity",)
+            ),
+            ColumnSpec("Stock Reference Doc.", "text", required=False),
+        ),
+    )
+)
+PICKING_REGISTER = register(
+    DatasetSpec(
+        key="picking_register",
+        title="Picking register (items missing at picking)",
+        description="Items the picking team could not find in their bin, with the date reported.",
+        columns=(
+            ColumnSpec("BIN LOCATION", "text"),
+            ColumnSpec("PRODUCT CODE", "text"),
+            ColumnSpec("Quantity", "number"),
+            ColumnSpec("PRODUCT DESCRIPTION", "text", required=False),
+            ColumnSpec("BATCH", "text", required=False),
+            ColumnSpec("Date reported", "date", required=False),
+            ColumnSpec("REPORTER/PICKING STAFF", "text", required=False),
+        ),
+    )
+)
+BIN_OWNERS = register(
+    DatasetSpec(
+        key="bin_owners",
+        title="Storage bins with responsible person",
+        description=(
+            "Each storage bin and the staff member who corrects its variances; e-mails "
+            "listed below the bins (name, e-mail)."
+        ),
+        columns=(
+            ColumnSpec("RESPONSIBLE PERSON", "text"),
+            ColumnSpec("Storage Bin", "text"),
+            ColumnSpec("Storage Type", "text", required=False),
+            ColumnSpec("Storage Section", "text", required=False),
+        ),
+    )
 )

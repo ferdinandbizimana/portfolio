@@ -68,7 +68,9 @@ class Coerced:
 
 _REGISTRY: dict[str, DatasetSpec] = {}
 
-DAY_FIRST_FORMATS = ("%d.%m.%Y", "%d/%m/%Y", "%d.%m.%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S")
+DAY_FIRST = ("%d.%m.%Y", "%d/%m/%Y", "%d.%m.%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S")
+MONTH_FIRST = ("%d.%m.%Y", "%m/%d/%Y", "%d.%m.%Y %H:%M:%S", "%m/%d/%Y %H:%M:%S")
+SLASH_DATE = r"^(\d{1,2})/(\d{1,2})/\d{4}"
 ALL_SHEETS = "*"  # the input takes every recognised sheet of the file
 
 
@@ -209,6 +211,22 @@ def parse_dates(values: pd.Series) -> pd.Series:
     return dates
 
 
+def _date_formats(text: pd.Series) -> tuple[str, ...]:
+    """Formats for dates that are not ISO, decided for the whole column.
+
+    Dots are always day first (SAP: 30.06.2026). With slashes the order depends on
+    the export: a first part above 12 means day first (30/06/2026), a second part
+    above 12 means month first (6/30/2026, as the EWM exports of RMS). When every
+    date fits both, month first is used, like those exports.
+    """
+    parts = text.str.extract(SLASH_DATE).dropna().astype(int)
+    if parts.empty:
+        return DAY_FIRST
+    if (parts[0] > 12).any():
+        return DAY_FIRST
+    return MONTH_FIRST
+
+
 def _empty(column_type: ColumnType, length: int) -> pd.Series:
     """An absent optional column, typed like a present one (all values missing)."""
     if column_type == "number":
@@ -241,8 +259,7 @@ def _convert(values: pd.Series, column_type: ColumnType) -> tuple[pd.Series, lis
                 numbers = numbers.round().astype("Int64")
         return numbers, [int(i) for i in bad_mask.to_numpy().nonzero()[0]]
     dates = pd.to_datetime(text, errors="coerce", format="ISO8601")
-    # SAP list exports write dates day first: 30.06.2026 or 30/06/2026.
-    for day_first in DAY_FIRST_FORMATS:
+    for day_first in _date_formats(text[dates.isna() & ~empty]):
         missing = dates.isna() & ~empty
         if not missing.any():
             break
