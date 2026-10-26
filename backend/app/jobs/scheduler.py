@@ -1,9 +1,10 @@
 """Entry point of the scheduler container: `python -m app.jobs.scheduler`.
 
 Every `SCHEDULER_INTERVAL_SECONDS` it picks up new files from the shared
-folder and starts the scheduled runs that are due. The runs themselves are
-done by the worker. A Redis lock makes sure that only one scheduler acts,
-even if two are started by mistake.
+folder, starts the scheduled runs that are due and, on working days from
+`VARIANCE_REMINDER_TIME`, sends each person their list of open stock
+variances. The runs themselves are done by the worker. A Redis lock makes
+sure that only one scheduler acts, even if two are started by mistake.
 """
 
 import logging
@@ -16,7 +17,9 @@ from app import storage as storage_module
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.session import session_scope
+from app.jobs.notify import get_mailer
 from app.jobs.queue import get_queue, get_redis
+from app.jobs.variances import send_digests
 from app.scheduling import scan_shared_folder, tick
 
 logger = logging.getLogger(__name__)
@@ -33,6 +36,13 @@ def run_once(redis: Redis) -> bool:
     now = datetime.now(UTC)
     with session_scope() as db:
         started = tick(db, storage_module.get_storage(), get_queue(redis), settings, now)
+        try:
+            sent = send_digests(db, settings, now, get_mailer())
+            if sent:
+                logger.info("Sent %s lists of open stock variances", sent)
+        except Exception:
+            logger.exception("Could not send the lists of open stock variances")
+            db.rollback()
     redis.set(LAST_TICK_KEY, now.isoformat())
     for run in started:
         logger.info("Scheduled run %s started", run.id)
