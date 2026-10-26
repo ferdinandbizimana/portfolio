@@ -4,8 +4,7 @@ Ferdinand's rules of 26 October 2026 (docs/PLAN.md, Decisions):
 
 - a batch has expired when the ZSTOCKREPORT shows its expiry date on or
   before the report date; every expired batch must be blocked and sent to the
-  quarantine plant, whose code starts with 99 (batches that are not are
-  flagged);
+  quarantine plant 9900 (batches that are not are flagged);
 - a period (month, quarter, six months, financial year) compares the
   ZSTOCKREPORT of its opening month with the one of its closing month;
 - the batches that were to expire during the period (opening snapshot) end as
@@ -107,11 +106,11 @@ class Parameters(BaseModel):
         description="Date of the closing ZSTOCKREPORT, e.g. 30 June 2026.",
     )
     quarantine_plants: str = Field(
-        default="99",
+        default="9900",
         title="Quarantine plants",
         description=(
             "Plant codes, or the start of plant codes, where expired stock must be "
-            "(comma-separated). RMS quarantine plants start with 99."
+            "(comma-separated). The RMS quarantine plant is 9900."
         ),
     )
     distribution_types: str = Field(
