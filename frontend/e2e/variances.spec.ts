@@ -108,3 +108,43 @@ test("a spot check variance is assigned, e-mailed and corrected through its link
   await expect(done).toContainText("Corrected");
   await expect(done).toContainText("Picked from the wrong bin");
 });
+
+test("picker accuracy from the picking register", async ({ page }) => {
+  const tag = unique();
+  await signInOk(page);
+  await uploadCsv(
+    page,
+    `pickers-${tag}.csv`,
+    csv([
+      [
+        "Pickers name",
+        "Numbers of lines picked per day",
+        "Number of descrepancies out of those lines",
+      ],
+      ["ALICE", "40", "0"],
+      ["Bob", "10", "2"],
+    ]),
+    "Picking register: lines and discrepancies per picker",
+  );
+  await page.goto("/admin/runs/new?analysis=picker_accuracy");
+  await page.getByLabel("Name of this run").fill(`Pickers ${tag}`);
+  const daily = page
+    .getByRole("group", { name: /^Picking register: daily sheets/ })
+    .getByLabel("File");
+  await daily.selectOption(
+    await daily.locator("option", { hasText: `pickers-${tag}.csv` }).getAttribute("value"),
+  );
+  await page
+    .getByRole("group", { name: /^Picking register: sheets with one row/ })
+    .getByLabel("File")
+    .selectOption("");
+  await page.getByRole("button", { name: "Run analysis" }).click();
+  await expect(page).toHaveURL(/\/admin\/runs\/\d+$/);
+  await expect(page.getByText("All checks passed.")).toBeVisible({ timeout: 30_000 });
+  // 2 discrepancies in 50 lines: 96.0%; Bob (80%) is below the 98% target.
+  const figures = page.getByRole("region", { name: "Key figures" });
+  await expect(figures).toContainText("96.0%");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Bob" }).filter({ hasText: "Below target" }),
+  ).toBeVisible();
+});

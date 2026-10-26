@@ -196,6 +196,12 @@ Admin → Stock variances.
 4. On the page you can reassign a variance, mark it corrected yourself, reopen it,
    copy its link, and download the Excel list.
 
+### Picker accuracy
+
+File: the picking register (its daily sheets with lines and discrepancies per
+picker; the sheets with one row per outbound delivery are optional). Choose the
+same file for both inputs. Parameter: the accuracy target (0.98 = 98%).
+
 ## Report templates
 
 In **Templates**, upload your Word (.docx) and PowerPoint (.pptx) templates and

@@ -563,6 +563,35 @@ PICKING_REGISTER = register(
         ),
     )
 )
+PICKER_DAILY = register(
+    DatasetSpec(
+        key="picker_daily",
+        title="Picking register: lines and discrepancies per picker (daily sheet)",
+        description="One sheet per day: lines each picker picked and the discrepancies found.",
+        columns=(
+            ColumnSpec("Pickers name", "text"),
+            ColumnSpec("Numbers of lines picked per day", "number"),
+            ColumnSpec("Number of descrepancies out of those lines", "number"),
+        ),
+    )
+)
+PICKER_ORDERS = register(
+    DatasetSpec(
+        key="picker_orders",
+        title="Picking register: lines and discrepancies per outbound delivery",
+        description="One row per outbound delivery picked: customer, order type, picker.",
+        columns=(
+            ColumnSpec("Date", "date"),
+            ColumnSpec("Outbound Delivery ( OBD ) Number", "text"),
+            ColumnSpec("Number of Lines", "number"),
+            ColumnSpec("Pickers Name", "text"),
+            ColumnSpec("Number of Lines with descrepancies", "number", required=False),
+            ColumnSpec("Customer/Branche Name", "text", required=False),
+            ColumnSpec("Type of Order", "text", required=False),
+            ColumnSpec("Work Breakdown Structure ( WBS )", "text", required=False),
+        ),
+    )
+)
 BIN_OWNERS = register(
     DatasetSpec(
         key="bin_owners",
