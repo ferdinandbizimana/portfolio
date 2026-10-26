@@ -258,6 +258,7 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
 | 2026-10-24 | The outbound delivery list must have "Goods Issue Date" and the inbound list "Goods receipt date", so the two lists (same SAP layout) are never mistaken for each other. |
 | 2026-10-25 | PO follow-up uses the ME2M report (same columns as ME2N) for the creation date (Document Date), approval date (Final Approval Date) and required delivery date (Delivery Date): days to approval, approval to receipt, on time (last receipt on or before the required date), on time in full, open lines past the required date. Your ME2M file loads without errors (headers recorded in `docs/sap-exports.md`; no data kept). |
 | 2026-10-26 | Answers to Q14–Q18 and the AMC link (to be built in the next pull request): AMC and ZSTOCKREPORT quantities are always in the base unit of measure (pack sizes x30 / x60 are descriptions only). MB51 "Reference" holds the outbound delivery on 641, 101 and their reversals 642, 102 and 122; the STO creation date comes from ME2M, so stock in transit also measures STO creation → goods issue (641) → goods receipt (101). PO follow-up keeps STOs and flags them (document type ZSTO, numbers starting 71). Warehouse activity: dock-to-stock target 2 days; inbound deliveries (numbers starting 18) traced from goods receipt to putaway, with a check that MB51 has the 101 for the same inbound delivery; picking traced to post goods issue, with a check that MB51 has the 641 (STO) or 601 / Y01 / Z01 (customer deliveries) for the same outbound delivery; missing postings are flagged as EWM–ERP synchronisation issues. Order fill rate: goods-issued deliveries count; ordered vs confirmed quantity per line; net price = unit cost, net value = line value; ZRMS and ZSPO are normal sales, ZDON programme commodities at 100% discount, valued from MB51 601 / Y01 / Z01 / X01 by sales document; OX10 gives customer names (facility type in Name 1: HP, CS / HC, DH, RH, PH …), district (City) and region (Description), matched to the outbound delivery names; the fill rate is also analysed by facility type, region and border districts. Weekly product codes → SAP materials through the material master (MARA): "Old material number" = NPC code, "Material" = SAP code. |
+| 2026-10-26 | Built from those answers: MARA link first in stock sufficiency and expiry risk; ME2M STO creation dates and 122 reversals in stock in transit; STO flag in PO follow-up; 2-day target and MB51 synchronisation checks in warehouse activity; confirmed quantity, ZDON distribution value from MB51 (by "Sales order" / "Sales order item"), facility type, district, region and border districts in the order fill rate. Facility types read from the abbreviation in the OX10 name (HP, CS, HC, DH, RH, PH; anything else "Other"). Border districts are a parameter (default list in Q23). |
 | 2026-10-21 | Word templates: the report goes where the template has a paragraph `{{p body }}`; `{{ title }}`, `{{ subtitle }}`, `{{ report_date }}` may be used anywhere. PowerPoint uses the layouts "Title Slide", "Title and Content", "Title Only". |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
@@ -349,6 +350,20 @@ Answers will be recorded in section 4 (Decisions).
 - Q21. Your ME2M contains document types ZSTO and UB (stock transport
   orders). Leave them out of the PO follow-up (they are followed in stock in
   transit)? Same question as Q17.
+- Q22. VA05 confirmed quantity and net price: the VA05 export you sent has no
+  such columns. The app reads "Confirmed Quantity" and "Net Price"; please
+  send the exact headers of an export that has them (or confirm these).
+- Q23. Border districts (default, please correct): Rubavu, Rutsiro, Karongi,
+  Nyamasheke, Rusizi, Nyamagabe, Nyaruguru, Huye, Gisagara, Bugesera, Kirehe,
+  Kayonza, Nyagatare, Gicumbi, Burera, Musanze. And the full list of facility
+  abbreviations in OX10 names ("and many others").
+- Q24. MB51 has both "Sales order" and "Sales Order" (and the same for the
+  item). Which one holds the sales document of a 601 / Y01 / Z01 / X01 line?
+- Q25. Spot-check variance follow-up (new): see the proposal in the session
+  of 2026-10-26: zones and their responsible staff (and e-mails), how a zone
+  is recognised (storage type, bin prefix?), the list of reasons and of
+  responsible units (Receiving, Picking, …), and the layout of the "items
+  missed by picking" list.
 - Q19. Which Phase 7 dashboards should be published, and at which detail level?
 
 **Stock count reconciliation**
