@@ -230,7 +230,7 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
       Excel export
 - [x] Picker accuracy (Q27): lines and discrepancies per picker and per day from
       the picking register's daily sheets, by customer and order type from the
-      sheets with one row per outbound delivery; target 98% (a parameter).
+      sheets with one row per outbound delivery; target 100% (Q28; a parameter).
       Local check on your register: every day read correctly from the sheet names
 - [ ] Your check on real data: upload the bin list and one week's spot check
 
@@ -281,6 +281,7 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
 | 2026-10-26 | Dates with slashes: the order is decided per column (a day above 12 shows it); EWM exports of RMS are month first (6/30/2026); when every date fits both, month first. Dots are always day first. |
 | 2026-10-26 | The data files list counted runs once per file (2 s with 500 files, slower than the page's 2-second refresh, so the page stopped updating): it now counts once per request. |
 | 2026-10-26 | Picker accuracy: accuracy = 1 − discrepancies / lines picked; the day of a daily sheet is read from its name ("25nov", "26 NOV", "28TH nov", "27112025", "2122025" = 2 December 2025, the reading nearest the other days); names without a year take the year of the other sheets and of the delivery rows; the same picker in different capitals is one picker. G2: Ferdinand is buying the server and the domain. |
+| 2026-10-26 | Picker accuracy target is 100% (Q28, Ferdinand): a picker with any discrepancy is below target. It stays a parameter of the run. |
 | 2026-10-21 | Word templates: the report goes where the template has a paragraph `{{p body }}`; `{{ title }}`, `{{ subtitle }}`, `{{ report_date }}` may be used anywhere. PowerPoint uses the layouts "Title Slide", "Title and Content", "Title Only". |
 | 2026-10-20 | Phase 0 and Phase 1 go in one pull request on the session branch, because Phase 0 had not been merged when you asked to continue. Later phases get one pull request each. |
 | 2026-10-20 | Tool versions pinned: Python 3.12, uv 0.11.32, Node 22, pnpm 10.28. Backend dependencies locked in `backend/uv.lock`, frontend in `frontend/pnpm-lock.yaml`. |
@@ -386,7 +387,7 @@ Answers will be recorded in section 4 (Decisions).
   is recognised (storage type, bin prefix?), the list of reasons and of
   responsible units (Receiving, Picking, …), and the layout of the "items
   missed by picking" list.
-- Q28. Picker accuracy target: 98% is a default; what target do you use?
+- Q28: answered 2026-10-26: the target is 100% (default of the parameter).
 - Q26 (explained 2026-10-26; keep it if you agree). The variance Excel export lists data as uploaded (product names,
   reasons typed by staff) and is not passed through the language guard, like
   the uploaded files themselves. Fine, or should it be?

@@ -200,7 +200,7 @@ Admin → Stock variances.
 
 File: the picking register (its daily sheets with lines and discrepancies per
 picker; the sheets with one row per outbound delivery are optional). Choose the
-same file for both inputs. Parameter: the accuracy target (0.98 = 98%).
+same file for both inputs. Parameter: the accuracy target (1.0 = 100%, the default).
 
 ## Report templates
 

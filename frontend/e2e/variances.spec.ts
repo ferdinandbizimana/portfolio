@@ -141,7 +141,7 @@ test("picker accuracy from the picking register", async ({ page }) => {
   await page.getByRole("button", { name: "Run analysis" }).click();
   await expect(page).toHaveURL(/\/admin\/runs\/\d+$/);
   await expect(page.getByText("All checks passed.")).toBeVisible({ timeout: 30_000 });
-  // 2 discrepancies in 50 lines: 96.0%; Bob (80%) is below the 98% target.
+  // 2 discrepancies in 50 lines: 96.0%; Bob (80%) is below the 100% target.
   const figures = page.getByRole("region", { name: "Key figures" });
   await expect(figures).toContainText("96.0%");
   await expect(

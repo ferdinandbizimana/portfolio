@@ -101,11 +101,11 @@ def _picker(value: object) -> str:
 
 class Parameters(BaseModel):
     target: float = Field(
-        default=0.98,
+        default=1.0,
         ge=0,
         le=1,
         title="Accuracy target",
-        description="Share of lines without discrepancy expected from each picker (0.98 = 98%).",
+        description="Share of lines without discrepancy expected from each picker (1.0 = 100%).",
     )
 
 
@@ -122,7 +122,7 @@ def _accuracy(lines: float, wrong: float) -> float | None:
 class PickerAccuracy(Analysis):
     key = "picker_accuracy"
     title = "Picker accuracy"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "Lines picked and discrepancies per picker and per day from the picking register, "
         "accuracy against a target, and by customer and order type where the register has "

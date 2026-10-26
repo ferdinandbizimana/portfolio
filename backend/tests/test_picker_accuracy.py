@@ -58,7 +58,7 @@ def test_hand_checked(result: Any) -> None:
     pickers = result.tables["by_picker"].set_index("Picker")
     assert pickers.loc["Alice", "Lines"] == 108
     assert pickers.loc["Alice", "Accuracy"] == pytest.approx(1 - 1 / 108)
-    assert pickers.loc["Alice", "Status"] == ON_TARGET  # 99.1% >= 98%
+    assert pickers.loc["Alice", "Status"] == BELOW  # 99.1% < 100%
     assert pickers.loc["Bob", "Accuracy"] == pytest.approx(1 - 3 / 22)
     assert pickers.loc["Bob", "Status"] == BELOW
     assert list(pickers.index) == ["Bob", "Alice"]  # lowest accuracy first
@@ -73,6 +73,12 @@ def test_without_delivery_sheets() -> None:
     pickers = result.tables["by_picker"].set_index("Picker")
     assert pickers.loc["Bob", "Status"] == BELOW  # 80% < 90%
     assert result.tables["by_customer"].empty
+
+
+def test_perfect_picker_meets_the_default_target() -> None:
+    daily = DAILY[DAILY["Pickers name"] == "ALICE"]  # 40 lines, no discrepancy
+    pickers = ANALYSIS.compute({"daily": daily}, Parameters()).tables["by_picker"]
+    assert pickers.set_index("Picker").loc["Alice", "Status"] == ON_TARGET
 
 
 def test_same_inputs_same_result() -> None:
