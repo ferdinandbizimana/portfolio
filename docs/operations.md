@@ -143,7 +143,8 @@ tolerance (0.005 = 0.5%).
 
 ### Interactive dashboards (every analysis)
 
-Every run also gives an **interactive dashboard**: the button "Open interactive
+Every run gives at least an **Excel workbook** and an **interactive dashboard**
+(HTML), whatever the analysis. Every run also gives an **interactive dashboard**: the button "Open interactive
 dashboard" on the run page opens it, and it is listed with the reports as one
 HTML file you can download, keep and e-mail (it opens offline in any recent
 browser; the data is inside the file). Filters at the top apply to every

@@ -114,7 +114,11 @@ def test_full_run_gives_checks_dashboard_and_reports(logged_in: TestClient) -> N
     by_plant = next(t for t in run["dashboard"]["tables"] if t["id"] == "by-plant")
     assert [r["Plant"] for r in by_plant["rows"]] == ["P100", "P200", "P300"]
 
-    assert {r["key"] for r in run["reports"]} == {"workbook", "report", "slides"}
+    # The demo has no layout of its own: the engine adds the standard dashboard.
+    assert {r["key"] for r in run["reports"]} == {"workbook", "report", "slides", "dashboard"}
+    dashboard = logged_in.get(f"/api/admin/runs/{run['id']}/reports/dashboard")
+    assert dashboard.status_code == 200
+    assert dashboard.headers["content-type"].startswith("text/html")
     workbook = logged_in.get(f"/api/admin/runs/{run['id']}/reports/workbook")
     assert workbook.status_code == 200
     sheets = load_workbook(io.BytesIO(workbook.content)).sheetnames
