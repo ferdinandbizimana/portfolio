@@ -294,7 +294,8 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
 | 2026-10-26 | Dashboards follow Ferdinand's own HTML dashboards: one self-contained interactive page per run, downloadable, with filters applying to every section, plus an Excel workbook of all detail lines. |
 | 2026-10-20 | Report generation is done in Python only (openpyxl, docxtpl, python-docx, python-pptx); the legacy Node scripts are not reused. |
 | 2026-10-20 | Analyses are pure functions over named datasets; data sources are separate (upload now, folder and SAP later). |
-| 2026-10-20 | Your instructions override legacy behaviour; for the RBC report receipts, issues and expired stock are never shown. |
+| 2026-10-20 | Your instructions override legacy behaviour; for the RBC report receipts, issues and expired stock are never shown (replaced on 2026-10-26, below). |
+| 2026-10-26 | RBC report (Ferdinand): receipts and goods issues from MB51 in every RBC output (Excel, Word, PowerPoint, HTML), split by movement type; scrapping shown as its own column "Scrapped (expired)". Defaults (parameters, change them on the run form if needed): receipts 101, 102; goods issues 601, 602, 641, 642, Y01, Z01, X01; scrapping 551, 555. Only MB51 lines on the WBS posted in the period (after the opening date, up to the closing date) count; amounts keep the MB51 sign (issues negative). "Other movements and adjustments" = closing − opening − receipts − goods issues − scrapped, so every line rolls forward. The CPDS Report data sheet gets the legacy columns Total Receipt Qties / Values and Total Issue Quantities / Values again. |
 | 2026-10-20 | G1 answered: the legacy scripts are never put on GitHub. They stay with you; `legacy/` is git-ignored and blocked by the data guard. `docs/legacy-analysis.md` holds the rules without real figures. |
 | 2026-10-20 | G4 answered: a simple login page (e-mail + password). No two-factor, no recovery codes. Passwords are still stored hashed, sessions use secure cookies, and repeated failed logins are slowed down. |
 | 2026-10-20 | G3 answered: contact form messages are sent by SMTP directly to your e-mail. Recipient address and SMTP account go in `.env` (`CONTACT_TO_EMAIL`, `SMTP_*`), never in the code. |
@@ -473,10 +474,8 @@ Answers will be recorded in section 4 (Decisions).
 - R1. Opening = closing of the previous RBC report you upload. Once the app has
   its own previous quarter run, should opening come from that run, with the
   uploaded report as a fallback?
-- R2. The legacy roll-forward check (opening + receipts + issues + scrapping =
-  closing, and the "adjustment" between reported opening and GL) cannot
-  appear in the report. Keep it as a private check in the run view only, or
-  drop it entirely?
+- R2: answered 2026-10-26: the roll-forward is shown in the report (receipts,
+  goods issues, scrapped, other movements and adjustments).
 - R3. When the difference rounds to zero, legacy says "No change". Allowed, or
   only "Increase" / "Reduction"?
 - R4. Closing = final closing after expired stock is deducted (the `w5` result)
@@ -525,6 +524,7 @@ Answers will be recorded in section 4 (Decisions).
 | 2026-10-21 | Phase 3 built: portfolio content API, public pages, admin editors, file uploads, SMTP contact form, SEO. Verified: 52 backend tests, 17 frontend unit tests, 18 browser tests (desktop + mobile) incl. a real SMTP delivery to Mailpit; 20 page views made 0 backend calls (cache) and pages answer in ~10 ms. | Phase 4: upload and analysis engine. |
 | 2026-10-21 | Phase 2 built: login (Argon2, sessions, rate limit, Origin check), audit log, admin area (overview, activity log, settings), CLI for admin account, JSON uvicorn logs, Caddy entry point. Verified: 26 backend tests on PostgreSQL, 13 frontend unit tests, 8 browser tests (desktop + mobile) against the full Docker stack. | Phase 3: portfolio. |
 | 2026-10-23 | Phase 5 part 1: SAP export definitions (13 exports), closing stock by WBS, RBC accountability report; workbook sheets without a table are skipped. Verified: 139 backend tests (hand-checked closing and RBC figures, report wording, next-quarter round trip), 27 frontend unit tests, 42 browser tests incl. an RBC run; your real files load without errors; RBC opening by programme equals your June report. | Q1–Q6. |
+| 2026-10-26 | RBC report shows receipts, goods issues (MB51 by movement type) and scrapped (expired) stock in every output, with other movements and adjustments so each line rolls forward. Verified: hand-checked fake MB51 lines (reversals, other WBS, other types, posting after the period), round trip of the data sheet. | Spot check files received: build the spot check analysis from them. |
 | 2026-10-26 | RBC dashboard follows your "RBC Program Stock" layout (value band filter, products in stock, opening vs closing by plant, closing stock list, products by plant). Verified: RBC tests incl. a new layout test, ruff, mypy, rendering in Chromium on desktop and mobile with no errors. | Spot check dashboard (Q31), donations list (Q30), going live (G2). |
 | 2026-10-26 | Phase 7 answers merged (PR 15). Phase 10 built: variance follow-up (bin list, three sources, secure link, e-mails, morning list, admin page, export). Verified: 247 backend tests, 30 frontend unit tests, browser test of the whole flow (bin list → variance → e-mail with BCC via Mailpit → link → corrected) on desktop and mobile; your real bin list gives exactly the six people with their e-mails; your PI document gives 624 variances, the picking register 321. | Going live (G2). |
 | 2026-10-24 | Phase 5 part 3 merged. Phase 7: order fill rate, expiry risk, stock in transit, purchase order follow-up, warehouse activity; weekly report reading shared in `analyses/common/weekly.py`; SAP day-first dates. Verified: 228 backend tests, 27 frontend unit tests, 56 browser tests (desktop + mobile) incl. a run of each new analysis; every export you sent is recognised as the right dataset. | Going live (G2); Q13–Q19. |
