@@ -18,6 +18,7 @@ from app.api import (
     system,
     templates,
     uploads,
+    variances,
 )
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -59,6 +60,8 @@ def create_app() -> FastAPI:
         templates.router,
         publications.admin_router,
         publications.public_router,
+        variances.admin_router,
+        variances.public_router,
     ):
         app.include_router(router)
     return app

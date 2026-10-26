@@ -3,6 +3,7 @@
 import hashlib
 import secrets
 import shutil
+from collections import Counter
 from datetime import timedelta
 from typing import Annotated, Any
 
@@ -236,13 +237,18 @@ def complete_upload(
     return _out(db, data_file)
 
 
-def _out(db: DbDep, data_file: DataFile) -> DataFileOut:
-    used = 0
+def _usage(db: DbDep) -> Counter[int]:
+    """How many runs used each data file (read once, not once per file)."""
+    used: Counter[int] = Counter()
     all_inputs: list[dict[str, Any] | None] = list(db.scalars(select(AnalysisRun.inputs)))
     for inputs in all_inputs:
-        choices = inputs or {}
-        if any(choice.get("data_file_id") == data_file.id for choice in choices.values()):
-            used += 1
+        ids = {choice.get("data_file_id") for choice in (inputs or {}).values()}
+        used.update(i for i in ids if isinstance(i, int))
+    return used
+
+
+def _out(db: DbDep, data_file: DataFile, usage: Counter[int] | None = None) -> DataFileOut:
+    used = (usage if usage is not None else _usage(db))[data_file.id]
     return DataFileOut(
         id=data_file.id,
         source=data_file.source,
@@ -261,7 +267,8 @@ def _out(db: DbDep, data_file: DataFile) -> DataFileOut:
 @router.get("/data-files", response_model=list[DataFileOut])
 def list_data_files(_: CurrentUserDep, db: DbDep) -> list[DataFileOut]:
     files = db.scalars(select(DataFile).order_by(DataFile.id.desc())).all()
-    return [_out(db, f) for f in files]
+    usage = _usage(db)
+    return [_out(db, f, usage) for f in files]
 
 
 @router.get("/data-files/{file_id}", response_model=DataFileOut)

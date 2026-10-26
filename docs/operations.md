@@ -175,6 +175,33 @@ deliveries (picking to goods issue) and MB51 (to flag EWM deliveries whose
 goods receipt or goods issue is missing in ERP). Parameters: report date and the
 dock-to-stock target in days.
 
+## Stock variance follow-up
+
+Admin → Stock variances.
+
+1. **Bin list** (once, and whenever it changes): upload the list of storage bins
+   with their responsible person on Data files, then choose it under "Bin list"
+   and click Import bin list. The e-mails are taken from the rows below the bins
+   (name, e-mail); you can correct an e-mail on the page. Bins given to a unit
+   name (RECEIVING, PICKING; set in `VARIANCE_UNIT_NAMES`) get no variances.
+2. **Variances**: upload the weekly spot check, the picking register or the PI
+   document, choose it under "Variance file" and click Create variances and send
+   e-mails. Each line with a difference goes to the person responsible for its
+   bin; lines already imported are not created twice.
+3. Each person receives an e-mail with a link per variance. The link opens a page
+   (no login) where they record the reason, the responsible unit, the action taken
+   and their name. Every working morning (`VARIANCE_REMINDER_TIME`) each person
+   receives the list of their open variances; open for more than
+   `VARIANCE_OVERDUE_DAYS` days is red. Every e-mail goes in BCC to `VARIANCE_BCC`.
+4. On the page you can reassign a variance, mark it corrected yourself, reopen it,
+   copy its link, and download the Excel list.
+
+### Picker accuracy
+
+File: the picking register (its daily sheets with lines and discrepancies per
+picker; the sheets with one row per outbound delivery are optional). Choose the
+same file for both inputs. Parameter: the accuracy target (1.0 = 100%, the default).
+
 ## Report templates
 
 In **Templates**, upload your Word (.docx) and PowerPoint (.pptx) templates and

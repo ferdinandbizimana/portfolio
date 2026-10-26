@@ -286,3 +286,71 @@ class Schedule(Base):
     last_message: Mapped[str] = mapped_column(Text, default="")
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class VarianceStaff(Base):
+    """A warehouse staff member responsible for storage bins (spot-check follow-up)."""
+
+    __tablename__ = "variance_staff"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str] = mapped_column(String(320), default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_digest_on: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BinOwner(Base):
+    """Who corrects the variances found in a storage bin."""
+
+    __tablename__ = "bin_owners"
+
+    storage_bin: Mapped[str] = mapped_column(String(40), primary_key=True)
+    staff_id: Mapped[int | None] = mapped_column(
+        ForeignKey("variance_staff.id", ondelete="SET NULL"), index=True
+    )
+    storage_type: Mapped[str] = mapped_column(String(20), default="")
+    storage_section: Mapped[str] = mapped_column(String(20), default="")
+
+
+class VarianceCase(Base):
+    """A stock variance to verify and correct (spot check, missed at picking, inventory).
+
+    The responsible person closes it through a secure link (a random token, like a
+    publication's secret link). The link is repeated in the daily list, so the token
+    itself is kept; the database is never public.
+    """
+
+    __tablename__ = "variance_cases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # spot_check | picking | physical_inventory
+    source: Mapped[str] = mapped_column(String(24), index=True)
+    # The same line imported twice is one case.
+    dedup_key: Mapped[str] = mapped_column(String(300), unique=True)
+    data_file_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data_files.id", ondelete="SET NULL")
+    )
+    reference: Mapped[str] = mapped_column(String(100), default="")  # e.g. PI document / item
+    storage_bin: Mapped[str] = mapped_column(String(40), index=True)
+    product: Mapped[str] = mapped_column(String(40), default="")
+    description: Mapped[str] = mapped_column(String(255), default="")
+    batch: Mapped[str] = mapped_column(String(40), default="")
+    system_qty: Mapped[float | None] = mapped_column()
+    counted_qty: Mapped[float | None] = mapped_column()
+    difference_qty: Mapped[float] = mapped_column(default=0.0)
+    found_on: Mapped[date | None] = mapped_column(Date)
+    reported_by: Mapped[str] = mapped_column(String(200), default="")
+    staff_id: Mapped[int | None] = mapped_column(
+        ForeignKey("variance_staff.id", ondelete="SET NULL"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | corrected
+    reason: Mapped[str] = mapped_column(Text, default="")
+    responsible_unit: Mapped[str] = mapped_column(String(40), default="")
+    action_taken: Mapped[str] = mapped_column(Text, default="")
+    corrected_by: Mapped[str] = mapped_column(String(200), default="")
+    corrected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    token: Mapped[str] = mapped_column(String(64), unique=True)
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

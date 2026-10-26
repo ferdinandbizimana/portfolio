@@ -183,7 +183,9 @@ def test_sap_day_first_dates() -> None:
     spec = datasets.DatasetSpec(
         key="dates_only", title="t", description="", columns=(datasets.ColumnSpec("Day", "date"),)
     )
-    raw = pd.DataFrame({"Day": ["2026-06-30", "30.06.2026", "01/07/2026", "", "31.02.2026"]})
+    raw = pd.DataFrame(
+        {"Day": ["2026-06-30", "30.06.2026", "01/07/2026", "", "31.02.2026", "30/06/2026"]}
+    )
     coerced = datasets.coerce(spec, raw, header_row=0)
     days = coerced.frame["Day"]
     assert days.iloc[0] == pd.Timestamp(2026, 6, 30)
@@ -191,3 +193,15 @@ def test_sap_day_first_dates() -> None:
     assert days.iloc[2] == pd.Timestamp(2026, 7, 1)
     assert pd.isna(days.iloc[3])
     assert len(coerced.issues) == 1  # 31 February is not a date
+
+
+def test_month_first_slash_dates() -> None:
+    spec = datasets.DatasetSpec(
+        key="dates_only", title="t", description="", columns=(datasets.ColumnSpec("Day", "date"),)
+    )
+    # EWM exports of RMS: month first, as soon as a day above 12 shows it.
+    us = datasets.coerce(spec, pd.DataFrame({"Day": ["6/30/2026", "7/1/2026"]}), 0).frame["Day"]
+    assert us.tolist() == [pd.Timestamp(2026, 6, 30), pd.Timestamp(2026, 7, 1)]
+    # Every date fits both orders: month first, like those exports.
+    unsure = datasets.coerce(spec, pd.DataFrame({"Day": ["7/1/2026"]}), 0).frame["Day"]
+    assert unsure.tolist() == [pd.Timestamp(2026, 7, 1)]

@@ -259,6 +259,7 @@ def test_analyses_are_listed_with_their_inputs(logged_in: TestClient) -> None:
         "stock_in_transit",
         "po_follow_up",
         "warehouse_activity",
+        "picker_accuracy",
     }
     demo = analyses["demo_stock_summary"]
     assert demo["inputs"][0]["dataset"] == "demo_stock_balance"
@@ -342,3 +343,14 @@ def test_an_input_can_take_every_recognised_sheet(logged_in: TestClient) -> None
     summary = next(t for t in run["dashboard"]["tables"] if t["id"] == "summary")
     assert [r["Program"] for r in summary["rows"]] == ["ARV and Opportunistic Infection", "MCCH"]
     assert run["checks_passed"] == run["checks_total"]
+
+
+def test_file_list_counts_the_runs_that_used_each_file(logged_in: TestClient) -> None:
+    used = upload(logged_in, demo_workbook(), "used.xlsx")
+    unused = upload(logged_in, demo_workbook(rows=DEMO_ROWS[:2]), "unused.xlsx")
+    start_run(logged_in, used["id"])
+    start_run(logged_in, used["id"])
+    files = {f["id"]: f for f in logged_in.get("/api/admin/data-files").json()}
+    assert files[used["id"]]["used_by_runs"] == 2
+    assert files[unused["id"]]["used_by_runs"] == 0
+    assert logged_in.get(f"/api/admin/data-files/{used['id']}").json()["used_by_runs"] == 2

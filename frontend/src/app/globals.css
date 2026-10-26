@@ -12,6 +12,8 @@
   --color-danger-soft: #fbe9e7;
   --color-success: #1d6b3a;
   --color-success-soft: #e6f4ea;
+  --color-warning: #8a5a00;
+  --color-warning-soft: #fdf3dc;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -27,6 +29,8 @@
     --color-danger-soft: #3a1714;
     --color-success: #8fd6a6;
     --color-success-soft: #12301d;
+    --color-warning: #f2c46b;
+    --color-warning-soft: #352a10;
   }
 }
 

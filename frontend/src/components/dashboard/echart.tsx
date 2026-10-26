@@ -58,14 +58,23 @@ export function buildOption(chart: Chart, rows: Row[]): echarts.EChartsCoreOptio
   const horizontal = chart.type === "bar" || chart.type === "stacked-bar";
   const valueAxis = {
     type: "value",
-    axisLabel: { color: muted, formatter: (v: number) => compactNumber(v) },
+    splitNumber: horizontal ? 4 : 5,
+    axisLabel: { color: muted, hideOverlap: true, formatter: (v: number) => compactNumber(v) },
     splitLine: { lineStyle: { color: line } },
   };
   const categoryAxis = {
     type: "category",
     data: categories,
     inverse: horizontal, // largest first, read top to bottom
-    axisLabel: { color: ink, width: 140, overflow: "truncate" },
+    // Columns: name every category (a few, wrapped under their column); bars: names beside them.
+    axisLabel: horizontal
+      ? { color: ink, width: 140, overflow: "truncate" }
+      : {
+          color: ink,
+          width: 96,
+          overflow: "break",
+          interval: categories.length <= 12 ? 0 : "auto",
+        },
     axisLine: { lineStyle: { color: line } },
   };
   return {
