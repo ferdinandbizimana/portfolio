@@ -9,6 +9,7 @@ import pytest
 from app.analyses.common.weekly import (
     BY_CODE,
     BY_DESCRIPTION,
+    BY_MASTER,
     NO_AMC,
     NOT_FOUND,
     OVERSTOCK,
@@ -192,3 +193,15 @@ def test_value_from_closing_stock() -> None:
     assert lines.loc["NPC6", "Value Above Max Level (RWF)"] == pytest.approx(1000 * 8 / 15)
     assert result.tables["no_amc"].empty  # 1009 has no closing stock
     assert all(c.passed for c in result.checks)
+
+
+def test_material_master_is_looked_up_first() -> None:
+    inputs = data()
+    # MARA: old material number XYZ is SAP material 1003 (in ZSTOCKREPORT only by description)
+    inputs["master"] = pd.DataFrame(
+        {"Material": ["0001003"], "Old material number": [" xyz "], "Material Description": [None]}
+    )
+    lines = ANALYSIS.compute(inputs, PARAMS).tables["analysis"].set_index("Product Code")
+    assert lines.loc["XYZ", "Linked by"] == BY_MASTER
+    assert lines.loc["XYZ", "SAP Material"] == "1003"
+    assert lines.loc["NPC1", "Linked by"] == BY_CODE  # not in MARA: ZSTOCKREPORT NPC CODE

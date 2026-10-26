@@ -145,3 +145,32 @@ def test_reports(result: Any) -> None:
     assert [f.kind for f in files] == ["xlsx", "docx", "pptx"]
     for report in files:
         check_report(report.kind, report.content)
+
+
+def test_sto_creation_dates_from_me2m() -> None:
+    inputs = data()
+    inputs["orders"] = pd.DataFrame(
+        {
+            "Purchasing Document": ["4500000001", "4500000001"],
+            "Document Date": pd.to_datetime(["2026-06-25", "2026-06-25"]),
+        }
+    )
+    result = ANALYSIS.compute(inputs, PARAMS)
+    kpis = {k.label: k.value for k in result.metrics}
+    # Matched legs of STO 1: 5 units issued 10 July, received 15 July; 4 units issued
+    # 1 July, received 20 July. Created 25 June.
+    assert kpis["Average STO creation to goods issue"] == pytest.approx((5 * 15 + 4 * 6) / 9)
+    assert kpis["Average STO creation to goods receipt"] == pytest.approx((5 * 20 + 4 * 25) / 9)
+    transit = result.tables["in_transit"].set_index("STO")
+    assert transit.loc["4500000001", "Days Since STO Created"] == 36
+    assert transit.loc["4500000001", "STO Created"] == "2026-06-25"
+
+
+def test_return_delivery_122_reverses_a_receipt() -> None:
+    rows = [*MB51, ["7000", "1002", "122", -2, -20, "W", "2026-05-12", "4500000002", "80003"]]
+    inputs = data()
+    inputs["movements"] = pd.DataFrame(rows, columns=MB51_COLUMNS)
+    result = ANALYSIS.compute(inputs, PARAMS)
+    received = result.tables["received"]
+    assert received.loc[received["STO"] == "4500000002", "Quantity"].tolist() == [3]  # 5 - 2
+    assert all(c.passed for c in result.checks)

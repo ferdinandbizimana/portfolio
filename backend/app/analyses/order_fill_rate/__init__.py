@@ -169,21 +169,17 @@ class OrderFillRate(Analysis):
 
         obd = delivered_by_line(data["deliveries"], params.goods_issued_only)
         by_item = obd["Item"] != ""
-        keyed = pd.concat(
-            [
-                obd[by_item].merge(
-                    orders[["Sales Document", "Item"]], on=["Sales Document", "Item"]
-                ),
-                obd[~by_item]
-                .drop(columns="Item")
-                .merge(
-                    orders[["Sales Document", "Item", "Material"]],
-                    on=["Sales Document", "Material"],
-                )
-                .drop_duplicates(["Delivery", "Sales Document", "Material", "Delivered Qty"]),
-            ],
-            ignore_index=True,
-        )
+        parts = [
+            obd[by_item].merge(orders[["Sales Document", "Item"]], on=["Sales Document", "Item"]),
+            obd[~by_item]
+            .drop(columns="Item")
+            .merge(
+                orders[["Sales Document", "Item", "Material"]], on=["Sales Document", "Material"]
+            )
+            .drop_duplicates(["Delivery", "Sales Document", "Material", "Delivered Qty"]),
+        ]
+        # Empty parts are left out of the concatenation (pandas warns on empty dates).
+        keyed = pd.concat([p for p in parts if len(p)] or parts[:1], ignore_index=True)
         unmatched = obd[
             ~obd["Sales Document"].isin(set(orders["Sales Document"]))
             | (

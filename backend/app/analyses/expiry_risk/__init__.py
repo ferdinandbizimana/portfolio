@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from app.analyses.base import Analysis, AnalysisResult, Check, InputSpec
 from app.analyses.common.closing import material_code, plant_code, plant_names
-from app.analyses.common.weekly import link_materials, norm, read_weekly
+from app.analyses.common.weekly import link_materials, master_codes, norm, read_weekly
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
 from app.reporting.documents import (
     ChartBlock,
@@ -103,7 +103,7 @@ def _params(params: BaseModel) -> Parameters:
 class ExpiryRisk(Analysis):
     key = "expiry_risk"
     title = "Expiry risk"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "Stock on hand (ZSTOCKREPORT) by expiry date and the quantity and value that cannot "
         "be used before expiry at the average monthly consumption of the weekly stock "
@@ -116,6 +116,12 @@ class ExpiryRisk(Analysis):
             "weekly_stock_monitoring",
             "Weekly stock monitoring report (AMC, all programme sheets)",
             all_sheets=True,
+        ),
+        InputSpec(
+            "master",
+            "material_master",
+            "Material master (MARA): NPC code of each SAP material",
+            required=False,
         ),
         InputSpec("plants", "ox10_plants", "Plant names (OX10)", required=False),
     )
@@ -156,7 +162,9 @@ class ExpiryRisk(Analysis):
         batches["Expiry Band"] = [band_of(m) for m in batches["Months to Expiry"]]
 
         # AMC per product of the weekly report, and the product of each material.
-        weekly = link_materials(read_weekly(data["weekly"]), batches)
+        weekly = link_materials(
+            read_weekly(data["weekly"]), batches, master_codes(data.get("master"))
+        )
         product_of: dict[str, int] = {}
         for index, materials in enumerate(weekly["SAP Materials"] if len(weekly) else []):
             for material in materials:

@@ -41,6 +41,7 @@ from app.analyses.common.weekly import (
     STOCK_OUT,
     UNDERSTOCK,
     link_materials,
+    master_codes,
     norm,
     read_weekly,
 )
@@ -84,7 +85,7 @@ def _params(params: BaseModel) -> Parameters:
 class StockSufficiencyAmc(Analysis):
     key = "stock_sufficiency_amc"
     title = "Stock sufficiency against AMC"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "Months of stock at RMS and nationally for every programme product of the weekly "
         "stock monitoring report, against its average monthly consumption: status "
@@ -99,6 +100,12 @@ class StockSufficiencyAmc(Analysis):
             all_sheets=True,
         ),
         InputSpec("stock", "zstockreport", "ZSTOCKREPORT stock on hand (NPC codes, value)"),
+        InputSpec(
+            "master",
+            "material_master",
+            "Material master (MARA): NPC code of each SAP material",
+            required=False,
+        ),
         InputSpec(
             "closing",
             "final_closing_by_wbs",
@@ -161,7 +168,7 @@ class StockSufficiencyAmc(Analysis):
             .set_index("Material")["SAP Description"]
         )
 
-        lines = link_materials(read_weekly(data["weekly"]), stock)
+        lines = link_materials(read_weekly(data["weekly"]), stock, master_codes(data.get("master")))
         counted: set[str] = set()
         values, value_notes = [], []
         for materials in lines["SAP Materials"]:

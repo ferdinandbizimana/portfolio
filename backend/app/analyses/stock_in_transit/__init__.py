@@ -17,6 +17,11 @@ Definitions used (see docs/PLAN.md, Decisions):
 - transit time = receipt posting date - issue posting date, per quantity matched;
 - days in transit of an MB5T line = report date - the oldest posting date of the
   issues still open for its STO and material.
+
+Ferdinand's answers of 26 October 2026: the outbound delivery is in "Reference"
+on 641, 101 and their reversals 642, 102 and 122; the STO creation date comes
+from the ME2M report (document date of the purchase order), so the analysis
+also measures STO creation -> goods issue (641) -> goods receipt (101).
 """
 
 from dataclasses import dataclass, field
@@ -44,7 +49,8 @@ from app.reporting.excel import build_workbook
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
-GOODS_ISSUE, ISSUE_REVERSAL, GOODS_RECEIPT, RECEIPT_REVERSAL = "641", "642", "101", "102"
+GOODS_ISSUE, ISSUE_REVERSAL, GOODS_RECEIPT = "641", "642", "101"
+RECEIPT_REVERSALS = ("102", "122")  # reversal of the goods receipt, return delivery
 NOT_ISSUED = "No goods issue in MB51"
 AGE_BANDS = [
     "Up to 7 days",
@@ -162,7 +168,7 @@ def _code(values: pd.Series) -> pd.Series:
 class StockInTransit(Analysis):
     key = "stock_in_transit"
     title = "Stock in transit"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "Stock in transit between plants (MB5T) with the days since its goods issue, traced "
         "in MB51 by STO and outbound delivery (641 goods issue, 101 goods receipt), and the "
@@ -171,6 +177,12 @@ class StockInTransit(Analysis):
     inputs = (
         InputSpec("in_transit", "mb5t_stock_in_transit", "Stock in transit (MB5T)"),
         InputSpec("movements", "mb51_material_documents", "Goods movements (MB51)"),
+        InputSpec(
+            "orders",
+            "me2n_purchase_orders",
+            "STO creation dates (ME2M / ME2N)",
+            required=False,
+        ),
         InputSpec("plants", "ox10_plants", "Plant names (OX10)", required=False),
     )
     Parameters = Parameters
@@ -191,7 +203,7 @@ class StockInTransit(Analysis):
                 "Quantity": raw["Quantity"].astype(float).fillna(0.0).abs(),
             }
         )
-        types = {GOODS_ISSUE, ISSUE_REVERSAL, GOODS_RECEIPT, RECEIPT_REVERSAL}
+        types = {GOODS_ISSUE, ISSUE_REVERSAL, GOODS_RECEIPT, *RECEIPT_REVERSALS}
         moves = moves[moves["Type"].isin(types) & (moves["STO"] != "") & moves["Day"].notna()]
         stos = set(moves.loc[moves["Type"] == GOODS_ISSUE, "STO"])
         moves = moves[moves["STO"].isin(stos)]
@@ -215,7 +227,9 @@ class StockInTransit(Analysis):
                 ]
 
             issues = _reverse(lines(GOODS_ISSUE), lines(ISSUE_REVERSAL))
-            receipts = _reverse(lines(GOODS_RECEIPT), lines(RECEIPT_REVERSAL))
+            receipts = _reverse(
+                lines(GOODS_RECEIPT), [m for kind in RECEIPT_REVERSALS for m in lines(kind)]
+            )
             traced = trace(issues, receipts)
             unmatched_receipts += traced.receipts_without_issue
             legs += [{"STO": sto, "Material": material, **leg} for leg in traced.legs]
@@ -242,6 +256,24 @@ class StockInTransit(Analysis):
             "Transit Days",
         ]
         received = pd.DataFrame(legs, columns=leg_columns)
+        # STO creation date (ME2M / ME2N document date) of each purchase order.
+        orders = data.get("orders")
+        created: dict[str, pd.Timestamp] = {}
+        if orders is not None:
+            dates = pd.DataFrame(
+                {
+                    "STO": _code(orders["Purchasing Document"]),
+                    "Created": pd.to_datetime(orders["Document Date"]),
+                }
+            ).dropna()
+            created = {str(k): v for k, v in dates.groupby("STO")["Created"].min().items()}
+        received["STO Created"] = pd.to_datetime(received["STO"].map(created))
+        received["Days STO to Goods Issue"] = (
+            received["Goods Issue Date"] - received["STO Created"]
+        ).dt.days.astype(float)
+        received["Days STO to Goods Receipt"] = (
+            received["Goods Receipt Date"] - received["STO Created"]
+        ).dt.days.astype(float)
         still_open = pd.DataFrame(
             open_rows,
             columns=[
@@ -317,6 +349,8 @@ class StockInTransit(Analysis):
                 transit[column] = None
             transit["Oldest Goods Issue"] = pd.to_datetime(transit["Oldest Goods Issue"])
         transit["Days in Transit"] = (report - transit["Oldest Goods Issue"]).dt.days.astype(float)
+        transit["STO Created"] = pd.to_datetime(transit["STO"].map(created))
+        transit["Days Since STO Created"] = (report - transit["STO Created"]).dt.days.astype(float)
         transit["Age"] = [age_band(d) for d in transit["Days in Transit"]]
         transit["Open Qty in MB51"] = transit["Open Qty in MB51"].astype(float)
         transit["Difference with MB51"] = transit["Quantity"] - transit["Open Qty in MB51"].fillna(
@@ -384,6 +418,12 @@ class StockInTransit(Analysis):
             if received_qty
             else None
         )
+
+        def weighted(days: str) -> float | None:
+            known = received[received[days].notna()]
+            quantity = float(known["Quantity"].sum())
+            return float((known["Quantity"] * known[days]).sum()) / quantity if quantity else None
+
         open_mask = transit["Open Qty in MB51"].notna()
         open_qty = float(transit.loc[open_mask, "Open Qty in MB51"].sum())
         average_open = (
@@ -421,6 +461,20 @@ class StockInTransit(Analysis):
                 note="From goods issue (641) to goods receipt (101)",
             ),
             Kpi(
+                label="Average STO creation to goods issue",
+                value=weighted("Days STO to Goods Issue"),
+                format="number",
+                unit="days",
+                note="ME2M document date to 641" if created else "Add the ME2M report",
+            ),
+            Kpi(
+                label="Average STO creation to goods receipt",
+                value=weighted("Days STO to Goods Receipt"),
+                format="number",
+                unit="days",
+                note="ME2M document date to 101" if created else "Add the ME2M report",
+            ),
+            Kpi(
                 label="Lines without a goods issue in MB51",
                 value=int((transit["Age"] == NOT_ISSUED).sum()),
                 format="integer",
@@ -451,11 +505,10 @@ class StockInTransit(Analysis):
         ]
 
         transit_table = transit.drop(columns=["Long Transit"]).copy()
-        transit_table["Oldest Goods Issue"] = transit_table["Oldest Goods Issue"].dt.strftime(
-            "%Y-%m-%d"
-        )
+        for column in ("Oldest Goods Issue", "STO Created"):
+            transit_table[column] = transit_table[column].dt.strftime("%Y-%m-%d")
         received_table = received.copy()
-        for column in ("Goods Issue Date", "Goods Receipt Date"):
+        for column in ("STO Created", "Goods Issue Date", "Goods Receipt Date"):
             received_table[column] = pd.to_datetime(received_table[column]).dt.strftime("%Y-%m-%d")
         received_table = received_table.sort_values(
             ["Transit Days", "STO", "Material"], ascending=[False, True, True], kind="mergesort"
@@ -587,6 +640,9 @@ class StockInTransit(Analysis):
             "Average Days in Transit": "number",
             "Days in Transit": "number",
             "Difference with MB51": "number",
+            "Days Since STO Created": "number",
+            "Days STO to Goods Issue": "number",
+            "Days STO to Goods Receipt": "number",
             "Transit Days": "number",
         }
         by_age = TableBlock("By age", t["by_age"], formats, total_row=True)

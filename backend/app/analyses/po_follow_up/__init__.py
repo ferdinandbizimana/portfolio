@@ -31,6 +31,10 @@ gives the approval date ("Final Approval Date") and the required delivery date
   with a required delivery date;
 - an open line is overdue when its required delivery date is before the report
   date.
+
+Answer of 26 October 2026: stock transport orders stay in the analysis and are
+flagged; in RMS they have document type ZSTO and numbers starting with 71 (UB
+is the SAP standard type).
 """
 
 from datetime import date
@@ -56,6 +60,9 @@ from app.reporting.excel import build_workbook
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
+STO_TYPES = ("ZSTO", "UB")
+STO_PREFIX = "71"
+PURCHASE_ORDER, STO = "Purchase order", "Stock transport order (STO)"
 IN_FULL, PARTLY, OPEN = "Delivered in full", "Partly delivered", "Not delivered"
 STATUSES = [IN_FULL, PARTLY, OPEN]
 PERIOD_BANDS = [
@@ -109,7 +116,7 @@ def _params(params: BaseModel) -> Parameters:
 class PoFollowUp(Analysis):
     key = "po_follow_up"
     title = "Purchase order follow-up"
-    version = "1.1.0"
+    version = "1.2.0"
     description = (
         "Purchase orders (ME2N) against inbound deliveries: delivery period from PO creation "
         "to goods receipt, lines delivered in full, received against ordered quantity and "
@@ -142,6 +149,7 @@ class PoFollowUp(Analysis):
                 "Ordered Value": raw["Net Order Value"].astype(float).fillna(0.0),
                 "Open Qty (ME2N)": raw["Still to be delivered (qty)"].astype(float).fillna(0.0),
                 "Deleted": _text(raw["Deletion Indicator"]) != "",
+                "Doc Type": _text(raw["Purchasing Doc. Type"]).str.upper(),
             }
         )
         start, end = pd.Timestamp(params.period_start), pd.Timestamp(params.period_end)
@@ -160,6 +168,7 @@ class PoFollowUp(Analysis):
                         "Created",
                         "Approved",
                         "Required Delivery",
+                        "Doc Type",
                         "Supplier",
                         "Supplier Name",
                         "Material",
@@ -190,16 +199,15 @@ class PoFollowUp(Analysis):
         gr = gr[gr["Receipt Date"].notna() & (gr["PO"] != "")]
         by_item = gr["Item"] != ""
         keys = orders[["PO", "Item", "Material"]]
-        matched = pd.concat(
-            [
-                gr[by_item].merge(keys.drop(columns="Material"), on=["PO", "Item"]),
-                gr[~by_item]
-                .drop(columns="Item")
-                .merge(keys, on=["PO", "Material"])
-                .drop_duplicates(["Delivery", "PO", "Material", "Received Qty", "Receipt Date"]),
-            ],
-            ignore_index=True,
-        )
+        parts = [
+            gr[by_item].merge(keys.drop(columns="Material"), on=["PO", "Item"]),
+            gr[~by_item]
+            .drop(columns="Item")
+            .merge(keys, on=["PO", "Material"])
+            .drop_duplicates(["Delivery", "PO", "Material", "Received Qty", "Receipt Date"]),
+        ]
+        # Empty parts are left out of the concatenation (pandas warns on empty dates).
+        matched = pd.concat([p for p in parts if len(p)] or parts[:1], ignore_index=True)
         order_index = pd.MultiIndex.from_frame(orders[["PO", "Item"]])
         unmatched = gr[
             ~gr["PO"].isin(set(orders["PO"]))
@@ -254,6 +262,8 @@ class PoFollowUp(Analysis):
         names = plant_names(data.get("plants"))
         lines["Plant Name"] = [names.get(p, "") for p in lines["Plant"]]
         lines["Month"] = lines["Created"].dt.strftime("%Y-%m")
+        is_sto = lines["Doc Type"].isin(STO_TYPES) | lines["PO"].str.startswith(STO_PREFIX)
+        lines["Order Type"] = [STO if flag else PURCHASE_ORDER for flag in is_sto]
         lines = lines.sort_values(["Created", "PO", "Item"], kind="mergesort").reset_index(
             drop=True
         )
@@ -290,6 +300,7 @@ class PoFollowUp(Analysis):
         if len(by_supplier):
             by_supplier = by_supplier.sort_values(["Value Received", "Supplier"], kind="mergesort")
         by_plant = breakdown(["Plant", "Plant Name"]) if len(lines) else pd.DataFrame()
+        by_order_type = breakdown(["Order Type"]) if len(lines) else pd.DataFrame()
         by_month = breakdown(["Month"]) if len(lines) else pd.DataFrame()
         delivered = lines[full]
         bands = pd.Series([period_band(d) for d in delivered["Delivery Period (days)"]], dtype=str)
@@ -312,7 +323,14 @@ class PoFollowUp(Analysis):
         full_with_required = full & with_required
         days_to_approval = lines["Days to Approval"].dropna()
         kpis = [
-            Kpi(label="PO lines", value=len(lines), format="integer"),
+            Kpi(
+                label="PO lines",
+                value=len(lines),
+                format="integer",
+                note=f"{int((lines['Order Type'] == STO).sum())} of them STOs"
+                if len(lines)
+                else "",
+            ),
             Kpi(
                 label="Average days to approval",
                 value=float(days_to_approval.mean()) if len(days_to_approval) else None,
@@ -402,6 +420,8 @@ class PoFollowUp(Analysis):
         line_columns = [
             "PO",
             "Item",
+            "Order Type",
+            "Doc Type",
             "Created",
             "Approved",
             "Required Delivery",
@@ -490,6 +510,12 @@ class PoFollowUp(Analysis):
                     rows=rows_of(by_month),
                 ),
                 Table(
+                    id="by-order-type",
+                    title="Purchase orders and STOs",
+                    columns=rate_columns([Column(key="Order Type", label="Order type")]),
+                    rows=rows_of(by_order_type),
+                ),
+                Table(
                     id="by-plant",
                     title="By plant",
                     columns=rate_columns(
@@ -562,6 +588,7 @@ class PoFollowUp(Analysis):
                 "by_period": by_period,
                 "by_month": by_month,
                 "by_plant": by_plant,
+                "by_order_type": by_order_type,
                 "by_supplier": by_supplier,
                 "unmatched_receipts": unmatched_table,
             },
@@ -601,6 +628,7 @@ class PoFollowUp(Analysis):
         }
         by_period = TableBlock("Delivery period", t["by_period"], formats, total_row=True)
         by_plant = TableBlock("By plant", t["by_plant"], formats)
+        by_order_type = TableBlock("Purchase orders and STOs", t["by_order_type"], formats)
         kpi: dict[str, Any] = {k.label: k.value for k in result.metrics}
 
         def pct(value: object) -> str:
@@ -646,7 +674,7 @@ class PoFollowUp(Analysis):
                         )
                     ],
                 ),
-                Section("By plant", tables=[by_plant]),
+                Section("By plant", tables=[by_order_type, by_plant]),
                 Section(
                     "Method",
                     bullets=[

@@ -294,6 +294,25 @@ def _recognised(key: str, title: str, description: str, columns: tuple[str, ...]
     )
 
 
+MATERIAL_MASTER = register(
+    DatasetSpec(
+        key="material_master",
+        title="Material master (MARA)",
+        description=(
+            "SAP material list (MARA). The old material number is the national product "
+            "code (NPC) used in the weekly stock monitoring report."
+        ),
+        columns=(
+            ColumnSpec("Material", "text"),
+            ColumnSpec("Old material number", "text"),
+            ColumnSpec("Material Description", "text", required=False),
+            ColumnSpec("Base Unit of Measure", "text", required=False),
+            ColumnSpec("Material Type", "text", required=False),
+            ColumnSpec("Material Group", "text", required=False),
+        ),
+    )
+)
+
 ZSTOCKREPORT = register(
     DatasetSpec(
         key="zstockreport",
