@@ -19,8 +19,24 @@ OX10 To do Order fillrate". Definitions used (see docs/PLAN.md, Decisions):
 - the plant is the delivering plant of the outbound deliveries, named from
   OX10; days to goods issue = from the order date to the last goods issue of a
   line delivered in full.
+
+Ferdinand's answers of 26 October 2026:
+
+- goods-issued deliveries are the ones that count; VA05 also gives the
+  confirmed quantity of each line (ordered - confirmed = not delivered), the net
+  price (unit price) and the net value (line value);
+- sales document types ZRMS and ZSPO are normal sales; ZDON are programme
+  commodities sold at a 100% discount (zero value): their distribution value
+  comes from MB51 (movement types 601, Y01, Z01, X01) by sales document;
+- OX10 gives plant and customer names: "Name 1" is the facility name and
+  shows its type (HP health post, CS / HC health centre, DH district hospital,
+  RH referral hospital, PH provincial hospital ...), "City" its district and
+  "Description" its region; customers are matched to OX10 by the names in the
+  outbound delivery list. The fill rate is also shown by facility type, region,
+  district and for the districts on the border of Rwanda.
 """
 
+import re
 from datetime import date
 from typing import Any
 
@@ -44,6 +60,25 @@ from app.reporting.excel import build_workbook
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
+PROGRAMME_TYPES = ("ZDON",)  # programme commodities, 100% discount
+DISTRIBUTION_TYPES = ("601", "Y01", "Z01", "X01")  # MB51 goods issue to a customer
+SALE, PROGRAMME = "Sale", "Programme commodities (ZDON)"
+# Facility type from the abbreviation in the OX10 name (Ferdinand, 26 October 2026).
+FACILITY_TYPES = {
+    "HP": "Health post",
+    "CS": "Health centre",
+    "HC": "Health centre",
+    "DH": "District hospital",
+    "RH": "Referral hospital",
+    "PH": "Provincial hospital",
+}
+OTHER_FACILITY, UNKNOWN = "Other", "Not found in OX10"
+# Districts on the border of Rwanda (with the DRC, Uganda, Tanzania and Burundi);
+# a parameter, to be confirmed by Ferdinand.
+BORDER_DISTRICTS = (
+    "Rubavu, Rutsiro, Karongi, Nyamasheke, Rusizi, Nyamagabe, Nyaruguru, Huye, Gisagara, "
+    "Bugesera, Kirehe, Kayonza, Nyagatare, Gicumbi, Burera, Musanze"
+)
 IN_FULL, PARTLY, NOT_DELIVERED = "Delivered in full", "Partly delivered", "Not delivered"
 STATUSES = [IN_FULL, PARTLY, NOT_DELIVERED]
 NO_DELIVERY = "No delivery"
@@ -58,6 +93,28 @@ def _rate(part: float, whole: float) -> float | None:
     return part / whole if whole else None
 
 
+def _column(frame: pd.DataFrame, name: str) -> pd.Series:
+    """An optional column, or empty values when the file does not have it."""
+    return frame[name] if name in frame.columns else pd.Series(None, index=frame.index)
+
+
+def _name(value: object) -> str:
+    text = "" if value is None or (not isinstance(value, str) and pd.isna(value)) else str(value)  # type: ignore[call-overload]
+    return " ".join(text.upper().split())
+
+
+def facility_type(name: str) -> str:
+    """Facility type from the abbreviation in its name ("CS KIGALI" -> Health centre)."""
+    for word in re.split(r"[^A-Z0-9]+", name.upper()):
+        if word in FACILITY_TYPES:
+            return FACILITY_TYPES[word]
+    return OTHER_FACILITY
+
+
+def _districts(text: str) -> set[str]:
+    return {_name(d) for d in text.split(",") if d.strip()}
+
+
 class Parameters(BaseModel):
     period_start: date = Field(
         title="Orders from", description="First order date counted, e.g. 1 April 2026."
@@ -69,6 +126,11 @@ class Parameters(BaseModel):
         default=True,
         title="Count only goods-issued deliveries",
         description="Leave out deliveries without a goods movement date.",
+    )
+    border_districts: str = Field(
+        default=BORDER_DISTRICTS,
+        title="Border districts",
+        description="Districts on the border of Rwanda, comma-separated.",
     )
 
     @model_validator(mode="after")
@@ -114,7 +176,7 @@ def delivered_by_line(deliveries: pd.DataFrame, goods_issued_only: bool) -> pd.D
 class OrderFillRate(Analysis):
     key = "order_fill_rate"
     title = "Order fill rate"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "Sales orders (VA05) against outbound deliveries: lines and orders delivered in "
         "full, quantity and value fill rate, by delivering plant, customer and month, with "
@@ -123,7 +185,18 @@ class OrderFillRate(Analysis):
     inputs = (
         InputSpec("orders", "va05_sales_orders", "Sales orders (VA05)"),
         InputSpec("deliveries", "outbound_deliveries", "Outbound deliveries (OBDs)"),
-        InputSpec("plants", "ox10_plants", "Plant names (OX10)", required=False),
+        InputSpec(
+            "plants",
+            "ox10_plants",
+            "Plant and customer names, districts and regions (OX10)",
+            required=False,
+        ),
+        InputSpec(
+            "movements",
+            "mb51_material_documents",
+            "Goods movements (MB51), for the value of programme distributions",
+            required=False,
+        ),
     )
     Parameters = Parameters
 
@@ -143,6 +216,9 @@ class OrderFillRate(Analysis):
                 "Material": _code(raw["Material"]),
                 "Ordered Qty": raw["Order Quantity (Item)"].astype(float).fillna(0.0),
                 "Ordered Value": raw["Net Value (Item)"].astype(float).fillna(0.0),
+                "Sales Type": _column(raw, "Sales Document Type").map(_name),
+                "Confirmed Qty": _column(raw, "Confirmed Quantity").astype(float),
+                "Net Price": _column(raw, "Net Price").astype(float),
             }
         )
         start, end = pd.Timestamp(params.period_start), pd.Timestamp(params.period_end)
@@ -162,6 +238,9 @@ class OrderFillRate(Analysis):
                     "Material": ("Material", "first"),
                     "Ordered Qty": ("Ordered Qty", "sum"),
                     "Ordered Value": ("Ordered Value", "sum"),
+                    "Sales Type": ("Sales Type", "first"),
+                    "Confirmed Qty": ("Confirmed Qty", lambda q: q.sum(min_count=1)),
+                    "Net Price": ("Net Price", "first"),
                 }
             )
             .reset_index()
@@ -169,21 +248,17 @@ class OrderFillRate(Analysis):
 
         obd = delivered_by_line(data["deliveries"], params.goods_issued_only)
         by_item = obd["Item"] != ""
-        keyed = pd.concat(
-            [
-                obd[by_item].merge(
-                    orders[["Sales Document", "Item"]], on=["Sales Document", "Item"]
-                ),
-                obd[~by_item]
-                .drop(columns="Item")
-                .merge(
-                    orders[["Sales Document", "Item", "Material"]],
-                    on=["Sales Document", "Material"],
-                )
-                .drop_duplicates(["Delivery", "Sales Document", "Material", "Delivered Qty"]),
-            ],
-            ignore_index=True,
-        )
+        parts = [
+            obd[by_item].merge(orders[["Sales Document", "Item"]], on=["Sales Document", "Item"]),
+            obd[~by_item]
+            .drop(columns="Item")
+            .merge(
+                orders[["Sales Document", "Item", "Material"]], on=["Sales Document", "Material"]
+            )
+            .drop_duplicates(["Delivery", "Sales Document", "Material", "Delivered Qty"]),
+        ]
+        # Empty parts are left out of the concatenation (pandas warns on empty dates).
+        keyed = pd.concat([p for p in parts if len(p)] or parts[:1], ignore_index=True)
         unmatched = obd[
             ~obd["Sales Document"].isin(set(orders["Sales Document"]))
             | (
@@ -226,6 +301,56 @@ class OrderFillRate(Analysis):
             lower=0.0
         )
         full = lines["Status"] == IN_FULL
+        lines["Order Kind"] = [
+            PROGRAMME if t in PROGRAMME_TYPES else SALE for t in lines["Sales Type"]
+        ]
+        confirmed = lines["Confirmed Qty"]
+        lines["Confirmed (capped)"] = confirmed.clip(upper=lines["Ordered Qty"])
+        lines["Not Confirmed Qty"] = (lines["Ordered Qty"] - confirmed).clip(lower=0.0)
+        # Distribution value from MB51 (programme commodities have no sales value).
+        movements = data.get("movements")
+        lines["Distribution Value (MB51)"] = float("nan")
+        if movements is not None:
+            kinds = movements["Movement Type"].astype("string").str.strip().str.upper()
+            issues = movements[kinds.isin(DISTRIBUTION_TYPES).fillna(False).to_numpy()]
+            value = pd.DataFrame(
+                {
+                    "Sales Document": _code(_column(issues, "Sales order")),
+                    "Item": _code(_column(issues, "Sales order item")),
+                    "Value": issues["Amt.in Loc.Cur."].astype(float).fillna(0.0).abs(),
+                }
+            )
+            value = value[value["Sales Document"] != ""]
+            by_item = value[value["Item"] != ""].groupby(["Sales Document", "Item"])["Value"].sum()
+            by_order = value[value["Item"] == ""].groupby("Sales Document")["Value"].sum()
+            keys = list(zip(lines["Sales Document"], lines["Item"], strict=True))
+            from_items = [float(by_item.get(k, 0.0)) for k in keys]
+            first_line = ~lines.duplicated("Sales Document")  # order-level value counted once
+            from_orders = [
+                float(by_order.get(d, 0.0)) if f else 0.0
+                for d, f in zip(lines["Sales Document"], first_line, strict=True)
+            ]
+            lines["Distribution Value (MB51)"] = [
+                a + b for a, b in zip(from_items, from_orders, strict=True)
+            ]
+        # Customer location and facility type from OX10, matched by name.
+        locations: dict[str, tuple[str, str, str]] = {}
+        ox10 = data.get("plants")
+        if ox10 is not None:
+            for name, district, region in zip(
+                ox10["Name 1"].map(_name),
+                _column(ox10, "City").map(_name),
+                _column(ox10, "Description").map(_name),
+                strict=True,
+            ):
+                if name and name not in locations:
+                    locations[name] = (name, district.title(), region.title())
+        found = [locations.get(_name(n)) for n in lines["Customer Name"]]
+        lines["Facility Type"] = [facility_type(f[0]) if f else UNKNOWN for f in found]
+        lines["District"] = [f[1] if f and f[1] else UNKNOWN for f in found]
+        lines["Region"] = [f[2] if f and f[2] else UNKNOWN for f in found]
+        border = _districts(params.border_districts)
+        lines["Border District"] = [_name(d) in border for d in lines["District"]]
         days = (lines["Last Goods Issue"] - lines["Order Date"]).dt.days.astype(float)
         lines["Days to Goods Issue"] = days.where(full)
         lines["Month"] = lines["Order Date"].dt.strftime("%Y-%m")
@@ -254,6 +379,17 @@ class OrderFillRate(Analysis):
             )
             by_customer = by_customer.sort_values(["Value Fill Rate", "Customer"], kind="mergesort")
         by_month = breakdown("Month")
+        by_kind = breakdown("Order Kind")
+        by_facility = breakdown("Facility Type")
+        by_region = breakdown("Region")
+        by_district = breakdown("District")
+        if len(by_district):
+            by_district.insert(
+                1, "Border District", [_name(d) in border for d in by_district["District"]]
+            )
+        border_lines = lines[lines["Border District"]]
+        border_totals = self._group(border_lines, None) if len(border_lines) else {}
+        programme_value = lines.loc[lines["Order Kind"] == PROGRAMME, "Distribution Value (MB51)"]
 
         line_count = len(lines)
         kpis = [
@@ -271,7 +407,31 @@ class OrderFillRate(Analysis):
                 note=f"{orders_in_full} of {order_count} orders delivered in full",
             ),
             Kpi(label="Quantity fill rate", value=totals["Quantity Fill Rate"], format="percent"),
-            Kpi(label="Value fill rate", value=totals["Value Fill Rate"], format="percent"),
+            Kpi(
+                label="Value fill rate",
+                value=totals["Value Fill Rate"],
+                format="percent",
+                note="Normal sales; programme commodities have no sales value",
+            ),
+            Kpi(
+                label="Quantity confirmed",
+                value=totals["Confirmed Fill Rate"],
+                format="percent",
+                note="VA05 confirmed quantity against ordered quantity",
+            ),
+            Kpi(
+                label="Programme distribution value (ZDON)",
+                value=float(programme_value.sum()) if programme_value.notna().any() else None,
+                format="money",
+                unit="RWF",
+                note="MB51 601 / Y01 / Z01 / X01" if movements is not None else "Add MB51",
+            ),
+            Kpi(
+                label="Fill rate in border districts",
+                value=border_totals.get("Line Fill Rate"),
+                format="percent",
+                note=f"{len(border_lines)} order lines",
+            ),
             Kpi(
                 label="Average days to goods issue",
                 value=totals["Average Days to Goods Issue"],
@@ -324,10 +484,19 @@ class OrderFillRate(Analysis):
             "Order Date",
             "Customer",
             "Customer Name",
+            "Facility Type",
+            "District",
+            "Region",
+            "Border District",
+            "Sales Type",
+            "Order Kind",
             "Material",
             "Plant",
             "Plant Name",
             "Ordered Qty",
+            "Confirmed Qty",
+            "Not Confirmed Qty",
+            "Net Price",
             "Delivered Qty",
             "Filled Qty",
             "Over-delivered Qty",
@@ -335,6 +504,7 @@ class OrderFillRate(Analysis):
             "Status",
             "Ordered Value",
             "Delivered Value",
+            "Distribution Value (MB51)",
             "Deliveries",
             "Last Goods Issue",
             "Days to Goods Issue",
@@ -387,6 +557,46 @@ class OrderFillRate(Analysis):
                     title="Fill rate by order month",
                     columns=rate_columns([Column(key="Month", label="Month")]),
                     rows=rows_of(by_month),
+                ),
+                Table(
+                    id="by-kind",
+                    title="Sales and programme commodities",
+                    columns=[
+                        *rate_columns([Column(key="Order Kind", label="Order type")]),
+                        Column(
+                            key="Confirmed Fill Rate", label="Quantity confirmed", format=percent
+                        ),
+                        Column(
+                            key="Distribution Value (MB51)",
+                            label="Distribution value (MB51)",
+                            format=money,
+                        ),
+                    ],
+                    rows=rows_of(by_kind),
+                ),
+                Table(
+                    id="by-facility",
+                    title="Fill rate by facility type",
+                    columns=rate_columns([Column(key="Facility Type", label="Facility type")]),
+                    rows=rows_of(by_facility),
+                ),
+                Table(
+                    id="by-region",
+                    title="Fill rate by region",
+                    columns=rate_columns([Column(key="Region", label="Region")]),
+                    rows=rows_of(by_region),
+                ),
+                Table(
+                    id="by-district",
+                    title="Fill rate by district (border districts marked)",
+                    columns=rate_columns(
+                        [
+                            Column(key="District", label="District"),
+                            Column(key="Border District", label="On the border"),
+                        ]
+                    ),
+                    rows=rows_of(by_district),
+                    filters=["Border District"],
                 ),
                 Table(
                     id="by-customer",
@@ -445,6 +655,10 @@ class OrderFillRate(Analysis):
                 "lines": line_table,
                 "by_plant": by_plant,
                 "by_month": by_month,
+                "by_kind": by_kind,
+                "by_facility": by_facility,
+                "by_region": by_region,
+                "by_district": by_district,
                 "by_customer": by_customer,
                 "short_lines": short,
                 "unmatched_deliveries": unmatched_table,
@@ -475,6 +689,15 @@ class OrderFillRate(Analysis):
                 "Delivered Value": delivered_value,
                 "Value Fill Rate": _rate(delivered_value, ordered_value),
                 "Average Days to Goods Issue": float(days.mean()) if len(days) else None,
+                "Confirmed Fill Rate": _rate(
+                    float(part["Confirmed (capped)"].sum()),
+                    float(part.loc[part["Confirmed Qty"].notna(), "Ordered Qty"].sum()),
+                ),
+                "Distribution Value (MB51)": float(
+                    part["Distribution Value (MB51)"].sum(min_count=1)
+                )
+                if part["Distribution Value (MB51)"].notna().any()
+                else None,
             }
         )
         return row
@@ -487,6 +710,11 @@ class OrderFillRate(Analysis):
         formats: dict[str, ValueFormat] = {
             "Order Lines": "integer",
             **{s: "integer" for s in STATUSES},
+            "Confirmed Fill Rate": "percent",
+            "Distribution Value (MB51)": "money",
+            "Confirmed Qty": "number",
+            "Not Confirmed Qty": "number",
+            "Net Price": "money",
             "Line Fill Rate": "percent",
             "Quantity Fill Rate": "percent",
             "Value Fill Rate": "percent",
@@ -539,6 +767,19 @@ class OrderFillRate(Analysis):
                 ),
                 Section("By month", tables=[by_month]),
                 Section(
+                    "Facilities and regions",
+                    paragraphs=[
+                        "Customers are matched to OX10 by name; the facility type comes from the "
+                        "abbreviation in the name, the district from City and the region from "
+                        "Description."
+                    ],
+                    tables=[
+                        TableBlock("By facility type", t["by_facility"], formats),
+                        TableBlock("By region", t["by_region"], formats),
+                        TableBlock("By district", t["by_district"], formats),
+                    ],
+                ),
+                Section(
                     "Method",
                     bullets=[
                         "Order lines: VA05 sales order items dated in the period, quantity above "
@@ -558,6 +799,10 @@ class OrderFillRate(Analysis):
         blocks = [
             by_plant,
             by_month,
+            TableBlock("Sales and programme", t["by_kind"], formats),
+            TableBlock("By facility type", t["by_facility"], formats),
+            TableBlock("By region", t["by_region"], formats),
+            TableBlock("By district", t["by_district"], formats),
             TableBlock("By customer", t["by_customer"], formats),
             TableBlock("Order lines", t["lines"], formats),
             TableBlock("Deliveries not matched", t["unmatched_deliveries"], formats),

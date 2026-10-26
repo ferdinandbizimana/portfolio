@@ -79,7 +79,8 @@ test("order fill rate from VA05 and outbound deliveries", async ({ page }) => {
     await page.getByLabel("Orders up to").fill("2026-06-30");
     await chooseFile(page, "Sales orders", `va05-${tag}.csv`);
     await chooseFile(page, "Outbound deliveries", `obd-${tag}.csv`);
-    await clearFile(page, "Plant names");
+    await clearFile(page, "Plant and customer names");
+    await clearFile(page, "Goods movements");
   });
   // One of two lines in full; 13 of 15 units.
   await expect(kpi(page, "Line fill rate")).toContainText("50.0%");
@@ -115,6 +116,7 @@ test("stock in transit traced through MB51", async ({ page }) => {
     await page.getByLabel("MB5T report date").fill("2026-07-31");
     await chooseFile(page, "Stock in transit", `mb5t-${tag}.csv`);
     await chooseFile(page, "Goods movements", `mb51-${tag}.csv`);
+    await clearFile(page, "STO creation dates");
     await clearFile(page, "Plant names");
   });
   await expect(kpi(page, "Average transit time (received)")).toContainText("10");
@@ -186,6 +188,7 @@ test("warehouse activity from EWM tasks", async ({ page }) => {
     await page.getByLabel("Report date").fill("2026-07-31");
     await chooseFile(page, "Warehouse tasks", `tasks-${tag}.csv`);
     await clearFile(page, "Outbound deliveries");
+    await clearFile(page, "Goods movements");
   });
   await expect(kpi(page, "Average dock to stock")).toContainText("2");
 });
@@ -232,6 +235,7 @@ test("expiry risk at the AMC", async ({ page }) => {
     await page.getByLabel("Stock report date").fill("2026-07-31");
     await chooseFile(page, "ZSTOCKREPORT", `zstock-${tag}.csv`);
     await chooseFile(page, "Weekly stock monitoring report", `weekly-${tag}.csv`);
+    await clearFile(page, "Material master");
     await clearFile(page, "Plant names");
   });
   // The batch expired on 1 July: all of it (10 x 2) is at risk.

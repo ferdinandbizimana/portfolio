@@ -79,6 +79,8 @@ MB51_MATERIAL_DOCUMENTS = register(
             ColumnSpec("Base Unit of Measure", "text", required=False),
             ColumnSpec("Purchase order", "text", required=False),
             ColumnSpec("Reference", "text", required=False),
+            ColumnSpec("Sales order", "text", required=False),
+            ColumnSpec("Sales order item", "text", required=False),
         ),
         sheet_hints=("Details for scrapping",),
     )
@@ -93,7 +95,9 @@ OX10_PLANTS = register(
             ColumnSpec("Plant", "text"),
             ColumnSpec("Name 1", "text", description="Plant name"),
             ColumnSpec("Name 2", "text", required=False),
-            ColumnSpec("City", "text", required=False),
+            ColumnSpec("City", "text", required=False, description="District"),
+            ColumnSpec("Region", "text", required=False),
+            ColumnSpec("Description", "text", required=False, description="Region name"),
             ColumnSpec("Factory Calendar", "text", required=False),
         ),
     )
@@ -294,6 +298,25 @@ def _recognised(key: str, title: str, description: str, columns: tuple[str, ...]
     )
 
 
+MATERIAL_MASTER = register(
+    DatasetSpec(
+        key="material_master",
+        title="Material master (MARA)",
+        description=(
+            "SAP material list (MARA). The old material number is the national product "
+            "code (NPC) used in the weekly stock monitoring report."
+        ),
+        columns=(
+            ColumnSpec("Material", "text"),
+            ColumnSpec("Old material number", "text"),
+            ColumnSpec("Material Description", "text", required=False),
+            ColumnSpec("Base Unit of Measure", "text", required=False),
+            ColumnSpec("Material Type", "text", required=False),
+            ColumnSpec("Material Group", "text", required=False),
+        ),
+    )
+)
+
 ZSTOCKREPORT = register(
     DatasetSpec(
         key="zstockreport",
@@ -381,6 +404,8 @@ VA05_SALES_ORDERS = register(
             ColumnSpec("Customer Reference", "text", required=False),
             ColumnSpec("Sales Document Type", "text", required=False),
             ColumnSpec("Sales Unit", "text", required=False),
+            ColumnSpec("Confirmed Quantity", "number", required=False),
+            ColumnSpec("Net Price", "number", required=False, description="Unit price"),
         ),
     )
 )

@@ -13,6 +13,8 @@ from app.analyses.po_follow_up import (
     OPEN,
     PARTLY,
     PERIOD_BANDS,
+    PURCHASE_ORDER,
+    STO,
     Parameters,
     period_band,
 )
@@ -141,6 +143,7 @@ def data() -> dict[str, pd.DataFrame]:
     # ME2M dates: final approval of the first PO after 5 days; the second PO is not
     # approved yet and required after the report date.
     orders["Final Approval Date"] = ["2026-01-15", "2026-01-15", None, None, None]
+    orders["Purchasing Doc. Type"] = ["ZNAT", "ZNAT", "ZSTO", "ZNAT", "ZNAT"]  # PO 2 is an STO
     orders.loc[2, "Delivery Date"] = "2026-08-15"
     for column in ("Document Date", "Delivery Date", "Final Approval Date"):
         orders[column] = pd.to_datetime(orders[column])
@@ -247,3 +250,16 @@ def test_on_time_against_the_required_date() -> None:
     assert lines.loc[("4100000001", "10"), "Approval to Receipt (days)"] == 55
     assert lines.loc[("4100000001", "10"), "Days Late"] == -20
     assert not lines.loc[("4100000002", "10"), "Overdue"]  # required 15 August
+
+
+def test_stos_are_kept_and_flagged(result: Any) -> None:
+    lines = result.tables["lines"].set_index(["PO", "Item"])
+    assert lines.loc[("4100000002", "10"), "Order Type"] == STO
+    assert lines.loc[("4100000001", "10"), "Order Type"] == PURCHASE_ORDER
+    types = result.tables["by_order_type"].set_index("Order Type")
+    assert types.loc[STO, "PO Lines"] == 1
+    assert types.loc[PURCHASE_ORDER, "PO Lines"] == 2
+    inputs = data()
+    inputs["orders"].loc[0, "Purchasing Document"] = "7100000001"  # STO number range
+    flagged = ANALYSIS.compute(inputs, PARAMS).tables["lines"]
+    assert flagged.loc[flagged["PO"] == "7100000001", "Order Type"].tolist() == [STO]

@@ -246,7 +246,7 @@ def test_kpis_hand_checked(result: Any) -> None:
     kpis = {k.label: k.value for k in result.metrics}
     assert kpis["Putaways confirmed"] == 3
     assert kpis["Average dock to stock"] == 1  # (0 + 2) / 2
-    assert kpis["Putaways within 1 day"] == 0.5
+    assert kpis["Putaways within 2 days"] == 1  # 0 and 2 days, target 2 days
     assert kpis["Picks confirmed"] == 2  # T4 counted once
     assert kpis["Average picking time"] == pytest.approx(1.75)
     assert kpis["Average picking to goods issue"] == pytest.approx(4)  # 11:00 to 15:00
@@ -284,3 +284,49 @@ def test_reports(result: Any) -> None:
     assert [f.kind for f in files] == ["xlsx", "docx", "pptx"]
     for report in files:
         check_report(report.kind, report.content)
+
+
+MB51_COLUMNS = [
+    "Plant",
+    "Material",
+    "Movement Type",
+    "Quantity",
+    "Amt.in Loc.Cur.",
+    "WBS Element",
+    "Reference",
+]
+
+
+def test_ewm_postings_missing_in_mb51() -> None:
+    inputs = data()
+    # The outbound delivery 80000010 was goods-issued in ERP (601); the inbound delivery
+    # 180000001 (putaways T1, T2) has no goods receipt 101 in MB51.
+    inputs["movements"] = pd.DataFrame(
+        [
+            ["1000", "1001", "601", -1, -10, "W", "0080000010"],
+            ["1000", "1002", "101", 1, 10, "W", "189999999"],
+        ],
+        columns=MB51_COLUMNS,
+    )
+    result = ANALYSIS.compute(inputs, PARAMS)
+    kpis = {k.label: k.value for k in result.metrics}
+    assert kpis["Inbound deliveries without 101 in MB51"] == 1
+    assert kpis["Outbound deliveries without goods issue in MB51"] == 0
+    sync = result.tables["sync_issues"]
+    assert sync["Document"].tolist() == ["180000001"]
+    assert sync["Posting"].tolist() == ["Goods receipt"]
+    files = ANALYSIS.reports(result, PARAMS, Templates())
+    for report in files:
+        check_report(report.kind, report.content)
+
+
+def test_goods_issue_missing_in_mb51() -> None:
+    inputs = data()
+    inputs["movements"] = pd.DataFrame(
+        [["1000", "1001", "101", 1, 10, "W", "180000001"]], columns=MB51_COLUMNS
+    )
+    kpis = {k.label: k.value for k in ANALYSIS.compute(inputs, PARAMS).metrics}
+    assert kpis["Inbound deliveries without 101 in MB51"] == 0
+    assert kpis["Outbound deliveries without goods issue in MB51"] == 1  # 80000010
+    no_mb51 = {k.label: k.value for k in ANALYSIS.compute(data(), PARAMS).metrics}
+    assert no_mb51["Inbound deliveries without 101 in MB51"] is None

@@ -151,3 +151,60 @@ def test_reports(result: Any) -> None:
     assert [f.kind for f in files] == ["xlsx", "docx", "pptx"]
     for report in files:
         check_report(report.kind, report.content)
+
+
+def test_confirmed_quantity_programme_value_and_facilities() -> None:
+    inputs = data()
+    orders = inputs["orders"]
+    orders["Sales Document Type"] = ["ZRMS", "ZRMS", "ZDON", "ZSPO", "ZRMS", "ZRMS"]
+    orders["Confirmed Quantity"] = [10, 4, 8, 0, 4, 0]
+    deliveries = inputs["deliveries"]
+    deliveries["Sold-to Party Name"] = ["CS Kanyinya", "CS Kanyinya", None, None, None]
+    deliveries["Name ship-to party"] = [None, None, "DH  Gisenyi", None, None]
+    inputs["plants"] = pd.DataFrame(
+        {
+            "Plant": ["1000", "C1", "C2"],
+            "Name 1": ["Kigali HQ", "CS KANYINYA", "DH GISENYI"],
+            "City": [None, "NYARUGENGE", "RUBAVU"],
+            "Description": [None, "Kigali City", "Western Province"],
+        }
+    )
+    # MB51: the programme order 200 was distributed for RWF 800 (601, negative amount).
+    inputs["movements"] = pd.DataFrame(
+        {
+            "Movement Type": ["601", "641"],
+            "Amt.in Loc.Cur.": [-800.0, -50.0],
+            "Sales order": ["0000000200", "300"],
+            "Sales order item": ["10", "10"],
+        }
+    )
+    result = ANALYSIS.compute(inputs, PARAMS)
+    kpis = {k.label: k.value for k in result.metrics}
+    # Confirmed 10 + 4 + 8 + 0 of ordered 10 + 5 + 8 + 4
+    assert kpis["Quantity confirmed"] == pytest.approx(22 / 27)
+    assert kpis["Programme distribution value (ZDON)"] == 800  # 641 is not a distribution
+    assert kpis["Fill rate in border districts"] == 1  # order 200 in Rubavu, in full
+    lines = result.tables["lines"].set_index(["Sales Document", "Item"])
+    first: Any = lines.loc[("100", "10")]
+    assert (first["Facility Type"], first["District"], first["Region"]) == (
+        "Health centre",
+        "Nyarugenge",
+        "Kigali City",
+    )
+    assert not first["Border District"]
+    second: Any = lines.loc[("200", "10")]
+    assert (second["Facility Type"], second["District"], second["Border District"]) == (
+        "District hospital",
+        "Rubavu",
+        True,
+    )
+    assert second["Order Kind"] == "Programme commodities (ZDON)"
+    assert lines.loc[("100", "20"), "Not Confirmed Qty"] == 1
+    assert lines.loc[("300", "10"), "Facility Type"] == "Not found in OX10"
+    facilities = result.tables["by_facility"].set_index("Facility Type")
+    assert facilities.loc["Health centre", "Order Lines"] == 2
+    districts = result.tables["by_district"].set_index("District")
+    assert districts.loc["Rubavu", "Border District"]
+    assert all(c.passed for c in result.checks)
+    for report in ANALYSIS.reports(result, PARAMS, Templates()):
+        check_report(report.kind, report.content)

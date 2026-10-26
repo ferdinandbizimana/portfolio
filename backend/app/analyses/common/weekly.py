@@ -3,12 +3,16 @@
 Shared by the stock sufficiency (AMC) and expiry risk analyses. Rules from the
 legacy w6 scripts and Ferdinand's answer of 23 October 2026 (Q3): weekly
 product codes are linked to SAP materials through ZSTOCKREPORT "NPC CODE",
-otherwise through the description.
+otherwise through the description; answer of 26 October 2026: the material
+master (MARA) "Old material number" is the NPC code of each SAP "Material", and
+is looked up first.
 """
 
 from typing import Any
 
 import pandas as pd
+
+from app.analyses.common.closing import material_code
 
 NO_AMC, OVERSTOCK, TO_PLAN = "No AMC reported", "Overstock", "Stocked to plan"
 UNDERSTOCK, STOCK_OUT = "Understock", "Stock-out risk (<3 MOS)"
@@ -26,7 +30,8 @@ SHEET_PROGRAMMES: list[tuple[str, str, tuple[float, float]]] = [
     ("TB", "TB", DEFAULT_LEVELS),
     ("MCCH", "MCCH", (9.0, 14.0)),
 ]
-BY_CODE, BY_DESCRIPTION, NOT_FOUND = "NPC CODE", "Description", "Not found in ZSTOCKREPORT"
+BY_MASTER = "Old material number (MARA)"
+BY_CODE, BY_DESCRIPTION, NOT_FOUND = "NPC CODE", "Description", "No SAP material found"
 
 
 def programme_of(sheet: str) -> tuple[str, tuple[float, float]]:
@@ -121,24 +126,51 @@ def read_weekly(weekly: pd.DataFrame) -> pd.DataFrame:
     return lines
 
 
-def link_materials(lines: pd.DataFrame, stock: pd.DataFrame) -> pd.DataFrame:
-    """SAP materials of each weekly product: NPC CODE first, then the description."""
-    by_code: dict[str, list[str]] = {}
-    by_description: dict[str, list[str]] = {}
-    for material, code, description in zip(
-        stock["Material"], stock["NPC"], stock["Description"], strict=True
-    ):
-        if code:
-            by_code.setdefault(code, [])
-            if material not in by_code[code]:
-                by_code[code].append(material)
-        if description:
-            by_description.setdefault(description, [])
-            if material not in by_description[description]:
-                by_description[description].append(material)
+def _index(materials: pd.Series, keys: pd.Series) -> dict[str, list[str]]:
+    found: dict[str, list[str]] = {}
+    for material, key in zip(materials, keys, strict=True):
+        if key and material:
+            found.setdefault(key, [])
+            if material not in found[key]:
+                found[key].append(material)
+    return found
+
+
+def master_codes(master: pd.DataFrame | None) -> pd.DataFrame:
+    """Material master (MARA): SAP material, NPC code ("Old material number"), description."""
+    if master is None:
+        return pd.DataFrame(columns=["Material", "NPC", "Description"])
+    return pd.DataFrame(
+        {
+            "Material": material_code(master["Material"]).astype(str),
+            "NPC": master["Old material number"].map(norm),
+            "Description": master["Material Description"].map(norm),
+        }
+    )
+
+
+def link_materials(
+    lines: pd.DataFrame, stock: pd.DataFrame, master: pd.DataFrame | None = None
+) -> pd.DataFrame:
+    """SAP materials of each weekly product.
+
+    The NPC code is looked up in the material master (old material number) first,
+    then in ZSTOCKREPORT "NPC CODE"; when neither has it, the description is used.
+    `stock` and `master` have the columns Material, NPC and Description.
+    """
+    master = master if master is not None else master_codes(None)
+    by_master = _index(master["Material"], master["NPC"])
+    by_code = _index(stock["Material"], stock["NPC"])
+    by_description = _index(
+        pd.concat([master["Material"], stock["Material"]], ignore_index=True),
+        pd.concat([master["Description"], stock["Description"]], ignore_index=True),
+    )
     found, how = [], []
     for code, description in zip(lines["Product Code"], lines["_description"], strict=True):
-        if code in by_code:
+        if code in by_master:
+            found.append(sorted(by_master[code]))
+            how.append(BY_MASTER)
+        elif code in by_code:
             found.append(sorted(by_code[code]))
             how.append(BY_CODE)
         elif description in by_description:
