@@ -251,25 +251,25 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
       RBC, stock sufficiency, expiry, warehouse, PO, transit, picker)
 
 ### Phase 12 — Expiry monitoring (monthly ZSTOCKREPORT)
-- [ ] Snapshot of each monthly ZSTOCKREPORT kept; any period (month, quarter,
+- [x] Snapshot of each monthly ZSTOCKREPORT kept; any period (month, quarter,
       half year, financial year July–June) compares its opening and closing
       month, cumulatively
-- [ ] Expired batches per plant (expiry date on or before the report date);
+- [x] Expired batches per plant (expiry date on or before the report date);
       flag expired batches not blocked or not in the quarantine plant; days
       from expiry to scrapping (MB51 551 / 555)
-- [ ] Batches due to expire in the period: cleared, expired or still in stock;
+- [x] Batches due to expire in the period: cleared, expired or still in stock;
       projection (opening) against actual expiries (closing): the difference is
       the value saved; reports saved per period
 - [ ] Donations made to save expiries (list of donated products from Sales)
-- [ ] Distributed with less than 3 months of shelf life left (all distribution
+- [x] Distributed with less than 3 months of shelf life left (all distribution
       movement types; for 641, whether the receiving plant issued or expired it)
-- [ ] Batches whose expiry date changed between two snapshots
-- [ ] Board reports per plant: executive expiry dashboard, stock expiry and
+- [x] Batches whose expiry date changed between two snapshots
+- [x] Board reports per plant: executive expiry dashboard, stock expiry and
       intervention dashboard, expiry justifications (commercial RMS-OWN /
       programme RMS-PRG); monthly, quarterly and yearly
-- [ ] Justifications: each month the expired items are listed; the responsible
+- [x] Justifications: each month the expired items are listed; the responsible
       person picks a root cause from a list (Other = own reason) and writes it
-- [ ] E-mail on the last day of each month: expired, 0–3 and 3–6 months, value
+- [x] E-mail on the last day of each month: expired, 0–3 and 3–6 months, value
       per plant; Excel attached and a secure link; to the sales pharmacist, CC
       managers and you, BCC the manager address
 
@@ -278,6 +278,7 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
 | Date | Decision |
 |---|---|
 | 2026-10-26 | Expiry (Ferdinand): a batch has expired when ZSTOCKREPORT shows its expiry date on or before the report date; every expired batch must be blocked and moved to the quarantine plant; MB51 scrapping (551 / 555) gives the days from expiry to scrapping. A period compares its opening and closing monthly ZSTOCKREPORT (month, quarter, six months, year; cumulative). Batches due to expire end as cleared, expired or still in stock. Savings = projected expiries (opening) − actual expiries (closing); reports are saved as snapshots. Donations: a list of donated products from Sales. Distribution with < 3 months shelf life: all distribution movement types; for 641 check whether the receiving plant issued or expired the batch. Commercial = RMS-OWN (sales revenue), programme = RMS-PRG (CP). Justifications: root cause from a drop-down, "Other" with own text. Monthly e-mail on the last day of the month to the sales pharmacist (all scope), CC the two managers and Ferdinand, BCC as for variances; Excel attached and a secure link; lists expired, 0–3 and 3–6 months with value per plant. Periods are financial (July–June). Addresses live in settings, never in git. |
+| 2026-10-26 | Each period of expiry monitoring is one run over two ZSTOCKREPORTs (opening and closing month); runs and their reports stay stored, so every period's report can be opened again. A batch followed by material and batch: one moved to another plant and expired there counts as expired (value saved is counted where the batch is at closing). Root causes of the justification list are the ones named in Ferdinand's expiry justifications report, plus Other. |
 | 2026-10-26 | Dashboards follow Ferdinand's own HTML dashboards: one self-contained interactive page per run, downloadable, with filters applying to every section, plus an Excel workbook of all detail lines. |
 | 2026-10-20 | Report generation is done in Python only (openpyxl, docxtpl, python-docx, python-pptx); the legacy Node scripts are not reused. |
 | 2026-10-20 | Analyses are pure functions over named datasets; data sources are separate (upload now, folder and SAP later). |
@@ -430,6 +431,13 @@ Answers will be recorded in section 4 (Decisions).
   responsible units (Receiving, Picking, …), and the layout of the "items
   missed by picking" list.
 - Q28: answered 2026-10-26: the target is 100% (default of the parameter).
+- Q29. Expiry monitoring: which plant code (and storage location, if any) is the
+  quarantine plant for expired stock? Until then the run's "Quarantine plant(s)"
+  parameter is empty and only "not blocked" is flagged.
+- Q30. Donations made to save expiries: please send one list of donated products
+  from Sales (headers are enough) so the app reads its exact columns.
+- Q31. The RBC report and spot check dashboards you linked are inside Claude chats,
+  which the app cannot open: please attach their HTML or share them as artifacts.
 - Q26: answered 2026-10-26: keep it; the variance Excel export is not passed through the language guard.
 - Q27: answered (yes): built as the Picker accuracy analysis.
 - Q19. Which Phase 7 dashboards should be published, and at which detail level?

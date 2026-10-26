@@ -92,7 +92,10 @@ jobs:
             -e "s/^SMTP_SECURITY=.*/SMTP_SECURITY=none/" \
             -e "s/^MAIL_FROM=.*/MAIL_FROM=portfolio@example.com/" \
             -e "s/^CONTACT_TO_EMAIL=.*/CONTACT_TO_EMAIL=owner@example.com/" \
-            -e "s/^VARIANCE_BCC=.*/VARIANCE_BCC=manager@example.com/" .env
+            -e "s/^VARIANCE_BCC=.*/VARIANCE_BCC=manager@example.com/" \
+            -e "s/^EXPIRY_MAIL_TO=.*/EXPIRY_MAIL_TO=pharmacist@example.com/" \
+            -e "s/^EXPIRY_MAIL_CC=.*/EXPIRY_MAIL_CC=manager.one@example.com, manager.two@example.com/" \
+            -e "s/^EXPIRY_MAIL_BCC=.*/EXPIRY_MAIL_BCC=manager@example.com/" .env
           echo "COMPOSE_PROFILES=dev-mail" >> .env
           echo "E2E_PASSWORD=ci-admin-$(openssl rand -hex 12)" >> "$GITHUB_ENV"
       - name: Shared folder for the folder pickup tests

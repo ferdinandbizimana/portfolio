@@ -82,6 +82,7 @@ class ChartSpec:
     stack_limit: int = 8
     percent: bool = False  # values are shares (0-1), axis in %
     traffic: tuple[float, float] | None = None  # hbar colours: red below a, amber below b
+    hide_zero: bool = False  # leave out groups whose sorted (or first) measure is zero
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,7 @@ class TableSpec:
     limit: int | None = None
     bars: tuple[str, ...] = ()  # percentage columns drawn with a small bar
     traffic: tuple[float, float] = (0.85, 0.95)
+    hide_zero: bool = False  # leave out rows whose sorted measure is zero
     labels: dict[str, str] = field(default_factory=dict)  # group column -> header
 
 

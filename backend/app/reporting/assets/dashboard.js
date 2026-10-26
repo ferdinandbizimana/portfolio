@@ -285,6 +285,10 @@
   const charts = new Map();
   function sortKeys(entries, b, si) {
     const by = b.sort_by === "rank" ? rank[si] : b.sort_by;
+    if (b.hide_zero) {
+      const key = by || (b.measures || b.columns || [])[0];
+      entries = entries.filter((e) => e[1][key]);
+    }
     if (b.sort === "desc" || b.sort === "asc" || (b.type === "table" && by)) {
       const dir = b.sort === "asc" || b.descending === false ? 1 : -1;
       entries.sort((x, y) => {

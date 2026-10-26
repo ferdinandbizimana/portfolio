@@ -176,7 +176,7 @@ def _file(db: Any, data_file_id: int) -> DataFile:
 
 def _problem(error: FileProblem) -> HTTPException:
     return HTTPException(
-        status.HTTP_422_UNPROCESSABLE_ENTITY, {"message": str(error), "errors": error.details[:20]}
+        status.HTTP_422_UNPROCESSABLE_CONTENT, {"message": str(error), "errors": error.details[:20]}
     )
 
 
@@ -269,7 +269,9 @@ def update_staff(
     if body.email is not None:
         email = body.email.strip().lower()
         if email and ("@" not in email or " " in email):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Not a valid e-mail address.")
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "Not a valid e-mail address."
+            )
         person.email = email
     if body.active is not None:
         person.active = body.active
@@ -308,7 +310,7 @@ def reassign(
     if case is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Variance not found.")
     if body.staff_id is not None and db.get(VarianceStaff, body.staff_id) is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Staff member not found.")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Staff member not found.")
     case.staff_id = body.staff_id
     audit.record(
         db,
@@ -540,7 +542,7 @@ def _apply(case: VarianceCase, body: Correction, now: datetime) -> None:
     except variances.CaseClosed as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
     except ValueError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
 
 
 @public_router.get("/{token}", response_model=PublicCase)

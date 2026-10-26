@@ -174,6 +174,34 @@ says otherwise. If the VA05 export has the "Plant" column it gives each line's
 plant; otherwise the delivering plant (or the plant that usually serves the
 customer) is used.
 
+### Expiry monitoring and the monthly follow-up
+
+Files: the ZSTOCKREPORT of the opening month and the one of the closing month of
+a period (a month, a quarter, six months or the financial year: the two dates
+decide), optionally MB51 (with batches: distributions and scrapping) and OX10.
+Parameters: the two dates, the quarantine plant(s), the distribution and
+scrapping movement types and the short shelf life (3 months).
+
+It shows the expired stock per plant (and expired batches not blocked or outside
+the quarantine plant), the batches that were due to expire in the period and
+whether they were cleared or expired (projected minus expired = value saved),
+the 3- and 6-month outlook, batches whose expiry date changed, distributions with
+less than 3 months of shelf life (for a 641, what became of the batch at the
+receiving plant) and the days from expiry to scrapping. Commercial stock is on
+RMS-OWN WBS elements, programme stock on RMS-PRG. The interactive dashboard has
+the board views per plant (executive expiry outlook, intervention and savings,
+expired stock per plant).
+
+**Expiry follow-up** (admin menu): for each run, "Prepare the follow-up" lists the
+expired items. The sales pharmacist opens the secure link (no account), chooses
+the root cause of each expired item ("Other" needs the reason written out) and
+saves it. On the last day of each month, from `EXPIRY_MAIL_TIME`, the latest run
+is e-mailed to `EXPIRY_MAIL_TO`, copied to `EXPIRY_MAIL_CC` and `EXPIRY_MAIL_BCC`:
+expired, within 3 months and 3 to 6 months, value per plant, with the batches in
+Excel and the link. "Send the e-mail now" sends it at once. The justifications can
+be downloaded as Excel and as the justifications dashboard (commercial and
+programme loss, root causes, top 20 of each with their reasons).
+
 ### Expiry risk
 
 Files: ZSTOCKREPORT (batches with expiry dates) and the weekly stock monitoring

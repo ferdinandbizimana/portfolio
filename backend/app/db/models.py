@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -354,3 +355,45 @@ class VarianceCase(Base):
     token: Mapped[str] = mapped_column(String(64), unique=True)
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ExpiryReview(Base):
+    """The monthly expiry follow-up of one expiry monitoring run.
+
+    The sales pharmacist opens it through a secure link (no account) to see the
+    outlook and to justify each expired item; the link goes out with the e-mail
+    on the last day of the month.
+    """
+
+    __tablename__ = "expiry_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("analysis_runs.id", ondelete="CASCADE"), unique=True
+    )
+    closing_date: Mapped[date] = mapped_column(Date)
+    token: Mapped[str] = mapped_column(String(64), unique=True)
+    mailed_month: Mapped[str] = mapped_column(String(7), default="")  # "2026-10"
+    mailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ExpiryJustification(Base):
+    """Why an item expired: a root cause from the list and the reason in words."""
+
+    __tablename__ = "expiry_justifications"
+    __table_args__ = (UniqueConstraint("review_id", "material"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    review_id: Mapped[int] = mapped_column(
+        ForeignKey("expiry_reviews.id", ondelete="CASCADE"), index=True
+    )
+    material: Mapped[str] = mapped_column(String(40))
+    description: Mapped[str] = mapped_column(String(255), default="")
+    owner: Mapped[str] = mapped_column(String(40), default="")  # commercial / programme
+    plants: Mapped[str] = mapped_column(String(500), default="")
+    value: Mapped[float] = mapped_column(default=0.0)
+    root_cause: Mapped[str] = mapped_column(String(120), default="")
+    reason: Mapped[str] = mapped_column(Text, default="")
+    justified_by: Mapped[str] = mapped_column(String(200), default="")
+    justified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
