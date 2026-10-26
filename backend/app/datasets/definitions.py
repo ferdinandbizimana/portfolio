@@ -406,6 +406,7 @@ VA05_SALES_ORDERS = register(
             ColumnSpec("Sales Unit", "text", required=False),
             ColumnSpec("Confirmed Quantity", "number", required=False),
             ColumnSpec("Net Price", "number", required=False, description="Unit price"),
+            ColumnSpec("Plant", "text", required=False, description="Delivering plant"),
         ),
     )
 )

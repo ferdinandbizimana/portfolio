@@ -34,6 +34,15 @@ Ferdinand's answers of 26 October 2026:
   "Description" its region; customers are matched to OX10 by the names in the
   outbound delivery list. The fill rate is also shown by facility type, region,
   district and for the districts on the border of Rwanda.
+
+Ferdinand's dashboard "RMS Order Fill Rate Dashboard FY2025/26" (26 October
+2026) sets the interactive layout: WBS RMS-OWN-ESE-RM for order types ZRMS and
+ZSPO (RMS's own sales: value not delivered is sales revenue not captured) and
+RMS-PRG-FND-CP for ZDON (donor orders carry no price, so their shortfall is in
+units); financial quarters (July to June); plant / shipping point; items most
+requested and not delivered; Delivered-In-Full by order and customer. The
+plant of a line is the VA05 plant when the export has it, otherwise the
+delivering plant, otherwise the plant that most often delivers to the customer.
 """
 
 import re
@@ -45,7 +54,22 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.analyses.base import Analysis, AnalysisResult, Check, InputSpec
 from app.analyses.common.closing import material_code, plant_code, plant_names
+from app.analyses.common.periods import fiscal_quarter, fiscal_year
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
+from app.analyses.order_fill_rate import dashboard_html
+from app.analyses.order_fill_rate.dashboard_html import (
+    IN_FULL as IN_FULL,
+)
+from app.analyses.order_fill_rate.dashboard_html import (
+    NOT_DELIVERED as NOT_DELIVERED,
+)
+from app.analyses.order_fill_rate.dashboard_html import (
+    PARTLY as PARTLY,
+)
+from app.analyses.order_fill_rate.dashboard_html import (
+    WBS_OWN,
+    WBS_PROGRAMME,
+)
 from app.reporting.documents import (
     ChartBlock,
     ReportDocument,
@@ -57,6 +81,7 @@ from app.reporting.documents import (
     check_lines,
 )
 from app.reporting.excel import build_workbook
+from app.reporting.interactive import build_html
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
@@ -79,7 +104,6 @@ BORDER_DISTRICTS = (
     "Rubavu, Rutsiro, Karongi, Nyamasheke, Rusizi, Nyamagabe, Nyaruguru, Huye, Gisagara, "
     "Bugesera, Kirehe, Kayonza, Nyagatare, Gicumbi, Burera, Musanze"
 )
-IN_FULL, PARTLY, NOT_DELIVERED = "Delivered in full", "Partly delivered", "Not delivered"
 STATUSES = [IN_FULL, PARTLY, NOT_DELIVERED]
 NO_DELIVERY = "No delivery"
 
@@ -160,6 +184,11 @@ def delivered_by_line(deliveries: pd.DataFrame, goods_issued_only: bool) -> pd.D
             "Plant": plant_code(deliveries["Plant"]).astype(str),
             "Delivered Qty": quantity.fillna(0.0),
             "Goods Issue": pd.to_datetime(issued),
+            "Material Description": _column(deliveries, "Item Description")
+            .astype("string")
+            .str.strip()
+            .fillna("")
+            .astype(str),
             "Customer Name": deliveries["Sold-to Party Name"]
             .where(deliveries["Sold-to Party Name"].notna(), deliveries["Name ship-to party"])
             .astype("string")
@@ -176,7 +205,7 @@ def delivered_by_line(deliveries: pd.DataFrame, goods_issued_only: bool) -> pd.D
 class OrderFillRate(Analysis):
     key = "order_fill_rate"
     title = "Order fill rate"
-    version = "1.1.0"
+    version = "1.2.0"
     description = (
         "Sales orders (VA05) against outbound deliveries: lines and orders delivered in "
         "full, quantity and value fill rate, by delivering plant, customer and month, with "
@@ -219,6 +248,7 @@ class OrderFillRate(Analysis):
                 "Sales Type": _column(raw, "Sales Document Type").map(_name),
                 "Confirmed Qty": _column(raw, "Confirmed Quantity").astype(float),
                 "Net Price": _column(raw, "Net Price").astype(float),
+                "Order Plant": plant_code(_column(raw, "Plant")).astype(str),
             }
         )
         start, end = pd.Timestamp(params.period_start), pd.Timestamp(params.period_end)
@@ -241,6 +271,7 @@ class OrderFillRate(Analysis):
                     "Sales Type": ("Sales Type", "first"),
                     "Confirmed Qty": ("Confirmed Qty", lambda q: q.sum(min_count=1)),
                     "Net Price": ("Net Price", "first"),
+                    "Order Plant": ("Order Plant", "first"),
                 }
             )
             .reset_index()
@@ -288,6 +319,34 @@ class OrderFillRate(Analysis):
         lines["Customer Name"] = lines["Customer Name"].fillna("")
         names = plant_names(data.get("plants"))
         lines["Plant Name"] = [names.get(p, "") for p in lines["Plant"]]
+        # Plant / shipping point of every line, also of lines never delivered.
+        usual = (
+            lines[lines["Plant"] != NO_DELIVERY]
+            .groupby(["Customer", "Plant"])
+            .size()
+            .reset_index(name="n")
+            .sort_values(
+                ["Customer", "n", "Plant"], ascending=[True, False, True], kind="mergesort"
+            )
+            .drop_duplicates("Customer")
+            .set_index("Customer")["Plant"]
+        )
+        shipping = [
+            o if o else (p if p != NO_DELIVERY else str(usual.get(c, NO_DELIVERY)))
+            for o, p, c in zip(lines["Order Plant"], lines["Plant"], lines["Customer"], strict=True)
+        ]
+        lines["Shipping Plant"] = [f"{s} · {names[s]}" if names.get(s) else s for s in shipping]
+        descriptions = (
+            obd[obd["Material Description"] != ""]
+            .sort_values(["Material", "Material Description"], kind="mergesort")
+            .drop_duplicates("Material")
+            .set_index("Material")["Material Description"]
+        )
+        lines["Material Description"] = [str(descriptions.get(m, "")) for m in lines["Material"]]
+        lines["Item Name"] = [
+            f"{d} [{m}]" if d else m
+            for d, m in zip(lines["Material Description"], lines["Material"], strict=True)
+        ]
         lines["Filled Qty"] = lines[["Delivered Qty", "Ordered Qty"]].min(axis=1)
         lines["Delivered Value"] = (
             lines["Ordered Value"] * lines["Filled Qty"] / lines["Ordered Qty"]
@@ -333,6 +392,17 @@ class OrderFillRate(Analysis):
             lines["Distribution Value (MB51)"] = [
                 a + b for a, b in zip(from_items, from_orders, strict=True)
             ]
+        # A customer's name from its other deliveries when this line had none.
+        known = (
+            lines[lines["Customer Name"] != ""]
+            .sort_values(["Customer", "Customer Name"], kind="mergesort")
+            .drop_duplicates("Customer")
+            .set_index("Customer")["Customer Name"]
+        )
+        lines["Customer Name"] = [
+            n if n else str(known.get(c, ""))
+            for n, c in zip(lines["Customer Name"], lines["Customer"], strict=True)
+        ]
         # Customer location and facility type from OX10, matched by name.
         locations: dict[str, tuple[str, str, str]] = {}
         ox10 = data.get("plants")
@@ -354,6 +424,10 @@ class OrderFillRate(Analysis):
         days = (lines["Last Goods Issue"] - lines["Order Date"]).dt.days.astype(float)
         lines["Days to Goods Issue"] = days.where(full)
         lines["Month"] = lines["Order Date"].dt.strftime("%Y-%m")
+        lines["Quarter"] = [fiscal_quarter(m) for m in lines["Order Date"].dt.month]
+        lines["WBS"] = [
+            WBS_PROGRAMME if t in PROGRAMME_TYPES else WBS_OWN for t in lines["Sales Type"]
+        ]
         lines = lines.sort_values(["Order Date", "Sales Document", "Item"], kind="mergesort")
         lines = lines.reset_index(drop=True)
 
@@ -490,9 +564,15 @@ class OrderFillRate(Analysis):
             "Border District",
             "Sales Type",
             "Order Kind",
+            "WBS",
             "Material",
+            "Material Description",
+            "Item Name",
             "Plant",
             "Plant Name",
+            "Shipping Plant",
+            "Month",
+            "Quarter",
             "Ordered Qty",
             "Confirmed Qty",
             "Not Confirmed Qty",
@@ -796,6 +876,14 @@ class OrderFillRate(Analysis):
             checks=check_lines(result.checks),
         )
         name = f"Order_Fill_Rate_{params.period_start:%Y-%m-%d}_{params.period_end:%Y-%m-%d}"
+        whole_year = (params.period_start.month, params.period_start.day) == (7, 1) and (
+            params.period_end - params.period_start
+        ).days in (364, 365)
+        title = (
+            f"Order fill rate {fiscal_year(params.period_start)}"
+            if whole_year
+            else "Order fill rate"
+        )
         blocks = [
             by_plant,
             by_month,
@@ -819,6 +907,20 @@ class OrderFillRate(Analysis):
                     [(k.label, k.value, k.format) for k in result.metrics],
                     blocks,
                     document.checks,
+                ),
+            ),
+            ReportFile(
+                "dashboard",
+                "Interactive dashboard (HTML)",
+                f"{name}.html",
+                "html",
+                build_html(
+                    dashboard_html.build(
+                        t["lines"],
+                        title,
+                        str(result.extras["subtitle"]),
+                        [(c.label, c.expected, c.actual, c.passed) for c in result.checks],
+                    )
                 ),
             ),
             ReportFile(

@@ -38,6 +38,7 @@ from app.reporting.documents import (
     check_lines,
 )
 from app.reporting.excel import build_workbook
+from app.reporting.interactive import check_rows, dashboard_file
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
@@ -236,7 +237,7 @@ def add_counted(
 class ClosingStockByWbs(Analysis):
     key = "closing_stock_wbs"
     title = "Closing stock by WBS"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "Final closing stock per plant, material and WBS element: closing stock from the "
         "G/L line items of the stock accounts, less the expired stock scrapped at Finance "
@@ -591,6 +592,8 @@ class ClosingStockByWbs(Analysis):
     def reports(
         self, result: AnalysisResult, params: BaseModel, templates: Templates
     ) -> list[ReportFile]:
+        from app.analyses.closing_stock_wbs import dashboard_html
+
         params = _params(params)
         t = result.tables
         money: dict[str, ValueFormat] = {
@@ -708,6 +711,15 @@ class ClosingStockByWbs(Analysis):
                     [(k.label, k.value, k.format) for k in result.metrics],
                     [bridge, by_wbs, by_plant, flags, counts, items, lines, scrapping],
                     document.checks,
+                ),
+            ),
+            dashboard_file(
+                name,
+                dashboard_html.build(
+                    result.tables["items"],
+                    "Closing stock by WBS",
+                    document.subtitle,
+                    check_rows(result.checks),
                 ),
             ),
             ReportFile(

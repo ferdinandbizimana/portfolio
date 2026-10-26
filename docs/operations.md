@@ -141,6 +141,17 @@ Detail by WBS" of the count findings workbook) for the inventory accuracy, and
 the RBC report data sheet for the split by programme. Parameters: count date and
 tolerance (0.005 = 0.5%).
 
+### Interactive dashboards (every analysis)
+
+Every run also gives an **interactive dashboard**: the button "Open interactive
+dashboard" on the run page opens it, and it is listed with the reports as one
+HTML file you can download, keep and e-mail (it opens offline in any recent
+browser; the data is inside the file). Filters at the top apply to every
+section unless a section says otherwise; tables have totals; the detailed lines
+can be searched and downloaded as CSV. The self-checks are at the bottom. The
+variance investigation shows inventory accuracy before and after justification;
+the RBC dashboard shows only opening stock, closing stock and the difference.
+
 ### Order fill rate
 
 Files: VA05 sales orders and the list of outbound deliveries (optionally OX10
@@ -148,6 +159,48 @@ for plant and customer names, districts and regions; MB51 for the value of
 programme (ZDON) distributions). Parameters: first and last order date, whether
 only goods-issued deliveries count (default yes) and the border districts. Shows lines and orders delivered
 in full, quantity and value fill rate by delivering plant, customer and month.
+
+The run also gives an **interactive dashboard** (button "Open interactive
+dashboard" on the run page; also downloadable as one HTML file that opens
+offline in any recent browser and can be e-mailed). It follows the layout of
+the "RMS Order Fill Rate Dashboard": loss per WBS (RMS-OWN-ESE-RM in RWF, donor
+RMS-PRG-FND-CP in units), monthly trend, financial quarters, plants, items most
+requested and not delivered, most-missing items over time, Delivered-In-Full
+by order and customer, regional analysis (region, district, border districts,
+facility type) and every order line (with CSV download). Filters: quarter,
+month, plant, WBS, order type, customer, item, region, district, border
+district and facility type; they apply to every section unless the section
+says otherwise. If the VA05 export has the "Plant" column it gives each line's
+plant; otherwise the delivering plant (or the plant that usually serves the
+customer) is used.
+
+### Expiry monitoring and the monthly follow-up
+
+Files: the ZSTOCKREPORT of the opening month and the one of the closing month of
+a period (a month, a quarter, six months or the financial year: the two dates
+decide), optionally MB51 (with batches: distributions and scrapping) and OX10.
+Parameters: the two dates, the quarantine plant(s), the distribution and
+scrapping movement types and the short shelf life (3 months).
+
+It shows the expired stock per plant (and expired batches not blocked or outside
+the quarantine plant), the batches that were due to expire in the period and
+whether they were cleared or expired (projected minus expired = value saved),
+the 3- and 6-month outlook, batches whose expiry date changed, distributions with
+less than 3 months of shelf life (for a 641, what became of the batch at the
+receiving plant) and the days from expiry to scrapping. Commercial stock is on
+RMS-OWN WBS elements, programme stock on RMS-PRG. The interactive dashboard has
+the board views per plant (executive expiry outlook, intervention and savings,
+expired stock per plant).
+
+**Expiry follow-up** (admin menu): for each run, "Prepare the follow-up" lists the
+expired items. The sales pharmacist opens the secure link (no account), chooses
+the root cause of each expired item ("Other" needs the reason written out) and
+saves it. On the last day of each month, from `EXPIRY_MAIL_TIME`, the latest run
+is e-mailed to `EXPIRY_MAIL_TO`, copied to `EXPIRY_MAIL_CC` and `EXPIRY_MAIL_BCC`:
+expired, within 3 months and 3 to 6 months, value per plant, with the batches in
+Excel and the link. "Send the e-mail now" sends it at once. The justifications can
+be downloaded as Excel and as the justifications dashboard (commercial and
+programme loss, root causes, top 20 of each with their reasons).
 
 ### Expiry risk
 

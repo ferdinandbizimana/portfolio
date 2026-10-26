@@ -250,6 +250,7 @@ def test_analyses_are_listed_with_their_inputs(logged_in: TestClient) -> None:
     assert set(analyses) == {
         "demo_stock_summary",
         "closing_stock_wbs",
+        "expiry_monitoring",
         "rbc_accountability",
         "count_variance",
         "stock_count_reconciliation",

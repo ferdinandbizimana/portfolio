@@ -24,7 +24,16 @@ REPORT_TYPES = {
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "html": "text/html; charset=utf-8",
 }
+# An interactive dashboard opened in the browser runs in a sandbox: its own
+# opaque origin, no access to this site's cookies or API, nothing loaded from
+# outside (Chart.js and the data are inside the file).
+DASHBOARD_POLICY = (
+    "sandbox allow-scripts allow-downloads; default-src 'none'; "
+    "script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; "
+    "frame-ancestors 'none'"
+)
 
 
 class InputOut(BaseModel):
@@ -314,6 +323,24 @@ def download_report(
         media_type=REPORT_TYPES[report["kind"]],
         filename=report["filename"],
         headers={"Cache-Control": "private, no-store"},
+    )
+
+
+@router.get("/runs/{run_id}/reports/{report_key}/view")
+def view_dashboard(
+    run_id: int, report_key: str, _: CurrentUserDep, db: DbDep, storage: StorageDep
+) -> FileResponse:
+    """Open an interactive dashboard in the browser (sandboxed)."""
+    run = _run(db, run_id)
+    report = next((r for r in run.reports or [] if r["key"] == report_key), None)
+    if report is None or report["kind"] != "html" or not storage.exists(report["storage_key"]):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Dashboard not found.")
+    return FileResponse(
+        storage.path(report["storage_key"]),
+        media_type=REPORT_TYPES["html"],
+        content_disposition_type="inline",
+        filename=report["filename"],
+        headers={"Cache-Control": "private, no-store", "Content-Security-Policy": DASHBOARD_POLICY},
     )
 
 

@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 from app.analyses.base import Analysis, AnalysisResult, Check, InputSpec
 from app.analyses.common.closing import NO_WBS, material_code, plant_code
 from app.analyses.common.programmes import PROGRAMMES, normalise_category
+from app.analyses.count_variance import dashboard_html
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
 from app.reporting.documents import (
     ChartBlock,
@@ -40,6 +41,7 @@ from app.reporting.documents import (
     check_lines,
 )
 from app.reporting.excel import build_workbook
+from app.reporting.interactive import build_html
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
@@ -215,6 +217,37 @@ def by_group(lines: pd.DataFrame, column: str) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+def sku_accuracy(lines: pd.DataFrame, values: pd.DataFrame) -> pd.DataFrame:
+    """One row per SKU (plant, material, WBS) of the final closing stock or with
+    variance lines: closing value, absolute variance and absolute Not Justified
+    variance (for accuracy before and after justification)."""
+    keys = ["Plant", "Material", "WBS"]
+    variance = (
+        lines.assign(_nj=lines["Absolute"].where(lines["Status"] == NOT_JUSTIFIED, 0.0))
+        .groupby(keys, sort=True)
+        .agg(
+            **{
+                "Absolute variance": ("Absolute", "sum"),
+                "Not Justified variance": ("_nj", "sum"),
+            }
+        )
+        .reset_index()
+    )
+    closing = values.groupby(keys, sort=True)["Value"].sum().rename("Closing value").reset_index()
+    skus = closing.merge(variance, on=keys, how="outer").fillna(
+        {"Closing value": 0.0, "Absolute variance": 0.0, "Not Justified variance": 0.0}
+    )
+    names = {
+        **dict(zip(values["Plant"], values["Plant Name"], strict=True)),
+        **dict(zip(lines["Plant"], lines["Plant Name"], strict=True)),
+    }
+    skus["Plant Name"] = [names.get(p, "") or p for p in skus["Plant"]]
+    skus["Stock category"] = skus["WBS"].map(STOCK_CATEGORY).fillna(OTHER_STOCK)
+    skus["With variance"] = skus["Absolute variance"] > 0
+    skus["With Not Justified variance"] = skus["Not Justified variance"] > 0
+    return skus.sort_values(keys, kind="mergesort").reset_index(drop=True)
+
+
 def accuracy_rows(
     groups: list[tuple[str, pd.DataFrame, float | None]], tolerance: float
 ) -> pd.DataFrame:
@@ -242,7 +275,7 @@ def accuracy_rows(
 class CountVariance(Analysis):
     key = "count_variance"
     title = "Physical inventory variance investigation"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "Justification of the stock variances posted after a physical inventory count: "
         "positive and negative variances by status, plant, root cause and required action, "
@@ -285,6 +318,7 @@ class CountVariance(Analysis):
             values["Stock category"] = values["WBS"].map(STOCK_CATEGORY).fillna(OTHER_STOCK)
 
         totals = _variance_block(lines)
+        skus = sku_accuracy(lines, values) if values is not None else None
         main = headline(lines)
         plants = by_plant(lines)
         causes = by_group(lines, "Root cause")
@@ -596,6 +630,7 @@ class CountVariance(Analysis):
                 "by_category": by_category,
                 "plant_accuracy": by_plant_accuracy,
                 "retained": retained,
+                **({"sku_accuracy": skus} if skus is not None else {}),
             },
             metrics=kpis,
             checks=checks,
@@ -840,6 +875,22 @@ class CountVariance(Analysis):
                         detail,
                     ],
                     document.checks,
+                ),
+            ),
+            ReportFile(
+                "dashboard",
+                "Interactive dashboard (HTML)",
+                f"{name}.html",
+                "html",
+                build_html(
+                    dashboard_html.build(
+                        t["lines"],
+                        t.get("sku_accuracy"),
+                        f"Variance investigation dashboard: PI {params.count_date:%d %B %Y}",
+                        document.subtitle,
+                        params.tolerance,
+                        [(c.label, c.expected, c.actual, c.passed) for c in result.checks],
+                    )
                 ),
             ),
             ReportFile(

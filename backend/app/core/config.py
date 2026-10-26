@@ -75,6 +75,13 @@ class Settings(BaseSettings):
     variance_reminder_time: str = "07:30"
     variance_overdue_days: int = 2
     variance_unit_names: str = "RECEIVING, PICKING"
+    # Monthly expiry follow-up (last day of each month, from `expiry_mail_time`,
+    # `timezone`): the sales pharmacist (To), managers (Cc, comma-separated) and a
+    # copy (Bcc). E-mail addresses live in .env only.
+    expiry_mail_to: str = ""
+    expiry_mail_cc: str = ""
+    expiry_mail_bcc: str = ""
+    expiry_mail_time: str = "08:00"
 
     @property
     def notify_to(self) -> str:

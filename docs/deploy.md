@@ -63,6 +63,9 @@ In `.env`, set at least:
 | `COOKIE_SECURE` | `true` |
 | `SMTP_*`, `MAIL_FROM`, `CONTACT_TO_EMAIL` | your sending account and your address |
 | `VARIANCE_BCC` | your address: a copy of every stock variance e-mail |
+| `EXPIRY_MAIL_TO` | the sales pharmacist: the monthly expiry follow-up (last day of the month) |
+| `EXPIRY_MAIL_CC` | the managers to copy, comma-separated (and your address if you want it in Cc) |
+| `EXPIRY_MAIL_BCC` | your address: a hidden copy of the monthly expiry follow-up |
 | `RESTIC_REPOSITORY`, `RESTIC_PASSWORD`, `AWS_*` | the backup bucket and its keys; the password from `openssl rand -hex 32` |
 | `INBOX_HOST_DIR` | the shared folder with SAP exports, if you use one |
 

@@ -9,6 +9,7 @@ from app.api import (
     admin_content,
     admin_mail,
     auth,
+    expiry,
     files,
     health,
     public,
@@ -62,6 +63,8 @@ def create_app() -> FastAPI:
         publications.public_router,
         variances.admin_router,
         variances.public_router,
+        expiry.admin_router,
+        expiry.public_router,
     ):
         app.include_router(router)
     return app

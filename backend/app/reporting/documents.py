@@ -15,7 +15,7 @@ class ReportFile:
     key: str  # stable id, e.g. "workbook"
     title: str  # shown on the download button
     filename: str
-    kind: Literal["xlsx", "docx", "pptx"]
+    kind: Literal["xlsx", "docx", "pptx", "html"]
     content: bytes
 
 

@@ -1,10 +1,11 @@
 """Entry point of the scheduler container: `python -m app.jobs.scheduler`.
 
 Every `SCHEDULER_INTERVAL_SECONDS` it picks up new files from the shared
-folder, starts the scheduled runs that are due and, on working days from
-`VARIANCE_REMINDER_TIME`, sends each person their list of open stock
-variances. The runs themselves are done by the worker. A Redis lock makes
-sure that only one scheduler acts, even if two are started by mistake.
+folder, starts the scheduled runs that are due, on working days from
+`VARIANCE_REMINDER_TIME` sends each person their list of open stock variances,
+and on the last day of each month sends the expiry follow-up. The runs
+themselves are done by the worker. A Redis lock makes sure that only one
+scheduler acts, even if two are started by mistake.
 """
 
 import logging
@@ -17,6 +18,7 @@ from app import storage as storage_module
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.session import session_scope
+from app.jobs.expiry import send_monthly
 from app.jobs.notify import get_mailer
 from app.jobs.queue import get_queue, get_redis
 from app.jobs.variances import send_digests
@@ -36,6 +38,12 @@ def run_once(redis: Redis) -> bool:
     now = datetime.now(UTC)
     with session_scope() as db:
         started = tick(db, storage_module.get_storage(), get_queue(redis), settings, now)
+        try:
+            if send_monthly(db, settings, now, get_mailer(), storage_module.get_storage()):
+                logger.info("Sent the monthly expiry follow-up")
+        except Exception:
+            logger.exception("Could not send the monthly expiry follow-up")
+            db.rollback()
         try:
             sent = send_digests(db, settings, now, get_mailer())
             if sent:

@@ -25,6 +25,7 @@ from app.analyses.base import Analysis, AnalysisResult, Check, InputSpec
 from app.analyses.common.closing import material_code, plant_code, plant_names
 from app.analyses.common.weekly import link_materials, master_codes, norm, read_weekly
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
+from app.datasets import parse_dates
 from app.reporting.documents import (
     ChartBlock,
     ReportDocument,
@@ -36,6 +37,7 @@ from app.reporting.documents import (
     check_lines,
 )
 from app.reporting.excel import build_workbook
+from app.reporting.interactive import check_rows, dashboard_file
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
@@ -103,7 +105,7 @@ def _params(params: BaseModel) -> Parameters:
 class ExpiryRisk(Analysis):
     key = "expiry_risk"
     title = "Expiry risk"
-    version = "1.1.0"
+    version = "1.2.0"
     description = (
         "Stock on hand (ZSTOCKREPORT) by expiry date and the quantity and value that cannot "
         "be used before expiry at the average monthly consumption of the weekly stock "
@@ -130,7 +132,8 @@ class ExpiryRisk(Analysis):
     def compute(self, data: dict[str, pd.DataFrame], params: BaseModel) -> AnalysisResult:
         params = _params(params)
         raw = data["stock"]
-        expiry = pd.to_datetime(raw["Expiry Date"])
+        # Text dates are read as SAP writes them (30.06.2026 is day first).
+        expiry = parse_dates(raw["Expiry Date"])
         batches = pd.DataFrame(
             {
                 "Plant": plant_code(raw["Plant"]).astype(str),
@@ -435,6 +438,8 @@ class ExpiryRisk(Analysis):
     def reports(
         self, result: AnalysisResult, params: BaseModel, templates: Templates
     ) -> list[ReportFile]:
+        from app.analyses.expiry_risk import dashboard_html
+
         params = _params(params)
         t = result.tables
         formats: dict[str, ValueFormat] = {
@@ -518,6 +523,15 @@ class ExpiryRisk(Analysis):
                     [(k.label, k.value, k.format) for k in result.metrics],
                     blocks,
                     document.checks,
+                ),
+            ),
+            dashboard_file(
+                name,
+                dashboard_html.build(
+                    result.tables["batches"],
+                    f"Expiry risk: {params.report_date:%d %B %Y}",
+                    document.subtitle,
+                    check_rows(result.checks),
                 ),
             ),
             ReportFile(
