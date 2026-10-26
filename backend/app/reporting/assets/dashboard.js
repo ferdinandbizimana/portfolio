@@ -72,6 +72,7 @@
     if (v === null || v === undefined || (typeof v === "number" && !isFinite(v))) return "—";
     if (f === "text") return String(v);
     if (f === "pct") return (100 * v).toFixed(1) + "%";
+    if (f === "change") return (v < 0 ? "Reduction " : "Increase ") + (100 * Math.abs(v)).toFixed(1) + "%";
     if (f === "num") return v.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
     if (f === "days") return v.toLocaleString("en-US", { maximumFractionDigits: 1 });
     if (f === "rwf") return short ? "RWF " + compact(v) : (v < 0 ? "(" + int(-v) + ")" : int(v));
@@ -149,7 +150,7 @@
   function aggregate(t, keyFn, ignore) {
     const ms = Object.values(M[t] || {});
     const base = ms.filter((m) => m.sum || m.count || m.distinct);
-    const derived = ms.filter((m) => m.ratio || m.diff);
+    const derived = ms.filter((m) => m.ratio || m.diff || m.complement);
     const wh = base.map((m) => (m.where ? whereFn(t, m.where) : null));
     const cols = base.map((m) => F[t].cols[m.sum || m.distinct] || null);
     const preds = predicates(t, ignore);
@@ -194,6 +195,9 @@
           const a = r[m.ratio[0]];
           const b = r[m.ratio[1]];
           r[m.key] = b ? a / b : null;
+        } else if (m.complement) {
+          const a = r[m.complement];
+          r[m.key] = a === null || a === undefined ? null : 1 - a;
         } else {
           const a = r[m.diff[0]];
           const b = r[m.diff[1]];
@@ -358,7 +362,10 @@
     const f0 = ms[0] ? ms[0].fmt : "int";
     const tick = (val, f) => (b.percent || f === "pct" ? val + "%" : fmt(val, f, true));
     const scales = {};
-    const valueAxis = { ticks: { callback: (val) => tick(val, f0) }, beginAtZero: true };
+    const valueAxis = {
+      ticks: { callback: (val) => tick(val, f0), precision: f0 === "int" ? 0 : undefined },
+      beginAtZero: true,
+    };
     if (b.percent) valueAxis.max = 100;
     if (b.kind === "hbar") {
       scales.x = valueAxis;

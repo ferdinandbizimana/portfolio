@@ -27,7 +27,7 @@ from app.analyses.rbc_accountability import (
 from app.ingest.parse import parse_file
 from app.jobs.analysis import result_hash
 from app.reporting.documents import Templates
-from app.reporting.guard import check_report, docx_texts, pptx_texts, xlsx_texts
+from app.reporting.guard import check_report, docx_texts, html_texts, pptx_texts, xlsx_texts
 
 PRG, OWN = "RMS-PRG-FND-CP", "RMS-OWN-ESE-RM"
 
@@ -204,7 +204,7 @@ FORBIDDEN = ("receipt", "issue", "expired", "scrap")
 
 def test_reports_never_show_receipts_issues_or_expired_stock(result: Any) -> None:
     files = ANALYSIS.reports(result, PARAMS, Templates())
-    readers = {"xlsx": xlsx_texts, "docx": docx_texts, "pptx": pptx_texts}
+    readers = {"xlsx": xlsx_texts, "docx": docx_texts, "pptx": pptx_texts, "html": html_texts}
     for report in files:
         check_report(report.kind, report.content)  # banned wording
         text = " ".join(readers[report.kind](report.content)).lower()

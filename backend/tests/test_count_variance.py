@@ -16,6 +16,7 @@ from app.analyses.count_variance import (
 from app.jobs.analysis import result_hash
 from app.reporting.documents import Templates
 from app.reporting.guard import check_report
+from app.reporting.interactive import read_payload
 
 PRG, OWN = "RMS-PRG-FND-CP", "RMS-OWN-ESE-RM"
 PENDING = "Not Justified – Pending"
@@ -178,9 +179,25 @@ def test_same_inputs_same_result() -> None:
 
 def test_reports(result: Any) -> None:
     files = ANALYSIS.reports(result, PARAMS, Templates())
-    assert [f.kind for f in files] == ["xlsx", "docx", "pptx"]
+    assert [f.kind for f in files] == ["xlsx", "html", "docx", "pptx"]
     for report in files:
         check_report(report.kind, report.content)
+
+
+def test_accuracy_per_sku_hand_checked(result: Any) -> None:
+    skus = result.tables["sku_accuracy"]
+    # 3 SKUs of the closing stock + 2 with variance lines only (202 and 203).
+    assert len(skus) == 5
+    assert skus["Closing value"].sum() == 20000
+    assert skus["Absolute variance"].sum() == 480  # 400 + 50 + 20 + 10 + 0
+    assert skus["Not Justified variance"].sum() == 70  # 50 + 20
+    assert int(skus["With variance"].sum()) == 4  # 203 has a zero variance
+    assert int(skus["With Not Justified variance"].sum()) == 2
+    html = next(f for f in ANALYSIS.reports(result, PARAMS, Templates()) if f.kind == "html")
+    data = read_payload(html.content)
+    assert data is not None
+    assert data["facts"]["skus"]["rows"] == 5
+    assert data["facts"]["lines"]["rows"] == 6
 
 
 def test_closing_stock_workbook_feeds_the_accuracy(tmp_path: Any) -> None:

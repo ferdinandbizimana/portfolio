@@ -21,14 +21,15 @@ from typing import Any, Literal
 
 import pandas as pd
 
-Fmt = Literal["int", "num", "rwf", "pct", "text", "days"]
+# "change": a share shown as "Increase 12.3%" or "Reduction 4.0%".
+Fmt = Literal["int", "num", "rwf", "pct", "text", "days", "change"]
 
 
 @dataclass(frozen=True)
 class Measure:
     """A figure computed on any group of fact rows.
 
-    Exactly one of sum / count / distinct / ratio / diff is used. `where`
+    Exactly one of sum / count / distinct / ratio / diff / complement is used. `where`
     restricts a sum or count to rows whose column holds one of the values.
     """
 
@@ -40,6 +41,7 @@ class Measure:
     distinct: str | None = None
     ratio: tuple[str, str] | None = None  # numerator, denominator (measure keys)
     diff: tuple[str, str] | None = None  # a - b (measure keys)
+    complement: str | None = None  # 1 - another measure (e.g. accuracy = 1 - variance %)
     where: tuple[str, tuple[str, ...]] | None = None
 
 

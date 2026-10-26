@@ -39,6 +39,7 @@ from app.analyses.common.programmes import (
     normalise_category,
 )
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
+from app.analyses.rbc_accountability import dashboard_html
 from app.reporting.documents import (
     ChartBlock,
     ReportDocument,
@@ -50,6 +51,7 @@ from app.reporting.documents import (
     check_lines,
 )
 from app.reporting.excel import build_workbook
+from app.reporting.interactive import build_html
 from app.reporting.slides import build_pptx
 from app.reporting.word import build_docx
 
@@ -223,7 +225,7 @@ def _total_row(frame: pd.DataFrame, first: str) -> pd.DataFrame:
 class RbcAccountability(Analysis):
     key = "rbc_accountability"
     title = "RBC accountability report"
-    version = "1.0.0"
+    version = "1.1.0"
     description = (
         "Opening and closing stock of the RBC programmes (WBS RMS-PRG-FND-CP) by programme, "
         "plant and product, with the difference labelled Increase or Reduction. Opening "
@@ -865,6 +867,22 @@ class RbcAccountability(Analysis):
                         names,
                     ],
                     document.checks,
+                ),
+            ),
+            ReportFile(
+                "dashboard",
+                "Interactive dashboard (HTML)",
+                f"{name}.html",
+                "html",
+                build_html(
+                    dashboard_html.build(
+                        t["lines"],
+                        f"RBC accountability: {params.wbs}",
+                        f"{params.opening_date:%d %B %Y} to {params.closing_date:%d %B %Y}",
+                        f"{params.opening_date:%d %b %Y}",
+                        f"{params.closing_date:%d %b %Y}",
+                        [(c.label, c.expected, c.actual, c.passed) for c in result.checks],
+                    )
                 ),
             ),
             ReportFile(
