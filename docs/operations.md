@@ -149,6 +149,20 @@ programme (ZDON) distributions). Parameters: first and last order date, whether
 only goods-issued deliveries count (default yes) and the border districts. Shows lines and orders delivered
 in full, quantity and value fill rate by delivering plant, customer and month.
 
+The run also gives an **interactive dashboard** (button "Open interactive
+dashboard" on the run page; also downloadable as one HTML file that opens
+offline in any recent browser and can be e-mailed). It follows the layout of
+the "RMS Order Fill Rate Dashboard": loss per WBS (RMS-OWN-ESE-RM in RWF, donor
+RMS-PRG-FND-CP in units), monthly trend, financial quarters, plants, items most
+requested and not delivered, most-missing items over time, Delivered-In-Full
+by order and customer, regional analysis (region, district, border districts,
+facility type) and every order line (with CSV download). Filters: quarter,
+month, plant, WBS, order type, customer, item, region, district, border
+district and facility type; they apply to every section unless the section
+says otherwise. If the VA05 export has the "Plant" column it gives each line's
+plant; otherwise the delivering plant (or the plant that usually serves the
+customer) is used.
+
 ### Expiry risk
 
 Files: ZSTOCKREPORT (batches with expiry dates) and the weekly stock monitoring

@@ -234,10 +234,51 @@ Rules from you (2026-10-23, Q6); headers from the exports you sent:
       Local check on your register: every day read correctly from the sheet names
 - [ ] Your check on real data: upload the bin list and one week's spot check
 
+### Phase 11 — Interactive HTML dashboards, order fill rate in your format
+- [x] Interactive HTML dashboard engine: one self-contained file per run (data
+      inside, works offline), filters that apply to every section, KPIs,
+      charts and sortable, searchable tables; opened from the run page and
+      downloaded with the other reports; checked by the language guard
+- [x] Order fill rate laid out like "RMS Order Fill Rate Dashboard FY2025/26":
+      loss per WBS (RM: ZRMS + ZSPO in RWF; donor ZDON in units), monthly
+      trend, fiscal quarters, plant / shipping point, items most requested
+      and not delivered, most-missing items over time, Delivered-In-Full per
+      order and customer; plus regional analysis (region, district, border
+      districts, facility type); filters: quarter, month, plant, WBS, order
+      type, customer, item, region, district, border
+- [x] Excel workbook of every detail line
+- [ ] Same dashboard style for the other analyses (variance investigation,
+      RBC, stock sufficiency, expiry, warehouse, PO, transit, picker)
+
+### Phase 12 — Expiry monitoring (monthly ZSTOCKREPORT)
+- [ ] Snapshot of each monthly ZSTOCKREPORT kept; any period (month, quarter,
+      half year, financial year July–June) compares its opening and closing
+      month, cumulatively
+- [ ] Expired batches per plant (expiry date on or before the report date);
+      flag expired batches not blocked or not in the quarantine plant; days
+      from expiry to scrapping (MB51 551 / 555)
+- [ ] Batches due to expire in the period: cleared, expired or still in stock;
+      projection (opening) against actual expiries (closing): the difference is
+      the value saved; reports saved per period
+- [ ] Donations made to save expiries (list of donated products from Sales)
+- [ ] Distributed with less than 3 months of shelf life left (all distribution
+      movement types; for 641, whether the receiving plant issued or expired it)
+- [ ] Batches whose expiry date changed between two snapshots
+- [ ] Board reports per plant: executive expiry dashboard, stock expiry and
+      intervention dashboard, expiry justifications (commercial RMS-OWN /
+      programme RMS-PRG); monthly, quarterly and yearly
+- [ ] Justifications: each month the expired items are listed; the responsible
+      person picks a root cause from a list (Other = own reason) and writes it
+- [ ] E-mail on the last day of each month: expired, 0–3 and 3–6 months, value
+      per plant; Excel attached and a secure link; to the sales pharmacist, CC
+      managers and you, BCC the manager address
+
 ## 4. Decisions
 
 | Date | Decision |
 |---|---|
+| 2026-10-26 | Expiry (Ferdinand): a batch has expired when ZSTOCKREPORT shows its expiry date on or before the report date; every expired batch must be blocked and moved to the quarantine plant; MB51 scrapping (551 / 555) gives the days from expiry to scrapping. A period compares its opening and closing monthly ZSTOCKREPORT (month, quarter, six months, year; cumulative). Batches due to expire end as cleared, expired or still in stock. Savings = projected expiries (opening) − actual expiries (closing); reports are saved as snapshots. Donations: a list of donated products from Sales. Distribution with < 3 months shelf life: all distribution movement types; for 641 check whether the receiving plant issued or expired the batch. Commercial = RMS-OWN (sales revenue), programme = RMS-PRG (CP). Justifications: root cause from a drop-down, "Other" with own text. Monthly e-mail on the last day of the month to the sales pharmacist (all scope), CC the two managers and Ferdinand, BCC as for variances; Excel attached and a secure link; lists expired, 0–3 and 3–6 months with value per plant. Periods are financial (July–June). Addresses live in settings, never in git. |
+| 2026-10-26 | Dashboards follow Ferdinand's own HTML dashboards: one self-contained interactive page per run, downloadable, with filters applying to every section, plus an Excel workbook of all detail lines. |
 | 2026-10-20 | Report generation is done in Python only (openpyxl, docxtpl, python-docx, python-pptx); the legacy Node scripts are not reused. |
 | 2026-10-20 | Analyses are pure functions over named datasets; data sources are separate (upload now, folder and SAP later). |
 | 2026-10-20 | Your instructions override legacy behaviour; for the RBC report receipts, issues and expired stock are never shown. |

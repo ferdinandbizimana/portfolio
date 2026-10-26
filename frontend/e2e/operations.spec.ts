@@ -85,6 +85,12 @@ test("order fill rate from VA05 and outbound deliveries", async ({ page }) => {
   // One of two lines in full; 13 of 15 units.
   await expect(kpi(page, "Line fill rate")).toContainText("50.0%");
   await expect(kpi(page, "Quantity fill rate")).toContainText("86.7%");
+  // The interactive dashboard opens sandboxed (own origin, no access to the site).
+  const open = page.getByRole("link", { name: "Open interactive dashboard" });
+  const view = await page.request.get((await open.getAttribute("href"))!);
+  expect(view.status()).toBe(200);
+  expect(view.headers()["content-security-policy"]).toContain("sandbox allow-scripts");
+  expect(await view.text()).toContain("<title>Order fill rate</title>");
 });
 
 test("stock in transit traced through MB51", async ({ page }) => {

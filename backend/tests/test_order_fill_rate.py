@@ -1,5 +1,6 @@
 """Order fill rate: hand-checked figures on fake data."""
 
+import re
 from datetime import date
 from typing import Any
 
@@ -15,9 +16,16 @@ from app.analyses.order_fill_rate import (
     PARTLY,
     Parameters,
 )
+from app.analyses.order_fill_rate.dashboard_html import (
+    ORDER_IN_FULL,
+    ORDER_NIL,
+    ORDER_SHORT,
+    WBS_OWN,
+)
 from app.jobs.analysis import result_hash
 from app.reporting.documents import Templates
 from app.reporting.guard import check_report
+from app.reporting.interactive import unpack
 
 ORDER_COLUMNS = [
     "Sales Document",
@@ -148,9 +156,33 @@ def test_same_inputs_same_result() -> None:
 
 def test_reports(result: Any) -> None:
     files = ANALYSIS.reports(result, PARAMS, Templates())
-    assert [f.kind for f in files] == ["xlsx", "docx", "pptx"]
+    assert [f.kind for f in files] == ["xlsx", "html", "docx", "pptx"]
     for report in files:
         check_report(report.kind, report.content)
+
+
+def test_interactive_dashboard_facts(result: Any) -> None:
+    html = next(f for f in ANALYSIS.reports(result, PARAMS, Templates()) if f.kind == "html")
+    page = html.content.decode()
+    data = unpack(re.search(r'<script id="data"[^>]*>(.*?)</script>', page, re.S).group(1))
+    lines = data["facts"]["lines"]
+    assert lines["rows"] == 4
+
+    def column(table: dict[str, Any], name: str) -> list[Any]:
+        col = table["columns"][name]
+        return col["n"] if "n" in col else [col["d"][i] for i in col["i"]]
+
+    plants = dict(zip(column(lines, "Sales order"), column(lines, "Plant"), strict=False))
+    assert plants["200"] == "7000"
+    assert plants["300"] == "7000"  # never delivered: the plant that usually serves C2
+    assert column(lines, "Plant")[0] == "1000 · Kigali HQ"
+    assert set(column(lines, "Quarter")) == {"Q4 · Apr–Jun"}
+    assert set(column(lines, "WBS")) == {WBS_OWN}
+    assert sum(column(lines, "Ordered Value")) == 2700
+    assert sum(column(lines, "Delivered Value")) == pytest.approx(2100)
+    orders = data["facts"]["orders"]
+    outcomes = dict(zip(column(orders, "Sales order"), column(orders, "Outcome"), strict=True))
+    assert outcomes == {"100": ORDER_SHORT, "200": ORDER_IN_FULL, "300": ORDER_NIL}
 
 
 def test_confirmed_quantity_programme_value_and_facilities() -> None:
@@ -183,7 +215,8 @@ def test_confirmed_quantity_programme_value_and_facilities() -> None:
     # Confirmed 10 + 4 + 8 + 0 of ordered 10 + 5 + 8 + 4
     assert kpis["Quantity confirmed"] == pytest.approx(22 / 27)
     assert kpis["Programme distribution value (ZDON)"] == 800  # 641 is not a distribution
-    assert kpis["Fill rate in border districts"] == 1  # order 200 in Rubavu, in full
+    # Customer C2 is in Rubavu: order 200 in full, order 300 (same customer) not delivered.
+    assert kpis["Fill rate in border districts"] == 0.5
     lines = result.tables["lines"].set_index(["Sales Document", "Item"])
     first: Any = lines.loc[("100", "10")]
     assert (first["Facility Type"], first["District"], first["Region"]) == (
@@ -200,7 +233,8 @@ def test_confirmed_quantity_programme_value_and_facilities() -> None:
     )
     assert second["Order Kind"] == "Programme commodities (ZDON)"
     assert lines.loc[("100", "20"), "Not Confirmed Qty"] == 1
-    assert lines.loc[("300", "10"), "Facility Type"] == "Not found in OX10"
+    # Never delivered: the customer's name comes from its other deliveries.
+    assert lines.loc[("300", "10"), "Facility Type"] == "District hospital"
     facilities = result.tables["by_facility"].set_index("Facility Type")
     assert facilities.loc["Health centre", "Order Lines"] == 2
     districts = result.tables["by_district"].set_index("District")

@@ -14,8 +14,9 @@
 		# (ignored on plain-HTTP local addresses).
 		Strict-Transport-Security "max-age=31536000"
 		# Only this site's own scripts, styles, images and API. Next.js needs
-		# inline scripts and the charts set inline styles.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		# inline scripts and the charts set inline styles. "?" keeps a stricter
+		# policy sent by the API (interactive dashboards are sandboxed).
+		?Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 		-Server
 	}
 

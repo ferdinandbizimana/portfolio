@@ -5,6 +5,7 @@ matched as a whole word in capitals (so "AID", "maintain" or "Kigali" pass);
 "to be confirmed" in any case.
 """
 
+import html
 import io
 import re
 from collections.abc import Iterable
@@ -12,6 +13,8 @@ from collections.abc import Iterable
 from docx import Document as load_docx
 from openpyxl import load_workbook
 from pptx import Presentation
+
+from app.reporting.interactive import unpack
 
 BANNED = (
     (re.compile(r"\bAI\b"), "AI"),
@@ -72,8 +75,29 @@ def xlsx_texts(content: bytes) -> list[str]:
     return texts
 
 
+def _strings(value: object) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [s for k, v in value.items() for s in [*_strings(k), *_strings(v)]]
+    if isinstance(value, list):
+        return [s for v in value for s in _strings(v)]
+    return []
+
+
+def html_texts(content: bytes) -> list[str]:
+    """Visible text of an interactive dashboard and every text in its data."""
+    page = content.decode("utf-8")
+    data = re.search(r'<script id="data"[^>]*>(.*?)</script>', page, re.S)
+    visible = re.sub(r"<script[^>]*>.*?</script>|<style[^>]*>.*?</style>", " ", page, flags=re.S)
+    texts = [html.unescape(t) for t in re.split(r"<[^>]+>", visible) if t.strip()]
+    if data:
+        texts += _strings(unpack(data.group(1)))
+    return texts
+
+
 def check_report(kind: str, content: bytes) -> None:
-    extract = {"docx": docx_texts, "pptx": pptx_texts, "xlsx": xlsx_texts}[kind]
+    extract = {"docx": docx_texts, "pptx": pptx_texts, "xlsx": xlsx_texts, "html": html_texts}[kind]
     found = find_banned(extract(content))
     if found:
         raise BannedWordingError("; ".join(found[:5]))

@@ -97,6 +97,19 @@ export function RunView({ run }: { run: Run }) {
             Reports
           </h2>
           <div className="flex flex-wrap gap-2">
+            {run.reports
+              .filter((report) => report.kind === "html")
+              .map((report) => (
+                <a
+                  key={`${report.key}-view`}
+                  className="btn-primary"
+                  href={`/api/admin/runs/${run.id}/reports/${report.key}/view`}
+                  target="_blank"
+                  rel="noopener"
+                >
+                  Open interactive dashboard
+                </a>
+              ))}
             {run.reports.map((report) => (
               <a
                 key={report.key}
