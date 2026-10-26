@@ -148,3 +148,14 @@ def test_reports(result: Any) -> None:
     assert [f.kind for f in files] == ["xlsx", "html", "docx", "pptx"]
     for report in files:
         check_report(report.kind, report.content)
+
+
+def test_sap_text_dates_are_day_first() -> None:
+    """ZSTOCKREPORT text dates (31.08.2026) give the same result as real dates."""
+    inputs = data()
+    inputs["stock"]["Expiry Date"] = [
+        d.strftime("%d.%m.%Y") if pd.notna(d) else None for d in inputs["stock"]["Expiry Date"]
+    ]
+    text = ANALYSIS.compute(inputs, PARAMS)
+    dated = ANALYSIS.compute(data(), PARAMS)
+    pd.testing.assert_frame_equal(text.tables["batches"], dated.tables["batches"])

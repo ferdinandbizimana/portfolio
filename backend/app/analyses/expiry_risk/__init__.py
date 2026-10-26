@@ -25,6 +25,7 @@ from app.analyses.base import Analysis, AnalysisResult, Check, InputSpec
 from app.analyses.common.closing import material_code, plant_code, plant_names
 from app.analyses.common.weekly import link_materials, master_codes, norm, read_weekly
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
+from app.datasets import parse_dates
 from app.reporting.documents import (
     ChartBlock,
     ReportDocument,
@@ -131,7 +132,8 @@ class ExpiryRisk(Analysis):
     def compute(self, data: dict[str, pd.DataFrame], params: BaseModel) -> AnalysisResult:
         params = _params(params)
         raw = data["stock"]
-        expiry = pd.to_datetime(raw["Expiry Date"])
+        # Text dates are read as SAP writes them (30.06.2026 is day first).
+        expiry = parse_dates(raw["Expiry Date"])
         batches = pd.DataFrame(
             {
                 "Plant": plant_code(raw["Plant"]).astype(str),
