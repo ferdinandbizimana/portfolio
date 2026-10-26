@@ -344,6 +344,32 @@ ZSTOCKREPORT = register(
         ),
     )
 )
+EXPIRY_DONATIONS = register(
+    DatasetSpec(
+        key="expiry_donations",
+        title="Donations to save expiries (ZSTOCKREPORT lines of the donated products)",
+        description=(
+            "The ZSTOCKREPORT lines of the products donated to save them from expiring, "
+            "with the total value, the status (donated), the customer if any and the reason "
+            "for the donation (list from Sales)."
+        ),
+        columns=(
+            ColumnSpec("Material", "text"),
+            ColumnSpec("Total Value", "number", description="RWF"),
+            ColumnSpec("Reason for Donation", "text"),
+            ColumnSpec("Status", "text", required=False),
+            ColumnSpec("Customer", "text", required=False),
+            ColumnSpec("Plant", "text", required=False),
+            ColumnSpec("Batch", "text", required=False),
+            ColumnSpec("Material Description", "text", required=False),
+            ColumnSpec("NPC CODE", "text", required=False),
+            ColumnSpec("WBS Element", "text", required=False),
+            ColumnSpec("Unrestricted", "number", required=False),
+            ColumnSpec("Unit Cost", "number", required=False, description="RWF"),
+            ColumnSpec("Expiry Date", "text", required=False),
+        ),
+    )
+)
 MB5T_STOCK_IN_TRANSIT = register(
     DatasetSpec(
         key="mb5t_stock_in_transit",
@@ -542,9 +568,20 @@ SPOT_CHECK = register(
             ColumnSpec("Batch", "text", required=False),
             ColumnSpec("Avail. Qty in AUoM", "number", required=False),
             ColumnSpec(
-                "Counted Quantities", "number", required=False, aliases=("ON HAND Quantity",)
+                "Counted Quantities",
+                "number",
+                required=False,
+                aliases=("ON HAND Quantity", "ONHAND QTY", "SOH"),
             ),
-            ColumnSpec("Stock Reference Doc.", "text", required=False),
+            ColumnSpec("Stock Reference Doc.", "text", required=False, description="WBS"),
+            ColumnSpec("Qty AUoM", "number", required=False, description="System quantity"),
+            ColumnSpec("Comments", "text", required=False, aliases=("COMMENT",)),
+            ColumnSpec("Uunit cost", "number", required=False, description="RWF"),
+            ColumnSpec("variance on cost", "number", required=False, description="RWF"),
+            ColumnSpec("Storage Type", "text", required=False),
+            ColumnSpec("Stock Type", "text", required=False),
+            ColumnSpec("Shelf Life Expiration Date", "text", required=False),
+            ColumnSpec("Goods Receipt Date", "text", required=False),
         ),
     )
 )
