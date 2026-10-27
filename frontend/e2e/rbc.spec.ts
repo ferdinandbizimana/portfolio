@@ -43,7 +43,12 @@ async function chooseFile(page: Page, input: string, fileName: string) {
 test("programme stock accountability report from uploaded SAP files", async ({ page }) => {
   const tag = unique();
   await signInOk(page);
-  await uploadCsv(page, `previous-${tag}.csv`, PREVIOUS, "Programme stock report data (previous quarter)");
+  await uploadCsv(
+    page,
+    `previous-${tag}.csv`,
+    PREVIOUS,
+    "Programme stock report data (previous quarter)",
+  );
   await uploadCsv(page, `gl-${tag}.csv`, GL, "G/L line items (stock accounts)");
   await uploadCsv(page, `mb51-${tag}.csv`, SCRAP, "MB51 material documents");
 
