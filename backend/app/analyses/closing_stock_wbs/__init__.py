@@ -241,7 +241,7 @@ class ClosingStockByWbs(Analysis):
     description = (
         "Final closing stock per plant, material and WBS element: closing stock from the "
         "G/L line items of the stock accounts, less the expired stock scrapped at Finance "
-        "level on its own WBS. Shows the split between RMS-OWN-ESE-RM, RMS-PRG-FND-CP and "
+        "level on its own WBS. Shows the split between own stock, programme stock and "
         "other WBS, and flags items to check."
     )
     inputs = (

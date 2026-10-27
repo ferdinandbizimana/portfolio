@@ -123,7 +123,7 @@ class Parameters(BaseModel):
         title="Closing date", description="Date of this report's closing stock, e.g. 30 June 2026."
     )
     wbs: str = Field(
-        default=RBC_WBS, title="WBS element", description="WBS element of the RBC programmes."
+        default=RBC_WBS, title="WBS element", description="WBS element of the programme stock."
     )
     scrapping_movement_types: str = Field(
         default=SCRAPPING_MOVEMENT_TYPES,
@@ -314,18 +314,20 @@ def _total_row(frame: pd.DataFrame, first: str) -> pd.DataFrame:
 
 class RbcAccountability(Analysis):
     key = "rbc_accountability"
-    title = "RBC accountability report"
+    # The site shows this neutral name; the exported reports keep the RBC title.
+    title = "Programme stock accountability"
     version = "1.3.0"
     description = (
-        "Opening and closing stock of the RBC programmes (WBS RMS-PRG-FND-CP) by programme, "
-        "plant and product, with the difference labelled Increase or Reduction. Opening "
-        "comes from the previous RBC report; closing is the reconciled closing stock."
+        "Opening stock, receipts and goods issues (MB51), expired stock scrapped and closing "
+        "stock of the programme WBS element by programme, plant and product, with the "
+        "difference labelled Increase or Reduction. Opening "
+        "comes from the previous quarter's report; closing is the reconciled closing stock."
     )
     inputs = (
         InputSpec(
             "previous_report",
             "rbc_previous_report",
-            'Previous RBC report, data sheet ("CPDS Report")',
+            'Previous quarter report, data sheet ("CPDS Report")',
         ),
         InputSpec("gl_lines", "gl_stock_lines", "G/L line items of the stock accounts"),
         InputSpec(
@@ -760,7 +762,7 @@ class RbcAccountability(Analysis):
             for c in MOVEMENT_VALUES
         ]
         dashboard = Dashboard(
-            title=f"RBC accountability {DASH} {period}",
+            title=f"Programme stock accountability {DASH} {period}",
             subtitle=subtitle,
             kpis=kpis,
             charts=[

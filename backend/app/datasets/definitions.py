@@ -106,9 +106,9 @@ OX10_PLANTS = register(
 RBC_PREVIOUS_REPORT = register(
     DatasetSpec(
         key="rbc_previous_report",
-        title="RBC report data (previous quarter)",
+        title="Programme stock report data (previous quarter)",
         description=(
-            'The data sheet of the previous RBC report (sheet "CPDS Report"): its '
+            'The data sheet of the previous quarter report (sheet "CPDS Report"): its '
             "closing stock is this quarter's opening, and it gives each material's "
             "category. Reports made by this application contain the same sheet."
         ),
@@ -133,8 +133,10 @@ RBC_PREVIOUS_REPORT = register(
 RBC_ITEM_CATEGORIES = register(
     DatasetSpec(
         key="rbc_item_categories",
-        title="RBC item category list",
-        description='Category of each SAP material (sheet "ITEM Category" of the RBC report).',
+        title="Programme item category list",
+        description=(
+            'Category of each SAP material (sheet "ITEM Category" of the quarterly report).'
+        ),
         columns=(
             ColumnSpec("SAP MATERIAL", "text"),
             ColumnSpec("Category", "text"),
@@ -148,9 +150,9 @@ RBC_ITEM_CATEGORIES = register(
 RBC_MATERIAL_CATEGORIES = register(
     DatasetSpec(
         key="rbc_material_categories",
-        title="RBC report lines with programme (category)",
+        title="Programme report lines with category",
         description=(
-            "Any data sheet of an RBC report that gives the programme (category) of each "
+            "Any data sheet of a quarterly report that gives the programme (category) of each "
             'material on each plant and WBS, e.g. "CPDS Report" or the quarter\'s data sheet.'
         ),
         columns=(
@@ -195,7 +197,7 @@ WEEKLY_STOCK_MONITORING = register(
         title="Weekly stock monitoring (programme sheet)",
         description=(
             "A programme sheet of the compiled weekly report on stock monitoring: stock at "
-            "the RMS central warehouse, branches and SDPs, and the average monthly "
+            "the central warehouse, branches and SDPs, and the average monthly "
             "consumption (AMC). Column names differ a little between sheets; each spelling "
             "is listed."
         ),

@@ -88,10 +88,10 @@ class StockSufficiencyAmc(Analysis):
     title = "Stock sufficiency against AMC"
     version = "1.2.0"
     description = (
-        "Months of stock at RMS and nationally for every programme product of the weekly "
-        "stock monitoring report, against its average monthly consumption: status "
-        "(stock-out risk, understock, stocked to plan, overstock), value above the maximum "
-        "level, and programme stock without AMC to monitor."
+        "Months of stock at the central warehouse and nationally for every programme "
+        "product of the weekly stock monitoring report, against its average monthly "
+        "consumption: status (stock-out risk, understock, stocked to plan, overstock), "
+        "value above the maximum level, and programme stock without AMC to monitor."
     )
     inputs = (
         InputSpec(

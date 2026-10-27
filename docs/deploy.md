@@ -8,11 +8,40 @@ HTTPS, backups and monitoring. Day-to-day tasks are in
 
 - A server (VPS) with Ubuntu 24.04, **at least 4 GB of memory** (8 GB
   comfortable for very large SAP exports), 2 CPUs and 40 GB of disk.
-- A domain name, for example `ferdinand.rw`, and access to its DNS settings.
+  Recommended: 4 vCPU, 8 GB, 80–100 GB disk, hosted in Rwanda (see "Choosing
+  the server" below).
+- The domain: **ferdinandbizimana.rw**, with access to its DNS settings
+  (`SITE_ADDRESS=ferdinandbizimana.rw`, `SITE_URL=https://ferdinandbizimana.rw`).
 - An e-mail account for sending (Gmail with an app password works; see
   "Contact form e-mail" in `operations.md`).
 - A place for the backups, away from the server: an S3-compatible bucket
   (Backblaze B2 is inexpensive) or another server.
+
+## Choosing the server
+
+What the application needs: the stack (database, Redis, backend, worker,
+scheduler, website, Caddy) uses about 1.5 GB of memory at rest, and a
+5-million-line SAP export needs up to 2 GB more while it is analysed, so
+**8 GB of memory** leaves room. Uploads and run results grow by roughly
+1–3 GB a year at the current pace (a few hundred SAP exports of 1–50 MB,
+kept as compressed Parquet), plus the database and logs: **80–100 GB of
+disk** lasts several years. Backups go to a separate place.
+
+Where: the variance and expiry follow-ups store staff names and e-mail
+addresses, which are personal data. Rwanda's personal data protection law
+(Law No. 058/2021) requires personal data to be stored in Rwanda unless the
+National Cyber Security Authority (NCSA) has authorised storage abroad. A
+server in a Kigali data centre avoids that authorisation; a cheaper European
+server needs it first. The SAP data is Rwanda Medical Supply's: agree with
+RMS where it may be hosted before loading real files.
+
+| Option | Typical size | Approximate price | Notes |
+|---|---|---|---|
+| VPS in Kigali (for example Atal Networks "VPS Pro") | 2–4 vCPU, 8 GB, 100 GB | about $10–20 a month | Data stays in Rwanda; check the current price and that the data centre is in Kigali |
+| Hetzner CX33 (Germany / Finland) | 4 vCPU, 8 GB, 80 GB NVMe | about €8.50 a month + VAT | Cheapest reliable option; needs NCSA authorisation for personal data |
+
+Prices are from October 2026 listings and change; confirm on the provider's
+page before buying.
 
 ## 1. Prepare the server
 
