@@ -40,10 +40,15 @@ async function chooseFile(page: Page, input: string, fileName: string) {
   await select.selectOption(await option.getAttribute("value"));
 }
 
-test("RBC accountability report from uploaded SAP files", async ({ page }) => {
+test("programme stock accountability report from uploaded SAP files", async ({ page }) => {
   const tag = unique();
   await signInOk(page);
-  await uploadCsv(page, `previous-${tag}.csv`, PREVIOUS, "RBC report data (previous quarter)");
+  await uploadCsv(
+    page,
+    `previous-${tag}.csv`,
+    PREVIOUS,
+    "Programme stock report data (previous quarter)",
+  );
   await uploadCsv(page, `gl-${tag}.csv`, GL, "G/L line items (stock accounts)");
   await uploadCsv(page, `mb51-${tag}.csv`, SCRAP, "MB51 material documents");
 
@@ -52,7 +57,7 @@ test("RBC accountability report from uploaded SAP files", async ({ page }) => {
   await page.getByLabel("Opening date").fill("2026-03-31");
   await page.getByLabel("Closing date").fill("2026-06-30");
   await expect(page.getByLabel("WBS element")).toHaveValue("RMS-PRG-FND-CP");
-  await chooseFile(page, "Previous RBC report", `previous-${tag}.csv`);
+  await chooseFile(page, "Previous quarter report", `previous-${tag}.csv`);
   await chooseFile(page, "G/L line items", `gl-${tag}.csv`);
   await chooseFile(page, "MB51 material documents of the period", `mb51-${tag}.csv`);
   await page.getByRole("button", { name: "Run analysis" }).click();

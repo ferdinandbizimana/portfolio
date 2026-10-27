@@ -29,7 +29,7 @@ function cssVar(name: string, fallback: string): string {
 export function buildOption(chart: Chart, rows: Row[]): echarts.EChartsCoreOption {
   const shown = chart.limit ? rows.slice(0, chart.limit) : rows;
   const categories = shown.map((r) => String(r[chart.category] ?? ""));
-  const ink = cssVar("--color-ink", "#0f1a1f");
+  const ink = cssVar("--color-ink", "#15234a");
   const muted = cssVar("--color-muted", "#4a5a62");
   const line = cssVar("--color-line", "#d5dfe2");
   const tooltip = {

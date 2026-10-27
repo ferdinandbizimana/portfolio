@@ -117,7 +117,7 @@ export function JustifyList({ token, detail }: { token: string; detail: ExpiryDe
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <p className="text-sm text-muted">Rwanda Medical Supply · expiry follow-up</p>
+        <p className="text-sm text-muted">Expiry follow-up</p>
         <h1 className="text-2xl font-semibold">Stock expiry position at {date}</h1>
       </div>
 

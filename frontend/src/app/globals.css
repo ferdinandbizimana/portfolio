@@ -1,36 +1,37 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #0f1a1f;
-  --color-muted: #4a5a62;
-  --color-accent: #0e6e78;
+  /* Shades of Ferdinand's own dashboards (navy ink, blue accent). */
+  --color-ink: #15234a;
+  --color-muted: #4a5672;
+  --color-accent: #0079bf;
   --color-on-accent: #ffffff;
   --color-surface: #ffffff;
-  --color-panel: #eef3f4;
-  --color-line: #d5dfe2;
-  --color-danger: #a12a1e;
-  --color-danger-soft: #fbe9e7;
-  --color-success: #1d6b3a;
-  --color-success-soft: #e6f4ea;
+  --color-panel: #f3f6f9;
+  --color-line: #dbe2ea;
+  --color-danger: #a12c22;
+  --color-danger-soft: #fbe3e0;
+  --color-success: #226b45;
+  --color-success-soft: #e1f2e8;
   --color-warning: #8a5a00;
-  --color-warning-soft: #fdf3dc;
+  --color-warning-soft: #fdf0d5;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-ink: #e7eef0;
-    --color-muted: #9fb0b6;
-    --color-accent: #4fb3bd;
-    --color-on-accent: #06272b;
-    --color-surface: #0d1418;
-    --color-panel: #16232a;
-    --color-line: #2a3a42;
-    --color-danger: #ff9a8f;
-    --color-danger-soft: #3a1714;
-    --color-success: #8fd6a6;
-    --color-success-soft: #12301d;
-    --color-warning: #f2c46b;
-    --color-warning-soft: #352a10;
+    --color-ink: #e9eef7;
+    --color-muted: #b2bdd3;
+    --color-accent: #3a9be0;
+    --color-on-accent: #0e1424;
+    --color-surface: #0e1424;
+    --color-panel: #161e33;
+    --color-line: #29334c;
+    --color-danger: #ff9b90;
+    --color-danger-soft: #3d1f1d;
+    --color-success: #7fd3a3;
+    --color-success-soft: #16322a;
+    --color-warning: #f4c26b;
+    --color-warning-soft: #3a2e14;
   }
 }
 

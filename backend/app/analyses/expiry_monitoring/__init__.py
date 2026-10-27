@@ -115,7 +115,7 @@ class Parameters(BaseModel):
         title="Quarantine plants",
         description=(
             "Plant codes, or the start of plant codes, where expired stock must be "
-            "(comma-separated). The RMS quarantine plant is 9900."
+            "(comma-separated). The quarantine plant is 9900."
         ),
     )
     distribution_types: str = Field(
