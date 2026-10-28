@@ -12,6 +12,11 @@ docker compose up -d --build
 docker compose exec backend python -m app.cli create-admin --email you@example.com
 ```
 
+Or let the start create the account: set `ADMIN_EMAIL` and `ADMIN_PASSWORD` (at
+least 12 characters) in `.env` before `docker compose up`. The account is made
+only when the database has none; `.env` never goes to git. Change the password
+later with `set-password` (below), not by editing these lines.
+
 Open the site (locally http://localhost:8080) and sign in at `/admin`.
 
 ## Forgotten password

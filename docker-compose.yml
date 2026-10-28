@@ -60,7 +60,11 @@ services:
 
   backend:
     build: ./backend
-    environment: *backend-env
+    environment:
+      <<: *backend-env
+      # First admin account, created at start when the database has none.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     volumes:
       - storage:/data/storage
     ports:
