@@ -27,7 +27,8 @@ Ferdinand's corrections of 28 October 2026: every MB5T line is a line in transit
 (the count matches the MB5T document; lines of the same STO and material are not
 merged), and when MB5T gives no value for a line, its value is taken from the
 goods issue (641) of the outbound delivery in MB51: the open quantity at the
-641's value per unit.
+641's value per unit. The value of the outbound delivery (OBD) in MB51 is shown on
+every line and per material, also where MB5T has a value.
 """
 
 from dataclasses import dataclass, field
@@ -176,7 +177,7 @@ def _code(values: pd.Series) -> pd.Series:
 class StockInTransit(Analysis):
     key = "stock_in_transit"
     title = "Stock in transit"
-    version = "1.3.0"
+    version = "1.4.0"
     description = (
         "Stock in transit between plants (MB5T) with the days since its goods issue, traced "
         "in MB51 by STO and outbound delivery (641 goods issue, 101 goods receipt), and the "
@@ -367,6 +368,7 @@ class StockInTransit(Analysis):
         mb51_value = (transit["Open Value in MB51"].fillna(0.0) * share).astype(float)
         from_mb51 = (transit["MB5T Value"].abs() <= TOLERANCE_QTY) & (mb51_value > 0)
         transit["Value"] = transit["MB5T Value"].where(~from_mb51, mb51_value)
+        transit["OBD Value (MB51)"] = mb51_value
         transit["Value Source"] = ["MB51 goods issue" if m else "MB5T" for m in from_mb51]
         # The MB51 comparison is per STO and material: shown on its first MB5T line only,
         # so the totals are not counted twice.
@@ -431,6 +433,33 @@ class StockInTransit(Analysis):
             out["Value in Transit"] = out["Value in Transit"].astype(float).fillna(0.0)
             return out.sort_values("Plant", kind="mergesort").reset_index(drop=True)
 
+        by_material = (
+            transit.groupby("Material", sort=True)
+            .agg(
+                **{
+                    "Material Description": ("Material Description", "max"),
+                    "Lines in Transit": ("STO", "size"),
+                    "STOs": ("STO", "nunique"),
+                    "Quantity": ("Quantity", "sum"),
+                    "MB5T Value": ("MB5T Value", "sum"),
+                    "OBD Value (MB51)": ("OBD Value (MB51)", "sum"),
+                    "Value in Transit": ("Value", "sum"),
+                    "Long Transit Lines": ("Long Transit", "sum"),
+                    "Outbound Deliveries": (
+                        "Delivery References",
+                        lambda r: "; ".join(
+                            sorted({x for refs in r for x in str(refs).split("; ") if x})
+                        ),
+                    ),
+                }
+            )
+            .reset_index()
+        )
+        by_material["Long Transit Lines"] = by_material["Long Transit Lines"].astype(int)
+        by_material = by_material.sort_values(
+            ["Value in Transit", "Material"], ascending=[False, True], kind="mergesort"
+        ).reset_index(drop=True)
+
         by_receiving = plant_summary("Receiving Plant")
         by_supplying = plant_summary("Supplying Plant")
 
@@ -465,6 +494,13 @@ class StockInTransit(Analysis):
         kpis = [
             Kpi(label="Value in transit", value=total_value, format="money", unit="RWF"),
             Kpi(label="Lines in transit", value=len(transit), format="integer"),
+            Kpi(
+                label="Value of the outbound deliveries (MB51)",
+                value=float(transit["OBD Value (MB51)"].sum()),
+                format="money",
+                unit="RWF",
+                note="641 goods issue value of the quantity still in transit",
+            ),
             Kpi(
                 label=f"In transit more than {long} days",
                 value=len(long_lines),
@@ -519,6 +555,12 @@ class StockInTransit(Analysis):
                 "Issued quantity = received quantity matched + quantity still open",
                 expected=issued,
                 actual=received_qty + float(still_open["Open Qty"].sum()),
+            ),
+            Check(
+                "materials_total",
+                "Value in transit by material = value in transit",
+                expected=total_value,
+                actual=float(by_material["Value in Transit"].sum()),
             ),
             Check(
                 "plants_total",
@@ -585,6 +627,27 @@ class StockInTransit(Analysis):
                     rows=rows_of(by_age),
                 ),
                 Table(
+                    id="by-material",
+                    title="By material",
+                    columns=[
+                        Column(key="Material", label="Material"),
+                        Column(key="Material Description", label="Description"),
+                        Column(key="Lines in Transit", label="Lines", format="integer"),
+                        Column(key="Quantity", label="Quantity", format=number),
+                        Column(key="MB5T Value", label="MB5T value (RWF)", format=money),
+                        Column(key="OBD Value (MB51)", label="OBD value, MB51 (RWF)", format=money),
+                        Column(
+                            key="Value in Transit", label="Value in transit (RWF)", format=money
+                        ),
+                        Column(
+                            key="Long Transit Lines", label=f"Over {long} days", format="integer"
+                        ),
+                        Column(key="Outbound Deliveries", label="Outbound deliveries"),
+                    ],
+                    rows=rows_of(by_material),
+                    searchable=["Material", "Material Description", "Outbound Deliveries"],
+                ),
+                Table(
                     id="by-receiving",
                     title="By receiving plant",
                     columns=plant_columns,
@@ -608,6 +671,7 @@ class StockInTransit(Analysis):
                         Column(key="Material Description", label="Description"),
                         Column(key="Quantity", label="Quantity", format=number),
                         Column(key="Value", label="Value (RWF)", format=money),
+                        Column(key="OBD Value (MB51)", label="OBD value, MB51 (RWF)", format=money),
                         Column(key="Value Source", label="Value from"),
                         Column(key="Oldest Goods Issue", label="Goods issue", format="date"),
                         Column(key="Days in Transit", label="Days", format=number),
@@ -640,6 +704,7 @@ class StockInTransit(Analysis):
             tables={
                 "in_transit": transit_table,
                 "by_age": by_age,
+                "by_material": by_material,
                 "by_receiving": by_receiving,
                 "by_supplying": by_supplying,
                 "received": received_table,
@@ -672,6 +737,8 @@ class StockInTransit(Analysis):
             "Days in Transit": "number",
             "Difference with MB51": "number",
             "MB5T Value": "money",
+            "OBD Value (MB51)": "money",
+            "STOs": "integer",
             "Days Since STO Created": "number",
             "Days STO to Goods Issue": "number",
             "Days STO to Goods Receipt": "number",
@@ -730,6 +797,7 @@ class StockInTransit(Analysis):
         name = f"Stock_In_Transit_{params.report_date:%Y-%m-%d}"
         blocks = [
             by_age,
+            TableBlock("By material", t["by_material"], formats, total_row=True),
             by_receiving,
             TableBlock("By supplying plant", t["by_supplying"], formats),
             TableBlock("Stock in transit", t["in_transit"], formats),

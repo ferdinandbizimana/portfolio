@@ -26,21 +26,52 @@ export function suggest(files: DataFile[], dataset: string, allSheets = false): 
   return { fileId: "", sheet: "" };
 }
 
-export function RunForm({ analysis, files }: { analysis: AnalysisInfo; files: DataFile[] }) {
+/** A parameter value as the form shows it ("" when it cannot be shown). */
+function asText(value: unknown): string | undefined {
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.join(", ");
+  return undefined;
+}
+
+export function RunForm({
+  analysis,
+  files,
+  previous,
+}: {
+  analysis: AnalysisInfo;
+  files: DataFile[];
+  /** "Change and run again": the earlier run whose choices fill the form. */
+  previous?: Run;
+}) {
   const router = useRouter();
   const properties = analysis.parameters_schema.properties ?? {};
-  const [label, setLabel] = useState("");
-  // Start from the defaults the analysis declares (e.g. the WBS element).
+  const [label, setLabel] = useState(previous?.label ?? "");
+  // Start from the earlier run, else from the defaults the analysis declares.
   const [params, setParams] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       Object.entries(properties)
-        .filter(([, prop]) => typeof prop.default === "string" || typeof prop.default === "number")
-        .map(([name, prop]) => [name, String(prop.default)]),
+        .map(([name, prop]) => [name, asText(previous?.parameters[name] ?? prop.default)])
+        .filter((entry): entry is [string, string] => entry[1] !== undefined),
     ),
   );
   const [choices, setChoices] = useState<Record<string, Choice>>(() =>
     Object.fromEntries(
-      analysis.inputs.map((i) => [i.key, suggest(files, i.dataset, i.all_sheets)]),
+      analysis.inputs.map((i) => {
+        const before = previous?.inputs[i.key];
+        const stillThere = before && files.some((f) => f.id === before.data_file_id);
+        if (previous) {
+          // Keep the earlier choice, or nothing when that input was left empty.
+          return [
+            i.key,
+            stillThere
+              ? { fileId: String(before.data_file_id), sheet: before.sheet }
+              : before
+                ? suggest(files, i.dataset, i.all_sheets)
+                : { fileId: "", sheet: "" },
+          ];
+        }
+        return [i.key, suggest(files, i.dataset, i.all_sheets)];
+      }),
     ),
   );
   const [pending, setPending] = useState(false);

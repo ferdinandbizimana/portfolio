@@ -83,3 +83,29 @@ test("compare two periods", async ({ page }) => {
   await expect(row).toContainText("150,000");
   await expect(row).toContainText("Increase 50.0%");
 });
+
+test("run again, as it is or after a change", async ({ page }) => {
+  const name = `rerun-${unique()}.csv`;
+  const label = `Rerun ${unique()}`;
+  await signInOk(page);
+  await uploadCsv(page, name, GOOD);
+  await runDemo(page, name, label);
+  await expect(page.getByText("All checks passed.")).toBeVisible({ timeout: 30_000 });
+  const firstUrl = page.url();
+
+  // Same files and parameters: a new run, without filling anything in.
+  await page.getByRole("button", { name: "Run again" }).click();
+  await expect(page).not.toHaveURL(firstUrl);
+  await expect(page).toHaveURL(/\/admin\/runs\/\d+$/);
+  await expect(page.getByRole("heading", { name: label })).toBeVisible();
+  await expect(page.getByText("All checks passed.")).toBeVisible({ timeout: 30_000 });
+
+  // Change and run again: the form comes filled in from the run.
+  await page.getByRole("link", { name: "Change and run again" }).click();
+  await expect(page.getByText(/Filled in from run #\d+/)).toBeVisible();
+  await expect(page.getByLabel("Name of this run")).toHaveValue(label);
+  await page.getByLabel("Name of this run").fill(`${label} changed`);
+  await page.getByRole("button", { name: "Run analysis" }).click();
+  await expect(page.getByRole("heading", { name: `${label} changed` })).toBeVisible();
+  await expect(page.getByText("All checks passed.")).toBeVisible({ timeout: 30_000 });
+});

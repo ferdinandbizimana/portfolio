@@ -19,6 +19,7 @@ OPEN_MEASURES = (
     Measure("lines", "Lines in transit", count=True),
     Measure("stos", "STOs", distinct="STO"),
     Measure("value", "Value in transit (RWF)", "rwf", sum="Value"),
+    Measure("obd_value", "OBD value, MB51 (RWF)", "rwf", sum="OBD value"),
     Measure("days", "Days", sum="Days"),
     Measure("dated", "Dated lines", sum="Dated"),
     Measure("avg_days", "Average days in transit", "days", ratio=("days", "dated")),
@@ -62,6 +63,8 @@ def facts(open_lines: pd.DataFrame, received: pd.DataFrame) -> dict[str, pd.Data
                 "Oldest goods issue": open_lines["Oldest Goods Issue"],
                 "Quantity": open_lines["Quantity"].astype(float),
                 "Value": open_lines["Value"].astype(float),
+                "OBD": open_lines["Delivery References"].replace("", "—"),
+                "OBD value": open_lines["OBD Value (MB51)"].astype(float),
                 "Days": days.fillna(0.0),
                 "Dated": days.notna().astype(int),
             }
@@ -106,6 +109,7 @@ def build(
         ),
         kpis=(
             KpiTile("Value in transit", "value", "open", "{lines} lines · {stos} STOs"),
+            KpiTile("OBD value (MB51)", "obd_value", "open", "641 goods issues still in transit"),
             KpiTile(
                 "Average days in transit (open)", "avg_days", "open", "since goods issue", "amber"
             ),
@@ -130,7 +134,19 @@ def build(
                 ),
             ),
             DashSection(
-                "B · Plants",
+                "B · Materials",
+                blocks=(
+                    TableSpec(
+                        "By material",
+                        "open",
+                        ("Item",),
+                        ("lines", "stos", "value", "obd_value", "avg_days"),
+                        sort_by="value",
+                    ),
+                ),
+            ),
+            DashSection(
+                "C · Plants",
                 blocks=(
                     ChartSpec(
                         "Value in transit by receiving plant",
@@ -165,7 +181,7 @@ def build(
                 ),
             ),
             DashSection(
-                "C · Lines in transit",
+                "D · Lines in transit",
                 note="Oldest first; download them as CSV.",
                 blocks=(
                     DetailSpec(
@@ -176,10 +192,12 @@ def build(
                             ("Supplying plant", "From", "text"),
                             ("Receiving plant", "To", "text"),
                             ("Item", "Item", "text"),
+                            ("OBD", "Outbound delivery", "text"),
                             ("Oldest goods issue", "Goods issue", "text"),
                             ("Days", "Days", "int"),
                             ("Quantity", "Quantity", "int"),
                             ("Value", "Value (RWF)", "rwf"),
+                            ("OBD value", "OBD value, MB51 (RWF)", "rwf"),
                         ),
                         sort_by="Days",
                     ),

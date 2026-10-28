@@ -8,6 +8,10 @@ A web application with two parts:
   WBS, RBC accountability, stock sufficiency against AMC, and more), review
   dashboards and self-checks, and download Excel / Word / PowerPoint reports.
 
+**New here, or coming back after a break?** Follow
+[`docs/getting-started.md`](docs/getting-started.md): every step from finding the
+project folder to running it and signing in, in order.
+
 Status and roadmap: [`docs/PLAN.md`](docs/PLAN.md). Conventions for
 contributors: [`CLAUDE.md`](CLAUDE.md).
 

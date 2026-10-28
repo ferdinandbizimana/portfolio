@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import type { AnalysisInfo } from "@/lib/runs";
+import type { AnalysisInfo, Run } from "@/lib/runs";
 import { apiGet } from "@/lib/server-api";
 import type { DataFile } from "@/lib/upload";
 
@@ -11,9 +11,9 @@ export const metadata = { title: "New run" };
 export default async function NewRunPage({
   searchParams,
 }: {
-  searchParams: Promise<{ analysis?: string }>;
+  searchParams: Promise<{ analysis?: string; from?: string }>;
 }) {
-  const key = (await searchParams).analysis;
+  const { analysis: key, from } = await searchParams;
   const [analysesResponse, filesResponse] = await Promise.all([
     apiGet("/api/admin/analyses"),
     apiGet("/api/admin/data-files"),
@@ -24,12 +24,26 @@ export default async function NewRunPage({
   const analysis = ((await analysesResponse.json()) as AnalysisInfo[]).find((a) => a.key === key);
   if (!analysis) notFound();
   const files = ((await filesResponse.json()) as DataFile[]).filter((f) => f.status === "ready");
+  // "Change and run again": start from an earlier run's choices.
+  let previous: Run | undefined;
+  if (from && /^\d+$/.test(from)) {
+    const response = await apiGet(`/api/admin/runs/${from}`);
+    if (response.ok) {
+      const run = (await response.json()) as Run;
+      if (run.analysis_key === analysis.key) previous = run;
+    }
+  }
 
   return (
     <div className="max-w-3xl">
       <h1 className="mb-2 text-2xl font-semibold">{analysis.title}</h1>
       <p className="mb-6 text-muted">{analysis.description}</p>
-      <RunForm analysis={analysis} files={files} />
+      {previous && (
+        <p className="mb-4 text-sm text-muted">
+          Filled in from run #{previous.id}: change what you need, then run it.
+        </p>
+      )}
+      <RunForm analysis={analysis} files={files} previous={previous} />
     </div>
   );
 }
