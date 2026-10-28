@@ -58,3 +58,21 @@ def test_set_password(db: Session, monkeypatch: pytest.MonkeyPatch) -> None:
     assert verify_password(user.password_hash, "another long password")
     # Signed out everywhere.
     assert db.scalars(select(UserSession)).all() == []
+
+
+def test_seed_admin_from_the_environment_once(db: Session, monkeypatch: pytest.MonkeyPatch) -> None:
+    assert cli.main(["seed-admin"]) == 0  # no ADMIN_EMAIL: nothing to do
+    assert db.scalars(select(User)).all() == []
+    monkeypatch.setenv("ADMIN_EMAIL", " Owner@Example.com ")
+    monkeypatch.setenv("ADMIN_PASSWORD", "short")
+    assert cli.main(["seed-admin"]) == 0  # too short: not created, start goes on
+    assert db.scalars(select(User)).all() == []
+    monkeypatch.setenv("ADMIN_PASSWORD", "a long enough password")
+    assert cli.main(["seed-admin"]) == 0
+    [user] = db.scalars(select(User)).all()
+    assert user.email == "owner@example.com"
+    assert verify_password(user.password_hash, "a long enough password")
+    monkeypatch.setenv("ADMIN_PASSWORD", "another long password")
+    assert cli.main(["seed-admin"]) == 0  # already there: unchanged
+    db.expire_all()
+    assert verify_password(db.scalars(select(User)).one().password_hash, "a long enough password")
