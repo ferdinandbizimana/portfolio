@@ -266,7 +266,9 @@ optionally ME2M (STO creation dates) and OX10. Parameters: MB5T date and the "lo
 Every MB5T line is counted (the number of lines matches the MB5T document). When
 MB5T gives no value for a line, the value is taken from the goods issue (641) of
 the outbound delivery in MB51 for the quantity still in transit; the "Value from"
-column says which.
+column says which. The OBD value (MB51) is shown on every line, as a total and in
+a "By material" table (lines, quantity, MB5T value, OBD value, value in transit,
+lines over the limit and the outbound deliveries of each material).
 
 ### Purchase order follow-up
 

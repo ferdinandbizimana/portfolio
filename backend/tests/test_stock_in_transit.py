@@ -118,6 +118,9 @@ def test_lines_hand_checked(result: Any) -> None:
     assert transit.loc["4500000003", "Age"] == AGE_BANDS[0]
     assert transit.loc["4500000004", "Age"] == NOT_ISSUED
     assert transit.loc["4500000004", "Difference with MB51"] == 1
+    # The OBD value is shown even where MB5T has a value: 6 open units at RWF 100.
+    assert transit.loc["4500000001", "OBD Value (MB51)"] == 600
+    assert transit.loc["4500000001", "Value Source"] == "MB5T"
     received = result.tables["received"]
     assert sorted(received["Transit Days"].tolist()) == [5, 10, 19]
     assert received.loc[received["STO"] == "4500000002", "Quantity"].tolist() == [5]  # 8 - 3
@@ -199,6 +202,13 @@ def test_every_mb5t_line_counts_and_missing_values_come_from_mb51() -> None:
     sto1 = transit[transit["STO"] == "4500000001"].sort_values("MB5T Line")
     assert sto1["Value"].tolist() == [400, 200]
     assert set(sto1["Value Source"]) == {"MB51 goods issue"}
+    assert sto1["OBD Value (MB51)"].tolist() == [400, 200]
+    assert kpis["Value of the outbound deliveries (MB51)"] == 650
+    by_material = result.tables["by_material"].set_index("Material")
+    assert by_material.loc["1001", "Lines in Transit"] == 2
+    assert by_material.loc["1001", "OBD Value (MB51)"] == 600
+    assert by_material.loc["1001", "Outbound Deliveries"] == "80001"
+    assert by_material.loc["1004", "OBD Value (MB51)"] == 0  # no goods issue in MB51
     # Compared with MB51 once per STO and material: 6 in MB5T, 6 open, nothing untraced.
     assert sto1["Open Qty in MB51"].dropna().tolist() == [6]
     assert sto1["Difference with MB51"].dropna().tolist() == [0]
