@@ -174,3 +174,33 @@ def test_return_delivery_122_reverses_a_receipt() -> None:
     received = result.tables["received"]
     assert received.loc[received["STO"] == "4500000002", "Quantity"].tolist() == [3]  # 5 - 2
     assert all(c.passed for c in result.checks)
+
+
+def test_every_mb5t_line_counts_and_missing_values_come_from_mb51() -> None:
+    # STO 1 split over two MB5T lines (4 + 2 units), MB5T without values. In MB51 the
+    # 6 units still open are from the 1 July goods issue: 10 units for RWF 1,000.
+    rows = [
+        ["1000", "4500000001", "7000", "1001", "Drug A", 4, 0],
+        ["1000", "4500000001", "7000", "1001", "Drug A", 2, 0],
+        ["1000", "4500000003", "7000", "1003", "Drug C", 2, 0],  # 641: 2 units, RWF 50
+        ["7000", "4500000004", "1000", "1004", "Drug D", 1, 0],  # no goods issue
+    ]
+    inputs = data()
+    inputs["in_transit"] = pd.DataFrame(rows, columns=MB5T_COLUMNS)
+    params = PARAMS.model_copy(update={"long_transit_days": 5})
+    result = ANALYSIS.compute(inputs, params)
+    kpis = {k.label: k.value for k in result.metrics}
+    assert kpis["Lines in transit"] == 4  # as many as in MB5T
+    assert kpis["Value in transit"] == 650  # 6 x 100 + 2 x 25; Drug D has no value
+    assert kpis["In transit more than 5 days"] == 2
+    long_note = next(k.note for k in result.metrics if k.label == "In transit more than 5 days")
+    assert long_note == "RWF 600"
+    transit = result.tables["in_transit"]
+    sto1 = transit[transit["STO"] == "4500000001"].sort_values("MB5T Line")
+    assert sto1["Value"].tolist() == [400, 200]
+    assert set(sto1["Value Source"]) == {"MB51 goods issue"}
+    # Compared with MB51 once per STO and material: 6 in MB5T, 6 open, nothing untraced.
+    assert sto1["Open Qty in MB51"].dropna().tolist() == [6]
+    assert sto1["Difference with MB51"].dropna().tolist() == [0]
+    assert kpis["Average days in transit (open)"] == pytest.approx(23)  # not counted twice
+    assert all(c.passed for c in result.checks), [c.label for c in result.checks if not c.passed]

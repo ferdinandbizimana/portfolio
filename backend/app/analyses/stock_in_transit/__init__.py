@@ -22,6 +22,12 @@ Ferdinand's answers of 26 October 2026: the outbound delivery is in "Reference"
 on 641, 101 and their reversals 642, 102 and 122; the STO creation date comes
 from the ME2M report (document date of the purchase order), so the analysis
 also measures STO creation -> goods issue (641) -> goods receipt (101).
+
+Ferdinand's corrections of 28 October 2026: every MB5T line is a line in transit
+(the count matches the MB5T document; lines of the same STO and material are not
+merged), and when MB5T gives no value for a line, its value is taken from the
+goods issue (641) of the outbound delivery in MB51: the open quantity at the
+641's value per unit.
 """
 
 from dataclasses import dataclass, field
@@ -79,6 +85,7 @@ class Movement:
     quantity: float
     reference: str
     plant: str
+    unit_value: float = 0.0  # RWF per unit (641: amount / quantity)
 
 
 @dataclass
@@ -90,7 +97,7 @@ class Traced:
 
 def _reverse(lines: list[Movement], reversals: list[Movement]) -> list[Movement]:
     """Take each reversal off the latest line with its reference, else the latest line."""
-    lines = [Movement(m.day, m.quantity, m.reference, m.plant) for m in lines]
+    lines = [Movement(m.day, m.quantity, m.reference, m.plant, m.unit_value) for m in lines]
     for reversal in reversals:
         left = reversal.quantity
         for same_reference in (True, False):
@@ -136,7 +143,7 @@ def trace(issues: list[Movement], receipts: list[Movement]) -> Traced:
                 )
         traced.receipts_without_issue += max(left, 0.0)
     traced.open_issues = [
-        Movement(m.day, q, m.reference, m.plant)
+        Movement(m.day, q, m.reference, m.plant, m.unit_value)
         for m, q in zip(issues, open_qty, strict=True)
         if q > TOLERANCE_QTY
     ]
@@ -169,7 +176,7 @@ def _code(values: pd.Series) -> pd.Series:
 class StockInTransit(Analysis):
     key = "stock_in_transit"
     title = "Stock in transit"
-    version = "1.2.0"
+    version = "1.3.0"
     description = (
         "Stock in transit between plants (MB5T) with the days since its goods issue, traced "
         "in MB51 by STO and outbound delivery (641 goods issue, 101 goods receipt), and the "
@@ -202,6 +209,7 @@ class StockInTransit(Analysis):
                 "Plant": plant_code(raw["Plant"]).astype(str),
                 "Day": parse_dates(raw["Posting Date"]),
                 "Quantity": raw["Quantity"].astype(float).fillna(0.0).abs(),
+                "Amount": raw["Amt.in Loc.Cur."].astype(float).fillna(0.0).abs(),
             }
         )
         types = {GOODS_ISSUE, ISSUE_REVERSAL, GOODS_RECEIPT, *RECEIPT_REVERSALS}
@@ -217,12 +225,13 @@ class StockInTransit(Analysis):
             def lines(kind: str, part: pd.DataFrame = part) -> list[Movement]:
                 chosen = part[part["Type"] == kind]
                 return [
-                    Movement(d, q, r, p)
-                    for d, q, r, p in zip(
+                    Movement(d, q, r, p, a / q if q else 0.0)
+                    for d, q, r, p, a in zip(
                         chosen["Day"],
                         chosen["Quantity"],
                         chosen["Reference"],
                         chosen["Plant"],
+                        chosen["Amount"],
                         strict=True,
                     )
                 ]
@@ -242,6 +251,7 @@ class StockInTransit(Analysis):
                     "Supplying Plant": m.plant,
                     "Goods Issue Date": m.day,
                     "Open Qty": m.quantity,
+                    "Open Value": m.quantity * m.unit_value,
                 }
                 for m in traced.open_issues
             ]
@@ -284,14 +294,19 @@ class StockInTransit(Analysis):
                 "Supplying Plant",
                 "Goods Issue Date",
                 "Open Qty",
+                "Open Value",
             ],
         )
 
-        # MB5T lines with the age of the issues still open in MB51.
+        # MB5T lines (every line, as in the document) with the age of the issues still
+        # open in MB51 for their STO and material.
         mb5t = data["in_transit"]
+        items = mb5t["Item"] if "Item" in mb5t else pd.Series("", index=mb5t.index)
         transit = pd.DataFrame(
             {
+                "MB5T Line": range(1, len(mb5t) + 1),
                 "STO": _code(mb5t["Purchasing Document"]),
+                "Item": _code(items),
                 "Supplying Plant": plant_code(mb5t["Supplying Plant"]).astype(str),
                 "Receiving Plant": plant_code(mb5t["Plant"]).astype(str),
                 "Material": _code(mb5t["Material"]),
@@ -299,21 +314,17 @@ class StockInTransit(Analysis):
                 .astype("string")
                 .fillna("")
                 .astype(str),
-                "Quantity": mb5t["Quantity"].astype(float).fillna(0.0),
-                "Value": mb5t["Amt.in Loc.Cur."].astype(float).fillna(0.0),
+                "Quantity": mb5t["Quantity"].astype(float).fillna(0.0).to_numpy(),
+                "MB5T Value": mb5t["Amt.in Loc.Cur."].astype(float).fillna(0.0).to_numpy(),
             }
         )
-        transit = (
-            transit.groupby(["STO", "Material", "Supplying Plant", "Receiving Plant"], sort=True)
-            .agg(
-                **{
-                    "Material Description": ("Material Description", "max"),
-                    "Quantity": ("Quantity", "sum"),
-                    "Value": ("Value", "sum"),
-                }
-            )
-            .reset_index()
-        )
+        open_columns = [
+            "Oldest Goods Issue",
+            "Open Qty in MB51",
+            "Open Value in MB51",
+            "Average Days in Transit",
+            "Delivery References",
+        ]
         if len(still_open):
             open_by_line = (
                 still_open.assign(
@@ -325,6 +336,7 @@ class StockInTransit(Analysis):
                     **{
                         "Oldest Goods Issue": ("Goods Issue Date", "min"),
                         "Open Qty in MB51": ("Open Qty", "sum"),
+                        "Open Value in MB51": ("Open Value", "sum"),
                         "Weighted": ("Weighted", "sum"),
                         "Delivery References": (
                             "Reference",
@@ -341,29 +353,40 @@ class StockInTransit(Analysis):
                 open_by_line.drop(columns="Weighted"), on=["STO", "Material"], how="left"
             )
         else:
-            for column in (
-                "Oldest Goods Issue",
-                "Open Qty in MB51",
-                "Average Days in Transit",
-                "Delivery References",
-            ):
+            for column in open_columns:
                 transit[column] = None
             transit["Oldest Goods Issue"] = pd.to_datetime(transit["Oldest Goods Issue"])
+        for column in ("Open Qty in MB51", "Open Value in MB51", "Average Days in Transit"):
+            transit[column] = transit[column].astype(float)
+        # Value: MB5T's amount; when MB5T has none, the MB51 goods issue value of the
+        # STO and material, shared over its MB5T lines by quantity.
+        group = ["STO", "Material"]
+        group_qty = transit.groupby(group)["Quantity"].transform("sum")
+        group_lines = transit.groupby(group)["Quantity"].transform("size")
+        share = (transit["Quantity"] / group_qty).where(group_qty != 0, 1.0 / group_lines)
+        mb51_value = (transit["Open Value in MB51"].fillna(0.0) * share).astype(float)
+        from_mb51 = (transit["MB5T Value"].abs() <= TOLERANCE_QTY) & (mb51_value > 0)
+        transit["Value"] = transit["MB5T Value"].where(~from_mb51, mb51_value)
+        transit["Value Source"] = ["MB51 goods issue" if m else "MB5T" for m in from_mb51]
+        # The MB51 comparison is per STO and material: shown on its first MB5T line only,
+        # so the totals are not counted twice.
+        first = ~transit.duplicated(group)
+        transit["Difference with MB51"] = (
+            group_qty - transit["Open Qty in MB51"].fillna(0.0)
+        ).where(first)
+        transit["Open Qty in MB51"] = transit["Open Qty in MB51"].where(first)
+        transit = transit.drop(columns=["Open Value in MB51"])
         transit["Days in Transit"] = (report - transit["Oldest Goods Issue"]).dt.days.astype(float)
         transit["STO Created"] = pd.to_datetime(transit["STO"].map(created))
         transit["Days Since STO Created"] = (report - transit["STO Created"]).dt.days.astype(float)
         transit["Age"] = [age_band(d) for d in transit["Days in Transit"]]
-        transit["Open Qty in MB51"] = transit["Open Qty in MB51"].astype(float)
-        transit["Difference with MB51"] = transit["Quantity"] - transit["Open Qty in MB51"].fillna(
-            0.0
-        )
         transit["Long Transit"] = transit["Days in Transit"] > params.long_transit_days
         transit["Delivery References"] = transit["Delivery References"].fillna("")
         for column in ("Supplying", "Receiving"):
             transit[f"{column} Plant Name"] = [names.get(p, "") for p in transit[f"{column} Plant"]]
         transit = transit.sort_values(
-            ["Days in Transit", "Value", "STO", "Material"],
-            ascending=[False, False, True, True],
+            ["Days in Transit", "Value", "STO", "Material", "MB5T Line"],
+            ascending=[False, False, True, True, True],
             kind="mergesort",
             na_position="first",
         ).reset_index(drop=True)
@@ -425,7 +448,7 @@ class StockInTransit(Analysis):
             quantity = float(known["Quantity"].sum())
             return float((known["Quantity"] * known[days]).sum()) / quantity if quantity else None
 
-        open_mask = transit["Open Qty in MB51"].notna()
+        open_mask = transit["Open Qty in MB51"].notna() & transit["Average Days in Transit"].notna()
         open_qty = float(transit.loc[open_mask, "Open Qty in MB51"].sum())
         average_open = (
             float(
@@ -585,6 +608,7 @@ class StockInTransit(Analysis):
                         Column(key="Material Description", label="Description"),
                         Column(key="Quantity", label="Quantity", format=number),
                         Column(key="Value", label="Value (RWF)", format=money),
+                        Column(key="Value Source", label="Value from"),
                         Column(key="Oldest Goods Issue", label="Goods issue", format="date"),
                         Column(key="Days in Transit", label="Days", format=number),
                         Column(key="Difference with MB51", label="Qty not traced", format=number),
@@ -603,6 +627,10 @@ class StockInTransit(Analysis):
                     f"Receipts of {unmatched_receipts:,.0f} units have no matching goods issue "
                     "in MB51."
                     if unmatched_receipts > TOLERANCE_QTY
+                    else "",
+                    f"{int(from_mb51.sum())} lines have no value in MB5T: their value is "
+                    "that of the goods issue (641) of the outbound delivery in MB51."
+                    if from_mb51.any()
                     else "",
                 ]
                 if note
@@ -643,6 +671,7 @@ class StockInTransit(Analysis):
             "Average Days in Transit": "number",
             "Days in Transit": "number",
             "Difference with MB51": "number",
+            "MB5T Value": "money",
             "Days Since STO Created": "number",
             "Days STO to Goods Issue": "number",
             "Days STO to Goods Receipt": "number",
@@ -688,6 +717,9 @@ class StockInTransit(Analysis):
                         "STO and material come from MB51; reversals (642, 102) are taken off.",
                         "Receipts are matched to the goods issue with the same outbound delivery "
                         "first, then to the oldest issue still open.",
+                        "Every MB5T line is a line in transit. When MB5T gives no value, the "
+                        "value is that of the goods issue (641) of the outbound delivery in "
+                        "MB51, for the quantity still in transit.",
                         "Days in transit run from the oldest open goods issue to the MB5T date; "
                         "transit time runs from goods issue to goods receipt.",
                     ],
