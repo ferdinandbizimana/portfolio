@@ -68,11 +68,13 @@ class Settings(BaseSettings):
     # Public address of the site, used for links in e-mails.
     site_url: str = "http://localhost:8080"
     # Spot-check variance follow-up: copy of every e-mail (BCC), time of the
-    # morning list of open variances (working days, `timezone`), days before a
+    # morning list of open variances (working days, `timezone`), time the day's new
+    # variances are e-mailed (one e-mail per person, every day), days before a
     # variance turns red, and the names in the bin list that are warehouse units,
     # not people (their bins get no variances).
     variance_bcc: str = ""
     variance_reminder_time: str = "07:30"
+    variance_day_close_time: str = "17:00"
     variance_overdue_days: int = 2
     variance_unit_names: str = "RECEIVING, PICKING"
     # Monthly expiry follow-up (last day of each month, from `expiry_mail_time`,

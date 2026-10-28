@@ -332,7 +332,12 @@ def seed_follow_ups(db: Session, storage: LocalStorage, files: dict[str, DataFil
             data_file = files[name]
             _, frame, _ = read_dataset(storage, data_file, ["spot_check"])
             result = variances.import_cases(
-                db, variances.SPOT_CHECK, frame, data_file.id, data_file.sha256
+                db,
+                variances.SPOT_CHECK,
+                frame,
+                data_file.id,
+                data_file.sha256,
+                data_file.filename,
             )
             created += result.created
         db.commit()

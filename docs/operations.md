@@ -231,13 +231,15 @@ optional "Donations to save expiries" input. Lines whose status is not
 in the period are shown as saved by donation.
 
 **Expiry follow-up** (admin menu): for each run, "Prepare the follow-up" lists the
-expired items. The sales pharmacist opens the secure link (no account), chooses
-the root cause of each expired item ("Other" needs the reason written out) and
-saves it. On the last day of each month, from `EXPIRY_MAIL_TIME`, the latest run
+expired items and the items expiring within 6 months. The sales pharmacist opens
+the secure link (no account), records for each item expiring soon the measure
+taken to avoid the expiry (redistribution, transfer, donation, sale, ...; "Other"
+needs it described), chooses the root cause of each expired item ("Other" needs
+the reason written out) and saves each one. On the last day of each month, from `EXPIRY_MAIL_TIME`, the latest run
 is e-mailed to `EXPIRY_MAIL_TO`, copied to `EXPIRY_MAIL_CC` and `EXPIRY_MAIL_BCC`:
 expired, within 3 months and 3 to 6 months, value per plant, with the batches in
-Excel and the link. "Send the e-mail now" sends it at once. The justifications can
-be downloaded as Excel and as the justifications dashboard (commercial and
+Excel and the link. "Send the e-mail now" sends it at once. The justifications and
+measures can be downloaded as Excel (one sheet each) and as the justifications dashboard (commercial and
 programme loss, root causes, top 20 of each with their reasons).
 
 ### Expiry risk
@@ -278,16 +280,23 @@ Admin → Stock variances.
    (name, e-mail); you can correct an e-mail on the page. Bins given to a unit
    name (RECEIVING, PICKING; set in `VARIANCE_UNIT_NAMES`) get no variances.
 2. **Variances**: upload the weekly spot check, the picking register or the PI
-   document, choose it under "Variance file" and click Create variances and send
-   e-mails. Each line with a difference goes to the person responsible for its
-   bin; lines already imported are not created twice.
-3. Each person receives an e-mail with a link per variance. The link opens a page
-   (no login) where they record the reason, the responsible unit, the action taken
-   and their name. Every working morning (`VARIANCE_REMINDER_TIME`) each person
+   document, choose it under "Variance file" and click Create variances. Each line
+   with a difference goes to the person responsible for its bin; lines already
+   imported are not created twice.
+3. When the day closes (`VARIANCE_DAY_CLOSE_TIME`, default 17:00) each person
+   receives one e-mail with all their new variances of the day, a link per
+   variance. To send them earlier, click "Send e-mails now". The link opens a page
+   (no login) where they record the root cause (from the list), the reason, the
+   quantity corrected (optional), the responsible unit, the action taken and their
+   name; the variance is then marked corrected. Every working morning (`VARIANCE_REMINDER_TIME`) each person
    receives the list of their open variances; open for more than
    `VARIANCE_OVERDUE_DAYS` days is red. Every e-mail goes in BCC to `VARIANCE_BCC`.
-4. On the page you can reassign a variance, mark it corrected yourself, reopen it,
-   copy its link, and download the Excel list.
+4. On the page you can reassign a variance (the new person gets it with the next
+   e-mail), mark it corrected yourself, reopen it, copy its link, and download the
+   Excel list.
+5. **Accuracy progress**: one line per imported file, with line and quantity
+   accuracy when it was imported and now (only the variances still open count),
+   so each correction shows. It is also a sheet of the Excel list.
 
 ### Picker accuracy
 

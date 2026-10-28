@@ -168,6 +168,34 @@ def test_colours_and_overdue() -> None:
     assert variances.colour(case, today, s) == "green"
 
 
+def test_new_variances_are_sent_together_when_the_day_closes(db: Session) -> None:
+    s = settings()
+    variances.import_bin_list(db, BIN_LIST, s)
+    variances.import_cases(db, variances.SPOT_CHECK, SPOT, None, "sha-1")
+    for case in db.scalars(select(VarianceCase)):
+        case.created_at = datetime(2026, 1, 15, 8, 0, tzinfo=UTC)  # 10:00 in Kigali
+    db.commit()
+    assert len(variances.pending_cases(db)) == 2  # Z-99 has nobody to send it to
+    mailer = FakeMailer()
+    before_close = datetime(2026, 1, 15, 14, 59, tzinfo=UTC)  # 16:59 in Kigali
+    assert variance_jobs.send_pending(db, s, before_close, mailer) == 0
+    assert variance_jobs.send_pending(db, s, before_close + timedelta(minutes=1), mailer) == 1
+    assert [m["To"] for m in mailer.sent] == ["alice@example.com"]
+    assert variances.pending_cases(db) == []
+    assert variance_jobs.send_pending(db, s, before_close + timedelta(hours=1), mailer) == 0
+
+
+def test_the_admin_can_send_before_the_day_closes(db: Session) -> None:
+    s = settings()
+    variances.import_bin_list(db, BIN_LIST, s)
+    variances.import_cases(db, variances.SPOT_CHECK, SPOT, None, "sha-1")
+    db.commit()
+    mailer = FakeMailer()
+    morning = datetime(2026, 1, 15, 7, 0, tzinfo=UTC)
+    assert variance_jobs.send_pending(db, s, morning, mailer) == 0
+    assert variance_jobs.send_pending(db, s, morning, mailer, force=True) == 1
+
+
 def test_digest_only_on_working_days_from_the_reminder_time() -> None:
     s = settings()
     thursday = datetime(2026, 1, 15, 7, 29)
@@ -180,6 +208,10 @@ def test_correct_needs_a_known_unit(db: Session) -> None:
     case = VarianceCase(status="open")
     with pytest.raises(ValueError, match="Unknown responsible unit"):
         variances.correct(case, "Recounted", "Somebody", "", "", datetime.now(UTC))
+    with pytest.raises(ValueError, match="root cause from the list"):
+        variances.correct(
+            case, "Recounted", "Picking", "", "", datetime.now(UTC), root_cause="Guess"
+        )
     variances.correct(
         case,
         "Picked from the wrong bin",
@@ -187,8 +219,11 @@ def test_correct_needs_a_known_unit(db: Session) -> None:
         "Moved back",
         "Alice",
         datetime(2026, 1, 15, tzinfo=UTC),
+        root_cause="Location / material-code mismatch",
+        corrected_qty=2.0,
     )
     assert case.status == "corrected"
+    assert (case.root_cause, case.corrected_qty) == ("Location / material-code mismatch", 2.0)
     with pytest.raises(variances.CaseClosed):
         variances.correct(case, "Again", "Picking", "", "", datetime.now(UTC))
 
@@ -198,9 +233,11 @@ def test_emails_go_to_the_owner_with_the_manager_in_bcc(db: Session) -> None:
     variances.import_bin_list(db, BIN_LIST, s)
     result = variances.import_cases(db, variances.SPOT_CHECK, SPOT, None, "sha-1")
     db.commit()
-    messages = variances.assignment_messages(db, s, result.new_cases, date(2026, 1, 15))
-    assert [m["To"] for m in messages] == ["alice@example.com"]  # Z-99 has no owner
-    mail = messages[0]
+    new = list(db.scalars(select(VarianceCase).where(VarianceCase.id.in_(result.new_cases))))
+    messages = variances.assignment_messages(db, s, new, date(2026, 1, 15))
+    assert [m["To"] for _, m in messages] == ["alice@example.com"]  # Z-99 has no owner
+    items, mail = messages[0]
+    assert {c.storage_bin for c in items} == {"A-01", "A-02"}  # one e-mail for both
     assert mail["Bcc"] == "manager@example.com"
     body = mail.get_content()
     assert "Bin A-01" in body and "Bin A-02" in body
@@ -248,11 +285,21 @@ def test_admin_import_link_and_correction(
     assert response.status_code == 200, response.text
     body = response.json()
     assert (body["source"], body["created"], body["unassigned"]) == ("spot_check", 3, 1)
+    assert mailer.sent == []  # e-mails wait for the day close or the admin
+    assert logged_in.get("/api/admin/variances").json()["pending"] == 2
+    response = logged_in.post("/api/admin/variances/send-pending")
+    assert response.status_code == 202, response.text
     assert [m["To"] for m in mailer.sent] == ["alice@example.com"]  # sent by the worker job
     assert mailer.sent[0]["Bcc"] == "manager@example.com"
 
     overview = logged_in.get("/api/admin/variances").json()
+    assert overview["pending"] == 0
     assert overview["total"] == 3
+    # 4 lines, 24 units in the system, 3 variances with a net difference of +4.
+    (before,) = overview["progress"]
+    assert (before["file"], before["lines"], before["variances"]) == ("spot.csv", 4, 3)
+    assert before["line_accuracy_before"] == pytest.approx(0.25)
+    assert before["quantity_accuracy_before"] == pytest.approx(1 - 4 / 24)
     assert {c["colour"] for c in overview["cases"]} == {"amber"}
     case = next(c for c in overview["cases"] if c["storage_bin"] == "A-01")
     link = logged_in.get(f"/api/admin/variances/cases/{case['id']}/link").json()["link"]
@@ -263,7 +310,10 @@ def test_admin_import_link_and_correction(
     assert public.status_code == 200
     assert public.json()["storage_bin"] == "A-01"
     assert "token" not in public.json() and "staff_id" not in public.json()
+    assert "Counting error / recount" in public.json()["root_causes"]
     correction = {
+        "root_cause": "Location / material-code mismatch",
+        "corrected_qty": 2,
         "reason": "Picked from the wrong bin",
         "responsible_unit": "Picking",
         "action_taken": "Stock moved back",
@@ -274,12 +324,28 @@ def test_admin_import_link_and_correction(
     assert done.json()["colour"] == "green"
     assert client.post(f"/api/public/variances/{token}/correct", json=correction).status_code == 409
     assert client.get("/api/public/variances/not-a-real-token-at-all").status_code == 404
+    wrong = {**correction, "root_cause": "Not in the list"}
+    other = next(c for c in overview["cases"] if c["storage_bin"] == "A-02")
+    other_token = (
+        logged_in.get(f"/api/admin/variances/cases/{other['id']}/link").json()["link"]
+    ).rsplit("/", 1)[-1]
+    assert (
+        client.post(f"/api/public/variances/{other_token}/correct", json=wrong).status_code == 422
+    )
+
+    # A-01 (-2) corrected: 2 lines still open, net difference +6.
+    (after,) = logged_in.get("/api/admin/variances").json()["progress"]
+    assert (after["corrected"], after["open"]) == (1, 2)
+    assert after["line_accuracy_now"] == pytest.approx(0.5)
+    assert after["quantity_accuracy_now"] == pytest.approx(1 - 6 / 24)
 
     export = logged_in.get("/api/admin/variances/export.xlsx")
     assert export.status_code == 200
     sheet = load_workbook(io.BytesIO(export.content))["Variances"]
     texts = {str(c.value) for row in sheet.iter_rows() for c in row if c.value is not None}
     assert "Picked from the wrong bin" in texts
+    assert "Location / material-code mismatch" in texts
+    assert "Accuracy progress" in load_workbook(io.BytesIO(export.content)).sheetnames
 
 
 def test_admin_routes_need_login(client: TestClient) -> None:

@@ -21,7 +21,7 @@ from app.db.session import session_scope
 from app.jobs.expiry import send_monthly
 from app.jobs.notify import get_mailer
 from app.jobs.queue import get_queue, get_redis
-from app.jobs.variances import send_digests
+from app.jobs.variances import send_digests, send_pending
 from app.scheduling import scan_shared_folder, tick
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,13 @@ def run_once(redis: Redis) -> bool:
                 logger.info("Sent %s lists of open stock variances", sent)
         except Exception:
             logger.exception("Could not send the lists of open stock variances")
+            db.rollback()
+        try:
+            sent = send_pending(db, settings, now, get_mailer())
+            if sent:
+                logger.info("Sent the day's new stock variances to %s people", sent)
+        except Exception:
+            logger.exception("Could not send the day's new stock variances")
             db.rollback()
     redis.set(LAST_TICK_KEY, now.isoformat())
     for run in started:

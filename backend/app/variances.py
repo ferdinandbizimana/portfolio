@@ -2,12 +2,15 @@
 
 Every variance found in a spot check, in the picking register (items missing at
 picking) or in a physical inventory document becomes a case assigned to the
-person responsible for its storage bin. The person receives an e-mail with a
-secure link, corrects the stock and closes the case through the link with the
-reason and the responsible unit. Open cases are amber, corrected ones green,
+person responsible for its storage bin. The new cases of each person are sent
+together in one e-mail when the day closes (`variance_day_close_time`), or at
+once when the admin sends them. The person corrects the stock and closes each
+case through its secure link with the root cause (from Ferdinand's list), the
+quantity corrected, the reason and the responsible unit. Open cases are amber, corrected ones green,
 cases open for more than `variance_overdue_days` days red. A list of open cases
 goes to each person every working morning. Every e-mail is copied (BCC) to
-`variance_bcc`.
+`variance_bcc`. The accuracy of every imported file is followed as cases are
+corrected: line and quantity accuracy before and after the corrections.
 
 The bin list (storage bin -> responsible person) is uploaded as a file: names are
 matched whatever the order of the words and with small spelling differences;
@@ -30,7 +33,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.db.models import BinOwner, VarianceCase, VarianceStaff
+from app.db.models import BinOwner, VarianceCase, VarianceImport, VarianceStaff
 
 SPOT_CHECK, PICKING, PHYSICAL_INVENTORY = "spot_check", "picking", "physical_inventory"
 SOURCES = {
@@ -45,6 +48,25 @@ DATASET_SOURCE = {
 }
 UNITS = ["Receiving", "Picking", "Putaway / bin moves", "System (EWM–ERP)"]  # noqa: RUF001
 OPEN, CORRECTED = "open", "corrected"
+# Root causes of Ferdinand's physical inventory findings (variance lines, June 2026).
+ROOT_CAUSES = [
+    "Counting error / recount",
+    "Counting error \u2013 pack size / UoM",
+    "Batch exchange (no material-level loss)",
+    "Netting-off with other lines",
+    "Prior adjustment reversal / cut-off",
+    "Receipts / transfers / in-transit timing",
+    "Sales / issues not regularised in SAP",
+    "Duplicate posting / double receipt",
+    "Credit note / invoicing not regularised",
+    "Expired / damaged / poor quality",
+    "Location / material-code mismatch",
+    "Partner contribution / donation",
+    "Non-medical items",
+    "Historical variance (retained earnings)",
+    "Unsupported / pending explanation",
+    "Other documented explanation",
+]
 NAME_SIMILARITY = 0.85
 
 
@@ -171,6 +193,8 @@ class CaseImport:
     no_variance: int = 0
     warnings: list[str] = field(default_factory=list)
     new_cases: list[int] = field(default_factory=list)
+    lines: int = 0  # every line of the file, variance or not
+    system_qty: float = 0.0
 
 
 def _number(value: object) -> float | None:
@@ -190,10 +214,10 @@ def case_lines(source: str, frame: pd.DataFrame, file_sha: str) -> list[dict[str
     lines: list[dict[str, Any]] = []
     for row in frame.to_dict("records"):
         if source == SPOT_CHECK:
-            system, counted = (
-                _number(row.get("Avail. Qty in AUoM")),
-                _number(row.get("Counted Quantities")),
-            )
+            system = _number(row.get("Qty AUoM"))
+            if system is None:
+                system = _number(row.get("Avail. Qty in AUoM"))
+            counted = _number(row.get("Counted Quantities"))
             difference = _number(row.get("Variance"))
             if difference is None and system is not None and counted is not None:
                 difference = counted - system
@@ -261,12 +285,35 @@ def case_lines(source: str, frame: pd.DataFrame, file_sha: str) -> list[dict[str
 
 
 def import_cases(
-    db: Session, source: str, frame: pd.DataFrame, data_file_id: int | None, file_sha: str
+    db: Session,
+    source: str,
+    frame: pd.DataFrame,
+    data_file_id: int | None,
+    file_sha: str,
+    filename: str = "",
 ) -> CaseImport:
+    """New cases for the variance lines; e-mailed later, together per person."""
     result = CaseImport()
     owners = {b.storage_bin: b.staff_id for b in db.scalars(select(BinOwner))}
     known = set(db.scalars(select(VarianceCase.dedup_key)))
-    for line in case_lines(source, frame, file_sha):
+    lines = case_lines(source, frame, file_sha)
+    result.lines = len(lines)
+    result.system_qty = float(sum(abs(line["system_qty"] or 0.0) for line in lines))
+    if data_file_id is not None:
+        record = db.scalar(
+            select(VarianceImport).where(VarianceImport.data_file_id == data_file_id)
+        )
+        if record is None:
+            db.add(
+                VarianceImport(
+                    data_file_id=data_file_id,
+                    source=source,
+                    filename=filename[:255],
+                    lines=result.lines,
+                    system_qty=result.system_qty,
+                )
+            )
+    for line in lines:
         difference = line["difference_qty"]
         if difference is None or abs(difference) < 1e-9:
             result.no_variance += 1
@@ -311,13 +358,25 @@ class CaseClosed(Exception):
 
 
 def correct(
-    case: VarianceCase, reason: str, unit: str, action: str, by: str, now: datetime
+    case: VarianceCase,
+    reason: str,
+    unit: str,
+    action: str,
+    by: str,
+    now: datetime,
+    root_cause: str = "",
+    corrected_qty: float | None = None,
 ) -> None:
+    """Close a case with its root cause, the quantity corrected and the reason."""
     if case.status == CORRECTED:
         raise CaseClosed("This variance was already marked as corrected.")
     if unit not in UNITS:
         raise ValueError(f"Unknown responsible unit {unit!r}.")
+    if root_cause.strip() not in ROOT_CAUSES:
+        raise ValueError("Choose the root cause from the list.")
     case.status = CORRECTED
+    case.root_cause = root_cause.strip()
+    case.corrected_qty = corrected_qty
     case.reason = reason.strip()
     case.responsible_unit = unit
     case.action_taken = action.strip()
@@ -359,8 +418,8 @@ def message(
         "",
         *lines,
         "",
-        "Open each link to record that the variance is corrected, with its reason and the "
-        "responsible unit.",
+        "Open each link to record that the variance is corrected: the root cause, the "
+        "quantity corrected, the reason and the responsible unit.",
         f"A variance still open after {settings.variance_overdue_days} days is shown in red.",
         "",
     ]
@@ -368,11 +427,31 @@ def message(
     return mail
 
 
+def pending_cases(db: Session) -> list[VarianceCase]:
+    """Open, assigned cases whose person has not been e-mailed about them yet."""
+    return list(
+        db.scalars(
+            select(VarianceCase)
+            .where(
+                VarianceCase.status == OPEN,
+                VarianceCase.staff_id.is_not(None),
+                VarianceCase.notified_at.is_(None),
+            )
+            .order_by(VarianceCase.storage_bin, VarianceCase.id)
+        )
+    )
+
+
+def day_closed(settings: Settings, local_now: datetime) -> bool:
+    """From the day-close time on (every day)."""
+    hours, minutes = (int(p) for p in settings.variance_day_close_time.split(":"))
+    return local_now >= local_now.replace(hour=hours, minute=minutes, second=0, microsecond=0)
+
+
 def assignment_messages(
-    db: Session, settings: Settings, case_ids: list[int], today: date
-) -> list[EmailMessage]:
-    """One e-mail per person for newly assigned cases."""
-    cases = db.scalars(select(VarianceCase).where(VarianceCase.id.in_(case_ids))).all()
+    db: Session, settings: Settings, cases: list[VarianceCase], today: date
+) -> list[tuple[list[VarianceCase], EmailMessage]]:
+    """One e-mail per person with all their new cases (the people without an e-mail skipped)."""
     by_person: dict[int, list[VarianceCase]] = {}
     for case in cases:
         if case.staff_id is not None:
@@ -384,12 +463,15 @@ def assignment_messages(
             continue
         items.sort(key=lambda c: (c.storage_bin, c.id))
         out.append(
-            message(
-                settings,
-                person,
-                f"Stock variances to correct: {len(items)} new in your bins",
-                f"{len(items)} new stock variances were found in your storage bins:",
-                [_line(settings, c, today) for c in items],
+            (
+                items,
+                message(
+                    settings,
+                    person,
+                    f"Stock variances to correct: {len(items)} new in your bins",
+                    f"{len(items)} new stock variances were found in your storage bins:",
+                    [_line(settings, c, today) for c in items],
+                ),
             )
         )
     return out
@@ -471,3 +553,43 @@ def working_day(day: date) -> date:
     while day.weekday() >= 5:
         day += timedelta(days=1)
     return day
+
+
+# --- Accuracy progress ----------------------------------------------------------------------
+
+
+def _accuracy(error: float, base: float) -> float | None:
+    return 1 - error / base if base else None
+
+
+def progress(db: Session) -> list[dict[str, Any]]:
+    """Accuracy of each imported file, before and after the corrections recorded so far.
+
+    Line accuracy = 1 - lines with a variance / lines checked; quantity accuracy =
+    1 - |sum of the differences| / system quantity (the spot check progress report).
+    After corrections, only the cases still open count as variances.
+    """
+    rows = []
+    for record in db.scalars(select(VarianceImport).order_by(VarianceImport.imported_at)):
+        cases = list(
+            db.scalars(select(VarianceCase).where(VarianceCase.data_file_id == record.data_file_id))
+        )
+        still_open = [c for c in cases if c.status == OPEN]
+        net = sum(c.difference_qty for c in cases)
+        net_open = sum(c.difference_qty for c in still_open)
+        rows.append(
+            {
+                "file": record.filename,
+                "source": SOURCES.get(record.source, record.source),
+                "imported_at": record.imported_at,
+                "lines": record.lines,
+                "variances": len(cases),
+                "corrected": len(cases) - len(still_open),
+                "open": len(still_open),
+                "line_accuracy_before": _accuracy(len(cases), record.lines),
+                "line_accuracy_now": _accuracy(len(still_open), record.lines),
+                "quantity_accuracy_before": _accuracy(abs(net), record.system_qty),
+                "quantity_accuracy_now": _accuracy(abs(net_open), record.system_qty),
+            }
+        )
+    return rows

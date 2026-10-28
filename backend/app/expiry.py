@@ -2,7 +2,9 @@
 
 Each expiry monitoring run can have a review: one justification line per
 expired material, filled in by the sales pharmacist through a secure link (a
-root cause from the list; "Other" needs the reason in words). On the last day of
+root cause from the list; "Other" needs the reason in words), and one line per
+material expiring within 6 months, where the pharmacist records the measure taken
+to avoid the expiry (Ferdinand, 28 October 2026). On the last day of
 each month the latest run is e-mailed to the pharmacist, copied to the managers:
 expired stock and what expires within 3 and 3 to 6 months, value per plant, with
 the batches attached as Excel and the link to justify the expired items.
@@ -56,6 +58,19 @@ ROOT_CAUSES = [
     OTHER_CAUSE,
 ]
 WITHIN_3, THREE_TO_6 = "Within 3 months", "3 to 6 months"
+EXPIRED, PROJECTED = "expired", "projected"
+OTHER_MEASURE = "Other (describe the measure)"
+# Measures to avoid an expiry: the actions named in the monthly e-mail
+# (redistribution, donation, sale); the list is open for Ferdinand to adjust.
+MEASURES = [
+    "Redistribute to facilities that use it",
+    "Transfer to another branch",
+    "Inform customers and promote the product",
+    "Donation (agreed with Sales)",
+    "Return or exchange with the supplier",
+    "Issue first (FEFO priority)",
+    OTHER_MEASURE,
+]
 
 
 class JustificationError(ValueError):
@@ -98,21 +113,52 @@ def expired_items(expired: pd.DataFrame) -> list[dict[str, Any]]:
     return sorted(items, key=lambda i: (-i["value"], i["material"]))
 
 
+def projected_items(batches: pd.DataFrame) -> list[dict[str, Any]]:
+    """One line per material expiring within 6 months (all plants together), with
+    its earliest band, the soonest first and then the largest value."""
+    if batches.empty:
+        return []
+    soon = batches[batches["Expiry Band"].isin([WITHIN_3, THREE_TO_6])]
+    items = []
+    for material, part in soon.groupby("Material", sort=True):
+        owners = sorted(set(part["Owner"]))
+        bands = set(part["Expiry Band"])
+        items.append(
+            {
+                "material": str(material),
+                "description": str(part["Description"].max() or ""),
+                "owner": owners[0] if len(owners) == 1 else ", ".join(owners),
+                "plants": ", ".join(sorted(set(part["Plant"].astype(str))))[:500],
+                "value": float(part["Value"].sum()),
+                "band": WITHIN_3 if WITHIN_3 in bands else THREE_TO_6,
+            }
+        )
+    return sorted(items, key=lambda i: (i["band"] != WITHIN_3, -i["value"], i["material"]))
+
+
 def ensure_review(db: Session, storage: LocalStorage, run: AnalysisRun) -> ExpiryReview:
-    """The review of a run, created with one justification line per expired material."""
+    """The review of a run, created with one justification line per expired material
+    and one measure line per material expiring within 6 months."""
     review = db.scalars(select(ExpiryReview).where(ExpiryReview.run_id == run.id)).first()
-    if review is not None:
-        return review
-    review = ExpiryReview(
-        run_id=run.id,
-        closing_date=date.fromisoformat(str(run.parameters["closing_date"])),
-        token=secrets.token_urlsafe(32),
-        mailed_month="",
-    )
-    db.add(review)
-    db.flush()
-    for item in expired_items(table(storage, run.id, "expired")):
-        db.add(ExpiryJustification(review_id=review.id, **item))
+    if review is None:
+        review = ExpiryReview(
+            run_id=run.id,
+            closing_date=date.fromisoformat(str(run.parameters["closing_date"])),
+            token=secrets.token_urlsafe(32),
+            mailed_month="",
+        )
+        db.add(review)
+        db.flush()
+        for item in expired_items(table(storage, run.id, "expired")):
+            db.add(ExpiryJustification(review_id=review.id, kind=EXPIRED, **item))
+    has_projected = db.scalars(
+        select(ExpiryJustification.id).where(
+            ExpiryJustification.review_id == review.id, ExpiryJustification.kind == PROJECTED
+        )
+    ).first()
+    if has_projected is None:  # also for reviews prepared before measures were recorded
+        for item in projected_items(table(storage, run.id, "closing_batches")):
+            db.add(ExpiryJustification(review_id=review.id, kind=PROJECTED, **item))
     db.flush()
     return review
 
@@ -120,10 +166,16 @@ def ensure_review(db: Session, storage: LocalStorage, run: AnalysisRun) -> Expir
 def justify(
     item: ExpiryJustification, root_cause: str, reason: str, by: str, now: datetime
 ) -> None:
+    """Record why an item expired, or (projected items) the measure taken to avoid it."""
     root_cause, reason = root_cause.strip(), reason.strip()
-    if root_cause not in ROOT_CAUSES:
+    if item.kind == PROJECTED:
+        if root_cause not in MEASURES:
+            raise JustificationError("Choose a measure from the list.")
+        if root_cause == OTHER_MEASURE and len(reason) < 3:
+            raise JustificationError('Describe the measure when it is "Other".')
+    elif root_cause not in ROOT_CAUSES:
         raise JustificationError("Choose a root cause from the list.")
-    if root_cause == OTHER_CAUSE and len(reason) < 3:
+    elif root_cause == OTHER_CAUSE and len(reason) < 3:
         raise JustificationError('Give the reason when the root cause is "Other".')
     item.root_cause = root_cause
     item.reason = reason
@@ -238,9 +290,10 @@ def monthly_message(
         f"Total: expired {_rwf(totals['Expired Value'])}, within 3 months "
         f"{_rwf(totals['Within 3 Months'])}, 3 to 6 months {_rwf(totals['3 to 6 Months'])}.",
         "",
-        "The batches are in the attached workbook. Please act on the items expiring soon "
-        "(redistribution, donation, sale) and justify each expired item, choosing its root "
-        "cause, through this link:",
+        "The batches are in the attached workbook. Through the link below, please record "
+        "the measure you are taking for each item expiring within six months "
+        "(redistribution, transfer, donation, sale) and justify each expired item, "
+        "choosing its root cause:",
         link(settings, review),
         "",
     ]
@@ -261,7 +314,42 @@ def monthly_message(
     return mail
 
 
+def intervention_frame(items: list[ExpiryJustification]) -> pd.DataFrame:
+    """The measures recorded for the items expiring within 6 months."""
+    return pd.DataFrame(
+        [
+            {
+                "Material": i.material,
+                "Description": i.description,
+                "Stock owner": i.owner,
+                "Plants": i.plants,
+                "Expires": i.band,
+                "Value (RWF)": i.value,
+                "Measure": i.root_cause or "No measure recorded yet",
+                "Details": i.reason,
+                "Recorded by": i.justified_by,
+                "Recorded on": i.justified_at.strftime("%Y-%m-%d") if i.justified_at else "",
+            }
+            for i in items
+            if i.kind == PROJECTED
+        ],
+        columns=[
+            "Material",
+            "Description",
+            "Stock owner",
+            "Plants",
+            "Expires",
+            "Value (RWF)",
+            "Measure",
+            "Details",
+            "Recorded by",
+            "Recorded on",
+        ],
+    )
+
+
 def justification_frame(items: list[ExpiryJustification]) -> pd.DataFrame:
+    items = [i for i in items if i.kind != PROJECTED]
     return pd.DataFrame(
         [
             {
@@ -297,7 +385,15 @@ def justification_workbook(review: ExpiryReview, items: list[ExpiryJustification
         "Expiry justifications",
         f"Expired stock at {review.closing_date:%d %B %Y}",
         [],
-        [TableBlock("Justifications", frame, {"Expired value (RWF)": "money"}, total_row=True)],
+        [
+            TableBlock("Justifications", frame, {"Expired value (RWF)": "money"}, total_row=True),
+            TableBlock(
+                "Measures to avoid expiry",
+                intervention_frame(items),
+                {"Value (RWF)": "money"},
+                total_row=True,
+            ),
+        ],
         [],
     )
 
@@ -306,6 +402,7 @@ def justification_dashboard(review: ExpiryReview, items: list[ExpiryJustificatio
     """The "Expiry justifications" board view: commercial and programme loss,
     root causes, and the top 20 items of each with their justification."""
     frame = justification_frame(items)
+    items = [i for i in items if i.kind != PROJECTED]
     facts = pd.DataFrame(
         {
             "Stock owner": frame["Stock owner"],

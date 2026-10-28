@@ -11,13 +11,13 @@ type Message = { kind: "ok" | "error"; text: string } | null;
 function ItemForm({
   path,
   item,
-  rootCauses,
+  choices,
   name,
   onSaved,
 }: {
   path: string;
   item: ExpiryItem;
-  rootCauses: string[];
+  choices: string[];
   name: string;
   onSaved: (item: ExpiryItem) => void;
 }) {
@@ -26,6 +26,8 @@ function ItemForm({
   const [message, setMessage] = useState<Message>(null);
   const [saving, setSaving] = useState(false);
   const label = `${item.description || item.material}`;
+  const projected = item.kind === "projected";
+  const other = needsReason(choices, cause);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -45,7 +47,7 @@ function ItemForm({
   return (
     <form
       onSubmit={save}
-      aria-label={`Justification for ${label}`}
+      aria-label={`${projected ? "Measure" : "Justification"} for ${label}`}
       className="card flex flex-col gap-2"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -56,12 +58,13 @@ function ItemForm({
       </div>
       <p className="text-sm text-muted">
         {item.owner} · plants {item.plants}
+        {projected && ` · expires ${item.band.toLowerCase()}`}
       </p>
       <label className="flex flex-col gap-1 text-sm">
-        Root cause
+        {projected ? "Measure to avoid the expiry" : "Root cause"}
         <select className="input" required value={cause} onChange={(e) => setCause(e.target.value)}>
           <option value="">Choose…</option>
-          {rootCauses.map((c) => (
+          {choices.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
@@ -69,13 +72,19 @@ function ItemForm({
         </select>
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        {needsReason(rootCauses, cause) ? "Reason (required)" : "Reason and action taken"}
+        {projected
+          ? other
+            ? "Describe the measure (required)"
+            : "Details (where, how much, by when)"
+          : other
+            ? "Reason (required)"
+            : "Reason and action taken"}
         <textarea
           className="input"
           rows={2}
           maxLength={4000}
-          required={needsReason(rootCauses, cause)}
-          minLength={needsReason(rootCauses, cause) ? 3 : undefined}
+          required={other}
+          minLength={other ? 3 : undefined}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
@@ -86,7 +95,8 @@ function ItemForm({
         </button>
         {item.justified_at && (
           <span className="text-sm text-muted">
-            Justified{item.justified_by ? ` by ${item.justified_by}` : ""}
+            {projected ? "Recorded" : "Justified"}
+            {item.justified_by ? ` by ${item.justified_by}` : ""}
           </span>
         )}
         <StatusMessage message={message} />
@@ -107,7 +117,12 @@ export function JustifyList({ token, detail }: { token: string; detail: ExpiryDe
     }),
     { expired: 0, m3: 0, m6: 0 },
   );
-  const done = items.filter((i) => i.root_cause).length;
+  const expired = items.filter((i) => i.kind !== "projected");
+  const projected = items.filter((i) => i.kind === "projected");
+  const done = expired.filter((i) => i.root_cause).length;
+  const measured = projected.filter((i) => i.root_cause).length;
+  const saved = (item: ExpiryItem) =>
+    setItems((all) => all.map((i) => (i.id === item.id ? item : i)));
   const date = new Date(detail.review.closing_date).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
@@ -157,32 +172,55 @@ export function JustifyList({ token, detail }: { token: string; detail: ExpiryDe
         </div>
       </section>
 
+      <label className="flex max-w-sm flex-col gap-1 text-sm">
+        Your name
+        <input
+          className="input"
+          maxLength={200}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </label>
+
+      <section aria-labelledby="projected-heading" className="flex flex-col gap-3">
+        <h2 id="projected-heading" className="text-lg font-semibold">
+          Expiring within 6 months: measures to avoid expiry ({measured} of {projected.length}{" "}
+          recorded)
+        </h2>
+        <p className="text-sm text-muted">
+          For each item, record the measure you are taking so that it is used before it expires
+          (redistribution, transfer, donation, sale). Each item is saved on its own.
+        </p>
+        {projected.length === 0 && <p>Nothing expires within six months.</p>}
+        {projected.map((item) => (
+          <ItemForm
+            key={item.id}
+            path={path}
+            item={item}
+            choices={detail.measures}
+            name={name}
+            onSaved={saved}
+          />
+        ))}
+      </section>
+
       <section aria-labelledby="items-heading" className="flex flex-col gap-3">
         <h2 id="items-heading" className="text-lg font-semibold">
-          Expired items to justify ({done} of {items.length} done)
+          Expired items to justify ({done} of {expired.length} done)
         </h2>
         <p className="text-sm text-muted">
           For each expired item choose the root cause. When it is &quot;Other&quot;, write the
           reason. Each item is saved on its own.
         </p>
-        <label className="flex max-w-sm flex-col gap-1 text-sm">
-          Your name
-          <input
-            className="input"
-            maxLength={200}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </label>
-        {items.length === 0 && <p>No expired stock: nothing to justify.</p>}
-        {items.map((item) => (
+        {expired.length === 0 && <p>No expired stock: nothing to justify.</p>}
+        {expired.map((item) => (
           <ItemForm
             key={item.id}
             path={path}
             item={item}
-            rootCauses={detail.root_causes}
+            choices={detail.root_causes}
             name={name}
-            onSaved={(saved) => setItems((all) => all.map((i) => (i.id === saved.id ? saved : i)))}
+            onSaved={saved}
           />
         ))}
       </section>

@@ -102,7 +102,7 @@ export function RunView({ run }: { run: Run }) {
               .map((report) => (
                 <a
                   key={`${report.key}-view`}
-                  className="btn-primary"
+                  className="btn-secondary"
                   href={`/api/admin/runs/${run.id}/reports/${report.key}/view`}
                   target="_blank"
                   rel="noopener"
@@ -110,17 +110,32 @@ export function RunView({ run }: { run: Run }) {
                   Open interactive dashboard
                 </a>
               ))}
-            {run.reports.map((report) => (
-              <a
-                key={report.key}
-                className="btn-secondary"
-                href={`/api/admin/runs/${run.id}/reports/${report.key}`}
-                download={report.filename}
-              >
-                {report.title} ({formatBytes(report.size_bytes)})
-              </a>
-            ))}
           </div>
+          <h3 className="mb-2 mt-4 text-base font-semibold">Downloads</h3>
+          <ul className="flex flex-col gap-2">
+            {run.reports.map((report) => (
+              <li
+                key={report.key}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line px-3 py-2"
+              >
+                <span>
+                  <span className="font-medium">{report.title}</span>{" "}
+                  <span className="text-sm text-muted">
+                    {report.filename} · {formatBytes(report.size_bytes)}
+                  </span>
+                </span>
+                <a
+                  className="btn-primary inline-flex items-center gap-2"
+                  href={`/api/admin/runs/${run.id}/reports/${report.key}`}
+                  download={report.filename}
+                  aria-label={`Download ${report.title}`}
+                >
+                  <DownloadIcon />
+                  Download
+                </a>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
@@ -147,5 +162,23 @@ export function RunView({ run }: { run: Run }) {
         </ul>
       </section>
     </div>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M10 3v10M5.5 8.5 10 13l4.5-4.5M4 17h12" />
+    </svg>
   );
 }

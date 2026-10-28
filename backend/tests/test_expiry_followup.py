@@ -59,10 +59,16 @@ def test_review_lists_each_expired_material_once(db: Session, storage: LocalStor
     db.commit()
     assert expiry.ensure_review(db, storage, run).id == review.id  # made once
     items = db.scalars(
-        select(ExpiryJustification).where(ExpiryJustification.review_id == review.id)
+        select(ExpiryJustification)
+        .where(ExpiryJustification.review_id == review.id)
+        .order_by(ExpiryJustification.id)
     ).all()
     # Expired at closing: M6 (500), M2 (400), M3 (50), largest first.
-    assert [(i.material, i.value) for i in items] == [("M6", 500), ("M2", 400), ("M3", 50)]
+    expired = [(i.material, i.value) for i in items if i.kind == expiry.EXPIRED]
+    assert expired == [("M6", 500), ("M2", 400), ("M3", 50)]
+    # Expiring within 6 months, for the measures: the soonest first.
+    projected = [(i.material, i.band, i.value) for i in items if i.kind == expiry.PROJECTED]
+    assert projected == [("M4", expiry.WITHIN_3, 60), ("M5", expiry.THREE_TO_6, 120)]
     assert review.closing_date == date(2026, 6, 30)
 
 
@@ -75,6 +81,15 @@ def test_justification_rules() -> None:
         expiry.justify(item, expiry.OTHER_CAUSE, " ", "", now)  # Other needs a reason
     expiry.justify(item, expiry.ROOT_CAUSES[0], "", "Pharmacist", now)
     assert (item.root_cause, item.justified_by) == (expiry.ROOT_CAUSES[0], "Pharmacist")
+
+    # Items expiring soon take a measure, not a root cause.
+    soon = ExpiryJustification(material="M4", value=1.0, kind=expiry.PROJECTED)
+    with pytest.raises(expiry.JustificationError):
+        expiry.justify(soon, expiry.ROOT_CAUSES[0], "", "", now)
+    with pytest.raises(expiry.JustificationError):
+        expiry.justify(soon, expiry.OTHER_MEASURE, "", "", now)  # Other needs details
+    expiry.justify(soon, expiry.MEASURES[0], "Two health centres", "Pharmacist", now)
+    assert (soon.root_cause, soon.reason) == (expiry.MEASURES[0], "Two health centres")
 
 
 def test_due_on_the_last_day_of_the_month_from_the_time() -> None:
@@ -122,7 +137,8 @@ def test_admin_and_secure_link(logged_in: TestClient, db: Session, storage: Loca
     assert [r["run_id"] for r in overview["runs"]] == [run.id]
     assert overview["runs"][0]["review"] is None
     detail = logged_in.post(f"/api/admin/expiry/runs/{run.id}").json()
-    assert detail["review"]["items"] == 3
+    assert (detail["review"]["items"], detail["review"]["projected"]) == (3, 2)
+    assert detail["measures"] == expiry.MEASURES
     assert [p["plant"] for p in detail["outlook"]] == ["1000", "7001", "7002"]
     token = detail["review"]["link"].rsplit("/", 1)[-1]
 
@@ -146,6 +162,12 @@ def test_admin_and_secure_link(logged_in: TestClient, db: Session, storage: Loca
     )
     assert saved.status_code == 200, saved.text
     assert saved.json()["root_cause"] == expiry.ROOT_CAUSES[2]
+    soon = next(i for i in seen.json()["items"] if i["kind"] == "projected")
+    measure = logged_in.post(
+        f"/api/public/expiry/{token}/items/{soon['id']}",
+        json={"root_cause": expiry.MEASURES[1], "reason": "To the branch that uses it"},
+    )
+    assert measure.status_code == 200, measure.text
     assert logged_in.get("/api/public/expiry/not-a-valid-token-at-all-123").status_code == 404
     assert logged_in.get("/api/admin/expiry").status_code == 401
 
@@ -156,6 +178,8 @@ def test_justification_reports(logged_in: TestClient, db: Session, storage: Loca
     workbook = logged_in.get(f"/api/admin/expiry/reviews/{review_id}/justifications.xlsx")
     assert workbook.status_code == 200
     check_report("xlsx", workbook.content)
+    sheets = load_workbook(io.BytesIO(workbook.content)).sheetnames
+    assert "Measures to avoid expiry" in sheets
     page = logged_in.get(f"/api/admin/expiry/reviews/{review_id}/justifications.html")
     assert page.status_code == 200
     check_report("html", page.content)
