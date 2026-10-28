@@ -19,6 +19,31 @@ later with `set-password` (below), not by editing these lines.
 
 Open the site (locally http://localhost:8080) and sign in at `/admin`.
 
+## Test data (demo)
+
+To try every page before using real files, fill a test installation with fake
+data:
+
+```bash
+docker compose exec backend python -m app.cli seed-demo
+```
+
+In about a minute it adds:
+- a sample portfolio (profile, experience, skills, three projects), only when the
+  portfolio is empty; replace the text marked "(sample)" before going live;
+- 24 data files named `DEMO_...` (GL lines, MB51, ZSTOCKREPORT snapshots, VA05,
+  deliveries, ME2M, MB5T, EWM tasks, weekly report, picking register, spot checks,
+  bin list, donations and the others), with invented materials, plants,
+  customers and figures;
+- one run of every analysis on those files (all self-checks pass), the stock
+  variances from the two spot checks and the expiry follow-up of the expiry run.
+
+Running it again keeps the portfolio and the files and adds another set of runs.
+It refuses to run when `ENVIRONMENT=production`. The public pages are cached for
+up to 10 minutes: `docker compose restart frontend` shows the sample portfolio at
+once. To start again from empty: `docker compose down -v` (this deletes all
+data of the installation), then `docker compose up -d`.
+
 ## Forgotten password
 
 ```bash

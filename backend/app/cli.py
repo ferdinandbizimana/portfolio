@@ -3,6 +3,7 @@
     python -m app.cli create-admin --email you@example.com
     python -m app.cli set-password --email you@example.com
     python -m app.cli seed-admin
+    python -m app.cli seed-demo       (test installations only: fake data and runs)
 
 The password is asked for interactively, or read from the ADMIN_PASSWORD
 environment variable when there is no terminal (for automated setups).
@@ -67,6 +68,29 @@ def seed_admin() -> int:
     return 0
 
 
+def seed_demo(runs: bool = True) -> int:
+    """Fake portfolio content, DEMO_ data files and a run of every analysis."""
+    from app.core.config import get_settings
+    from app.demo.seed import seed
+    from app.storage import get_storage
+
+    if get_settings().environment == "production":
+        print("seed-demo is for test installations; it does not run in production.")
+        return 1
+    print("Creating the demo data (a few minutes)...")
+    with session_scope() as db:
+        report = seed(db, get_storage(), runs=runs)
+    print(f"Portfolio: {report.content}")
+    print(f"Data files ({len(report.files)}):")
+    for line in report.files:
+        print(f"  {line}")
+    for label, run_status, message in report.runs:
+        print(f"  [{run_status}] {label}: {message}")
+    for note in report.follow_ups:
+        print(note)
+    return 0
+
+
 def set_password(email: str) -> int:
     with session_scope() as db:
         user = db.scalar(select(User).where(func.lower(User.email) == email.strip().lower()))
@@ -92,7 +116,11 @@ def main(argv: list[str] | None = None) -> int:
         command = commands.add_parser(name)
         command.add_argument("--email", required=True)
     commands.add_parser("seed-admin")
+    demo = commands.add_parser("seed-demo")
+    demo.add_argument("--no-runs", action="store_true", help="only the content and files")
     args = parser.parse_args(argv)
+    if args.command == "seed-demo":
+        return seed_demo(runs=not args.no_runs)
     if args.command == "seed-admin":
         return seed_admin()
     if args.command == "create-admin":
