@@ -256,6 +256,10 @@ stockout (stock runs out before it expires).
 Files: MB5T and MB51 (the goods movements for the period of the transfers;
 MB51 must include the columns Purchase order, Reference and Posting Date),
 optionally ME2M (STO creation dates) and OX10. Parameters: MB5T date and the "long transit" limit in days.
+Every MB5T line is counted (the number of lines matches the MB5T document). When
+MB5T gives no value for a line, the value is taken from the goods issue (641) of
+the outbound delivery in MB51 for the quantity still in transit; the "Value from"
+column says which.
 
 ### Purchase order follow-up
 
