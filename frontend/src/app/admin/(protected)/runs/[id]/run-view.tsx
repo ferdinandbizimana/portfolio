@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { DashboardView } from "@/components/dashboard/dashboard-view";
-import { sendJson } from "@/lib/api-errors";
+import { postJson, sendJson } from "@/lib/api-errors";
 import { formatDateTime } from "@/lib/audit";
 import { isActive, STATUS_LABEL, statusClass, type Run } from "@/lib/runs";
 import { formatBytes } from "@/lib/upload";
@@ -24,6 +24,22 @@ export function RunView({ run }: { run: Run }) {
   async function cancel() {
     await sendJson("POST", `/api/admin/runs/${run.id}/cancel`);
     router.refresh();
+  }
+
+  const [rerunning, setRerunning] = useState(false);
+  const [rerunError, setRerunError] = useState("");
+
+  // Same files, sheets and parameters; the current version of the analysis.
+  async function runAgain() {
+    setRerunning(true);
+    setRerunError("");
+    const result = await postJson<Run>(`/api/admin/runs/${run.id}/rerun`);
+    if (result.ok) {
+      router.push(`/admin/runs/${result.data.id}`);
+      return;
+    }
+    setRerunning(false);
+    setRerunError(result.message);
   }
 
   async function remove() {
@@ -54,6 +70,15 @@ export function RunView({ run }: { run: Run }) {
             </button>
           ) : (
             <>
+              <button type="button" className="btn-primary" onClick={runAgain} disabled={rerunning}>
+                {rerunning ? "Starting…" : "Run again"}
+              </button>
+              <Link
+                href={`/admin/runs/new?analysis=${encodeURIComponent(run.analysis_key)}&from=${run.id}`}
+                className="btn-secondary"
+              >
+                Change and run again
+              </Link>
               {run.status === "succeeded" && run.dashboard && (
                 <Link href={`/admin/runs/${run.id}/publish`} className="btn-primary">
                   Publish…
@@ -66,6 +91,12 @@ export function RunView({ run }: { run: Run }) {
           )}
         </div>
       </div>
+
+      {rerunError && (
+        <p role="alert" className="text-sm text-danger">
+          {rerunError} Use &quot;Change and run again&quot; to choose other files.
+        </p>
+      )}
 
       <section aria-label="Status" className="rounded-lg border border-line p-4">
         <div className="flex flex-wrap items-center gap-3">

@@ -114,7 +114,14 @@ Long texts use Markdown: `**bold**`, `*italic*`, `## Heading`, `- list item`,
    calculated and each problem is listed with the file, sheet, row and column.
 4. When it finishes: the checks (all must pass), the dashboard, and the Excel,
    Word and PowerPoint downloads.
-5. **Runs**: tick two finished runs of the same analysis and **Compare** them
+5. **Run again**: on a finished run, "Run again" starts a new run on the same
+   files, sheets and parameters with the current version of the analysis (for
+   example after a correction of its rules); the earlier run is kept.
+   "Change and run again" opens the form filled in from the run, to change a
+   parameter or a file first. A run's results never change by themselves: after
+   an update of the application, run it again to see the new figures (the run
+   page shows the version it was calculated with).
+6. **Runs**: tick two finished runs of the same analysis and **Compare** them
    (for example end of March against end of June).
 
 Uploaded files and results are private. They are never shown on the public site.

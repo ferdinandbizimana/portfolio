@@ -184,9 +184,13 @@ def _run(db: DbDep, run_id: int) -> AnalysisRun:
     return run
 
 
-@router.post("/runs", response_model=RunOut, status_code=status.HTTP_201_CREATED)
-def create_run(
-    body: RunCreate, request: Request, current: CurrentUserDep, db: DbDep, queue: QueueDep
+def _start(
+    body: RunCreate,
+    request: Request,
+    current: CurrentUserDep,
+    db: DbDep,
+    queue: QueueDep,
+    rerun_of: int | None = None,
 ) -> RunOut:
     analysis = get_analysis(body.analysis)
     if analysis is None:
@@ -212,18 +216,41 @@ def create_run(
     )
     db.add(run)
     db.flush()
+    details: dict[str, Any] = {"id": run.id, "analysis": analysis.key, "label": run.label}
+    if rerun_of is not None:
+        details["rerun_of"] = rerun_of
     audit.record(
-        db,
-        "run.created",
-        user_id=current.user.id,
-        ip_address=client_ip(request),
-        id=run.id,
-        analysis=analysis.key,
-        label=run.label,
+        db, "run.created", user_id=current.user.id, ip_address=client_ip(request), **details
     )
     db.commit()
     enqueue(db, queue, run)
     return _out(run)
+
+
+@router.post("/runs", response_model=RunOut, status_code=status.HTTP_201_CREATED)
+def create_run(
+    body: RunCreate, request: Request, current: CurrentUserDep, db: DbDep, queue: QueueDep
+) -> RunOut:
+    return _start(body, request, current, db, queue)
+
+
+@router.post("/runs/{run_id}/rerun", response_model=RunOut, status_code=status.HTTP_201_CREATED)
+def rerun(
+    run_id: int, request: Request, current: CurrentUserDep, db: DbDep, queue: QueueDep
+) -> RunOut:
+    """Run the analysis again on the same files, sheets and parameters, with the
+    current version of the analysis (e.g. after a correction of its rules)."""
+    old = _run(db, run_id)
+    body = RunCreate(
+        analysis=old.analysis_key,
+        label=old.label,
+        parameters=old.parameters or {},
+        inputs={
+            key: InputChoice(data_file_id=int(value["data_file_id"]), sheet=str(value["sheet"]))
+            for key, value in (old.inputs or {}).items()
+        },
+    )
+    return _start(body, request, current, db, queue, rerun_of=old.id)
 
 
 @router.get("/runs", response_model=list[RunSummary])

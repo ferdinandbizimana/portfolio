@@ -187,6 +187,29 @@ def test_compare_two_runs(logged_in: TestClient) -> None:
     assert value["change"] == pytest.approx(76000 / 610000.5)
 
 
+def test_run_again_with_the_same_files_and_parameters(
+    logged_in: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_file = upload(logged_in, demo_workbook(), "stock.xlsx")
+    first = start_run(logged_in, data_file["id"])
+    # The rules of the analysis change: the run again uses the new version.
+    from app.analyses.registry import get_analysis
+
+    analysis = get_analysis("demo_stock_summary")
+    assert analysis is not None
+    monkeypatch.setattr(type(analysis), "version", "9.9.9")
+    response = logged_in.post(f"/api/admin/runs/{first['id']}/rerun")
+    assert response.status_code == 201, response.text
+    again = logged_in.get(f"/api/admin/runs/{response.json()['id']}").json()
+    assert again["id"] != first["id"]
+    assert again["status"] == "succeeded"
+    assert again["analysis_version"] == "9.9.9"
+    assert (again["label"], again["parameters"]) == (first["label"], first["parameters"])
+    assert again["inputs"] == first["inputs"]
+    assert again["result_hash"] == first["result_hash"]
+    assert logged_in.post("/api/admin/runs/999999/rerun").status_code == 404
+
+
 def test_cancel_and_delete(logged_in: TestClient, client: TestClient) -> None:
     data_file = upload(logged_in, demo_workbook(), "stock.xlsx")
     run = start_run(logged_in, data_file["id"])
@@ -243,6 +266,7 @@ def test_data_endpoints_require_login(client: TestClient) -> None:
         ("get", "/api/admin/analyses"),
         ("post", "/api/admin/runs"),
         ("get", "/api/admin/runs"),
+        ("post", "/api/admin/runs/1/rerun"),
         ("get", "/api/admin/runs/1/reports/workbook"),
         ("get", "/api/admin/templates"),
     ]:
