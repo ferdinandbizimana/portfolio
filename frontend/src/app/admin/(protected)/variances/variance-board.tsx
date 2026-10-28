@@ -9,7 +9,9 @@ import {
   COLOUR_CLASS,
   COLOUR_LABEL,
   formatDifference,
+  formatPercent,
   importProblem,
+  type AccuracyProgress,
   type Colour,
   type VarianceCase,
   type VarianceOverview,
@@ -137,8 +139,12 @@ function ImportPanel({ files, reload }: { files: DataFile[]; reload: () => Promi
           disabled={!varianceFile || busy}
           onClick={importVariances}
         >
-          Create variances and send e-mails
+          Create variances
         </button>
+        <p className="text-xs text-muted">
+          Each person gets one e-mail with all their new variances when the day closes, or when you
+          send them now.
+        </p>
       </div>
       <div className="md:col-span-2">
         <StatusMessage message={message} />
@@ -201,14 +207,18 @@ function CaseRow({
   item,
   staff,
   units,
+  rootCauses,
   reload,
 }: {
   item: VarianceCase;
   staff: VarianceStaff[];
   units: string[];
+  rootCauses: string[];
   reload: () => Promise<void>;
 }) {
   const [closing, setClosing] = useState(false);
+  const [rootCause, setRootCause] = useState("");
+  const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
   const [unit, setUnit] = useState("");
   const [message, setMessage] = useState<Message>(null);
@@ -276,8 +286,10 @@ function CaseRow({
       <td className="py-2 text-sm">
         {item.status === "corrected" ? (
           <div>
+            {item.root_cause && <p className="font-medium">{item.root_cause}</p>}
             <p>{item.reason}</p>
             <p className="text-xs text-muted">
+              {item.corrected_qty !== null ? `Quantity corrected ${item.corrected_qty} · ` : ""}
               {item.responsible_unit}
               {item.corrected_by ? ` · ${item.corrected_by}` : ""}
             </p>
@@ -296,12 +308,37 @@ function CaseRow({
               e.preventDefault();
               act(
                 sendJson("POST", `/api/admin/variances/cases/${item.id}/correct`, {
+                  root_cause: rootCause,
+                  corrected_qty: quantity === "" ? null : Number(quantity),
                   reason,
                   responsible_unit: unit,
                 }),
               );
             }}
           >
+            <select
+              className="input"
+              required
+              aria-label="Root cause"
+              value={rootCause}
+              onChange={(e) => setRootCause(e.target.value)}
+            >
+              <option value="">Root cause…</option>
+              {rootCauses.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input"
+              type="number"
+              step="any"
+              aria-label="Quantity corrected"
+              placeholder="Quantity corrected (optional)"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+            />
             <input
               className="input"
               required
@@ -347,6 +384,101 @@ function CaseRow({
         <StatusMessage message={message} />
       </td>
     </tr>
+  );
+}
+
+function SendPanel({
+  pending,
+  closeTime,
+  reload,
+}: {
+  pending: number;
+  closeTime: string;
+  reload: () => Promise<void>;
+}) {
+  const [message, setMessage] = useState<Message>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function send() {
+    setBusy(true);
+    const result = await sendJson<{ cases: number }>("POST", "/api/admin/variances/send-pending");
+    setBusy(false);
+    setMessage(
+      result.ok
+        ? { kind: "ok", text: `E-mails are being sent for ${result.data.cases} variances.` }
+        : { kind: "error", text: result.message },
+    );
+    // The worker sends them in the background; show the new count shortly after.
+    if (result.ok) setTimeout(() => void reload(), 2000);
+  }
+
+  return (
+    <section aria-label="E-mails" className="card mb-6 flex flex-wrap items-center gap-3">
+      <p className="mr-auto text-sm">
+        {pending === 0
+          ? "No new variances waiting for an e-mail."
+          : `${pending} new variance${pending === 1 ? "" : "s"} waiting: each person gets one e-mail with theirs at ${closeTime}.`}
+      </p>
+      <button type="button" className="btn-primary" disabled={pending === 0 || busy} onClick={send}>
+        Send e-mails now ({pending} waiting)
+      </button>
+      <div className="w-full">
+        <StatusMessage message={message} />
+      </div>
+    </section>
+  );
+}
+
+function ProgressTable({ rows }: { rows: AccuracyProgress[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <section aria-labelledby="progress-heading" className="mb-8">
+      <h2 id="progress-heading" className="mb-1 text-lg font-semibold">
+        Accuracy progress
+      </h2>
+      <p className="mb-3 text-sm text-muted">
+        Accuracy of each imported file when it was imported, and now that the corrected variances no
+        longer count.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[48rem] text-left text-sm">
+          <thead className="text-xs text-muted">
+            <tr>
+              <th className="pb-2">File</th>
+              <th className="pb-2 text-right">Lines</th>
+              <th className="pb-2 text-right">Variances</th>
+              <th className="pb-2 text-right">Corrected</th>
+              <th className="pb-2 text-right">Line accuracy</th>
+              <th className="pb-2 text-right">Quantity accuracy</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={`${r.file}-${r.imported_at}`} className="border-t border-line">
+                <td className="py-2 pr-2">
+                  {r.file}
+                  <div className="text-xs text-muted">
+                    {r.source} · {r.imported_at.slice(0, 10)}
+                  </div>
+                </td>
+                <td className="py-2 pr-2 text-right tabular-nums">{r.lines}</td>
+                <td className="py-2 pr-2 text-right tabular-nums">{r.variances}</td>
+                <td className="py-2 pr-2 text-right tabular-nums">
+                  {r.corrected} of {r.variances}
+                </td>
+                <td className="py-2 pr-2 text-right tabular-nums">
+                  {formatPercent(r.line_accuracy_before)} → {formatPercent(r.line_accuracy_now)}
+                </td>
+                <td className="py-2 text-right tabular-nums">
+                  {formatPercent(r.quantity_accuracy_before)} →{" "}
+                  {formatPercent(r.quantity_accuracy_now)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -405,6 +537,10 @@ export function VarianceBoard({
 
       <ImportPanel files={files} reload={reload} />
 
+      <SendPanel pending={overview.pending} closeTime={overview.day_close_time} reload={reload} />
+
+      <ProgressTable rows={overview.progress} />
+
       <section aria-label="Variances" className="mb-8">
         <div className="mb-3 flex flex-wrap items-end gap-3">
           <h2 className="mr-auto text-lg font-semibold">Variances</h2>
@@ -441,7 +577,7 @@ export function VarianceBoard({
               ))}
             </select>
           </Field>
-          <a className="btn-secondary" href="/api/admin/variances/export.xlsx">
+          <a className="btn-secondary" href="/api/admin/variances/export.xlsx" download>
             Download Excel
           </a>
         </div>
@@ -471,6 +607,7 @@ export function VarianceBoard({
                   item={c}
                   staff={overview.staff}
                   units={overview.units}
+                  rootCauses={overview.root_causes}
                   reload={reload}
                 />
               ))}

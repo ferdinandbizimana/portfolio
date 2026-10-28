@@ -23,6 +23,8 @@ export interface VarianceCase {
   colour: Colour;
   days_open: number;
   reason: string;
+  root_cause: string;
+  corrected_qty: number | null;
   responsible_unit: string;
   action_taken: string;
   corrected_by: string;
@@ -53,9 +55,34 @@ export interface VarianceOverview {
   cases: VarianceCase[];
   total: number;
   units: string[];
+  root_causes: string[];
   sources: Record<string, string>;
   overdue_days: number;
   bins: number;
+  /** New variances waiting for the day-close e-mail. */
+  pending: number;
+  day_close_time: string;
+  progress: AccuracyProgress[];
+}
+
+/** Accuracy of one imported file, before and after the corrections recorded. */
+export interface AccuracyProgress {
+  file: string;
+  source: string;
+  imported_at: string;
+  lines: number;
+  variances: number;
+  corrected: number;
+  open: number;
+  line_accuracy_before: number | null;
+  line_accuracy_now: number | null;
+  quantity_accuracy_before: number | null;
+  quantity_accuracy_now: number | null;
+}
+
+/** "98.5%", or "—" when there was nothing to measure. */
+export function formatPercent(value: number | null): string {
+  return value === null ? "—" : `${(value * 100).toFixed(1)}%`;
 }
 
 export interface PublicVariance {
@@ -74,11 +101,14 @@ export interface PublicVariance {
   days_open: number;
   overdue_days: number;
   reason: string;
+  root_cause: string;
+  corrected_qty: number | null;
   responsible_unit: string;
   action_taken: string;
   corrected_by: string;
   corrected_at: string | null;
   units: string[];
+  root_causes: string[];
 }
 
 export const COLOUR_LABEL: Record<Colour, string> = {

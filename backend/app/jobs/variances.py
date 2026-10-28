@@ -6,13 +6,12 @@ from typing import Any
 
 import pandas as pd
 import pyarrow.parquet as pq
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import datasets, variances
 from app.core.config import Settings, get_settings
 from app.core.mailer import Mailer
-from app.db.models import DataFile, VarianceCase
+from app.db.models import DataFile
 from app.db.session import session_scope
 from app.jobs.ingest import parsed_dir_key
 from app.jobs.notify import get_mailer
@@ -73,20 +72,45 @@ def mail_ready(settings: Settings) -> bool:
     return bool(settings.smtp_host and settings.mail_from)
 
 
-def send_assignments(case_ids: list[int]) -> int:
-    """Background job: e-mail the responsible people about newly assigned cases."""
-    settings = get_settings()
+def send_pending(
+    db: Session, settings: Settings, now: datetime, mailer: Mailer, force: bool = False
+) -> int:
+    """The day's new variances, one e-mail per person: when the day closes, or at once.
+
+    Cases created after today's close time wait for the next day's close.
+    """
     if not mail_ready(settings):
-        logger.info("Variance e-mails not sent: SMTP is not set up")
         return 0
-    with session_scope() as db:
-        today = local_time(settings, datetime.now(UTC)).date()
-        sent = _send(get_mailer(), variances.assignment_messages(db, settings, case_ids, today))
-        for case in db.scalars(select(VarianceCase).where(VarianceCase.id.in_(case_ids))):
-            if case.staff_id is not None:
-                case.notified_at = datetime.now(UTC)
-        db.commit()
+    local_now = local_time(settings, now)
+    if not force and not variances.day_closed(settings, local_now):
+        return 0
+    cases = variances.pending_cases(db)
+    if not force:
+        hours, minutes = (int(p) for p in settings.variance_day_close_time.split(":"))
+        close = local_now.replace(hour=hours, minute=minutes, second=0, microsecond=0)
+        cases = [
+            c for c in cases if c.created_at is None or local_time(settings, c.created_at) < close
+        ]
+    today = local_now.date()
+    sent = 0
+    for items, message in variances.assignment_messages(db, settings, cases, today):
+        try:
+            mailer.send(message)
+        except Exception:
+            logger.exception("Could not send the new variances to %s", message["To"])
+            continue
+        sent += 1
+        for case in items:
+            case.notified_at = now
+    db.commit()
     return sent
+
+
+def send_pending_now() -> int:
+    """Background job: the admin's "Send e-mails now"."""
+    settings = get_settings()
+    with session_scope() as db:
+        return send_pending(db, settings, datetime.now(UTC), get_mailer(), force=True)
 
 
 def send_digests(db: Session, settings: Settings, now: datetime, mailer: Mailer) -> int:

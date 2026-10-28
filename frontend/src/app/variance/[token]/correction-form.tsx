@@ -14,6 +14,8 @@ import {
 
 export function CorrectionForm({ token, initial }: { token: string; initial: PublicVariance }) {
   const [variance, setVariance] = useState(initial);
+  const [rootCause, setRootCause] = useState("");
+  const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
   const [unit, setUnit] = useState("");
   const [action, setAction] = useState("");
@@ -28,7 +30,14 @@ export function CorrectionForm({ token, initial }: { token: string; initial: Pub
     const result = await sendJson<PublicVariance>(
       "POST",
       `/api/public/variances/${encodeURIComponent(token)}/correct`,
-      { reason, responsible_unit: unit, action_taken: action, corrected_by: name },
+      {
+        root_cause: rootCause,
+        corrected_qty: quantity === "" ? null : Number(quantity),
+        reason,
+        responsible_unit: unit,
+        action_taken: action,
+        corrected_by: name,
+      },
     );
     setSaving(false);
     if (result.ok) {
@@ -91,10 +100,22 @@ export function CorrectionForm({ token, initial }: { token: string; initial: Pub
       {v.status === "corrected" ? (
         <section aria-label="Correction" className="card flex flex-col gap-1 text-sm">
           <StatusMessage message={message} />
+          {v.root_cause && (
+            <p>
+              <span className="text-muted">Root cause: </span>
+              {v.root_cause}
+            </p>
+          )}
           <p>
             <span className="text-muted">Reason: </span>
             {v.reason}
           </p>
+          {v.corrected_qty !== null && (
+            <p>
+              <span className="text-muted">Quantity corrected: </span>
+              {v.corrected_qty}
+            </p>
+          )}
           <p>
             <span className="text-muted">Responsible unit: </span>
             {v.responsible_unit}
@@ -115,7 +136,22 @@ export function CorrectionForm({ token, initial }: { token: string; initial: Pub
       ) : (
         <form onSubmit={submit} className="card flex flex-col gap-4">
           <h2 className="font-semibold">Record the correction</h2>
-          <Field label="Reason for the variance">
+          <Field label="Root cause">
+            <select
+              className="input"
+              required
+              value={rootCause}
+              onChange={(e) => setRootCause(e.target.value)}
+            >
+              <option value="">Choose…</option>
+              {v.root_causes.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Reason for the variance" hint="What happened, in your words.">
             <textarea
               className="input"
               required
@@ -140,6 +176,19 @@ export function CorrectionForm({ token, initial }: { token: string; initial: Pub
                 </option>
               ))}
             </select>
+          </Field>
+          <Field
+            label="Quantity corrected"
+            hint={`Optional. The difference found was ${formatDifference(v.difference_qty)}.`}
+          >
+            <input
+              className="input"
+              type="number"
+              step="any"
+              inputMode="decimal"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+            />
           </Field>
           <Field label="Action taken" hint="For example: stock moved back, posting corrected.">
             <textarea

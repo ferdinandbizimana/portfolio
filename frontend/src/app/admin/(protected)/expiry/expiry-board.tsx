@@ -71,6 +71,9 @@ function RunCard({
             <strong>
               {review.justified} of {review.items} justified
             </strong>
+            {" · "}
+            {review.measured} of {review.projected} measures recorded for items expiring within 6
+            months
             {review.mailed_month ? ` · e-mailed for ${review.mailed_month}` : " · not e-mailed yet"}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -92,14 +95,16 @@ function RunCard({
             <a
               className="btn-secondary"
               href={`/api/admin/expiry/reviews/${review.id}/justifications.xlsx`}
+              download
             >
-              Justifications (Excel)
+              Download justifications and measures (Excel)
             </a>
             <a
               className="btn-secondary"
               href={`/api/admin/expiry/reviews/${review.id}/justifications.html`}
+              download
             >
-              Justifications dashboard (HTML)
+              Download justifications dashboard (HTML)
             </a>
           </div>
         </>

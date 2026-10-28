@@ -17,7 +17,7 @@ interface MailSummary {
   Bcc: { Address: string }[];
 }
 
-test("a spot check variance is assigned, e-mailed and corrected through its link", async ({
+test("a spot check variance is assigned, e-mailed and corrected with its root cause", async ({
   page,
   request,
 }) => {
@@ -66,13 +66,19 @@ test("a spot check variance is assigned, e-mailed and corrected through its link
   await varianceFile.selectOption(
     await varianceFile.locator("option", { hasText: `spot-${tag}.csv` }).getAttribute("value"),
   );
-  await page.getByRole("button", { name: "Create variances and send e-mails" }).click();
-  await expect(page.getByRole("status")).toContainText("Spot check: 1 new variances");
+  await page.getByRole("button", { name: "Create variances", exact: true }).click();
+  await expect(page.getByRole("status").first()).toContainText("Spot check: 1 new variances");
   const row = page.getByRole("row").filter({ hasText: bin });
   await expect(row).toContainText("Open");
   await expect(row).toContainText("-2");
+  // 1 line checked with a variance: 0% line accuracy until it is corrected.
+  const progress = page.getByRole("row").filter({ hasText: `spot-${tag}.csv` });
+  await expect(progress).toContainText("0.0% → 0.0%");
 
-  // The worker e-mails the responsible person, with the manager in BCC.
+  // The e-mails wait for the day close; the admin sends them now. One e-mail per
+  // person, with the manager in BCC.
+  await page.getByRole("button", { name: /Send e-mails now/ }).click();
+  await expect(page.getByRole("region", { name: "E-mails" })).toContainText("being sent");
   let mail: MailSummary | undefined;
   await expect
     .poll(
@@ -96,7 +102,9 @@ test("a spot check variance is assigned, e-mailed and corrected through its link
   await page.context().clearCookies();
   await page.goto(new URL(link).pathname);
   await expect(page.getByRole("heading", { name: `Stock variance in bin ${bin}` })).toBeVisible();
+  await page.getByLabel("Root cause").selectOption("Location / material-code mismatch");
   await page.getByLabel("Reason for the variance").fill("Picked from the wrong bin");
+  await page.getByLabel("Quantity corrected").fill("2");
   await page.getByLabel("Responsible unit").selectOption("Picking");
   await page.getByLabel("Action taken").fill("Stock moved back to the bin");
   await page.getByRole("button", { name: "Mark as corrected" }).click();
@@ -107,6 +115,11 @@ test("a spot check variance is assigned, e-mailed and corrected through its link
   const done = page.getByRole("row").filter({ hasText: bin });
   await expect(done).toContainText("Corrected");
   await expect(done).toContainText("Picked from the wrong bin");
+  await expect(done).toContainText("Location / material-code mismatch");
+  // The accuracy progress counts the correction: 100% line accuracy now.
+  await expect(page.getByRole("row").filter({ hasText: `spot-${tag}.csv` })).toContainText(
+    "0.0% → 100.0%",
+  );
 });
 
 test("picker accuracy from the picking register", async ({ page }) => {

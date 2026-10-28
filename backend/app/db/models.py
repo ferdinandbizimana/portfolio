@@ -348,6 +348,8 @@ class VarianceCase(Base):
     )
     status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | corrected
     reason: Mapped[str] = mapped_column(Text, default="")
+    root_cause: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    corrected_qty: Mapped[float | None] = mapped_column()  # quantity posted to correct it
     responsible_unit: Mapped[str] = mapped_column(String(40), default="")
     action_taken: Mapped[str] = mapped_column(Text, default="")
     corrected_by: Mapped[str] = mapped_column(String(200), default="")
@@ -355,6 +357,24 @@ class VarianceCase(Base):
     token: Mapped[str] = mapped_column(String(64), unique=True)
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class VarianceImport(Base):
+    """A variance file imported into the follow-up: its lines, for the accuracy progress."""
+
+    __tablename__ = "variance_imports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    data_file_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data_files.id", ondelete="SET NULL"), unique=True
+    )
+    source: Mapped[str] = mapped_column(String(24))
+    filename: Mapped[str] = mapped_column(String(255), default="")
+    lines: Mapped[int] = mapped_column(Integer, default=0)  # every line checked, variance or not
+    system_qty: Mapped[float] = mapped_column(default=0.0)
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class ExpiryReview(Base):
@@ -379,10 +399,16 @@ class ExpiryReview(Base):
 
 
 class ExpiryJustification(Base):
-    """Why an item expired: a root cause from the list and the reason in words."""
+    """Why an item expired (kind "expired": a root cause from the list and the reason
+    in words), or what is done to avoid an expiry (kind "projected": a measure from
+    the list and its details)."""
 
     __tablename__ = "expiry_justifications"
-    __table_args__ = (UniqueConstraint("review_id", "material"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "review_id", "kind", "material", name="uq_expiry_justifications_review_id_kind"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     review_id: Mapped[int] = mapped_column(
@@ -393,6 +419,8 @@ class ExpiryJustification(Base):
     owner: Mapped[str] = mapped_column(String(40), default="")  # commercial / programme
     plants: Mapped[str] = mapped_column(String(500), default="")
     value: Mapped[float] = mapped_column(default=0.0)
+    kind: Mapped[str] = mapped_column(String(16), default="expired", server_default="expired")
+    band: Mapped[str] = mapped_column(String(40), default="", server_default="")  # projected
     root_cause: Mapped[str] = mapped_column(String(120), default="")
     reason: Mapped[str] = mapped_column(Text, default="")
     justified_by: Mapped[str] = mapped_column(String(200), default="")

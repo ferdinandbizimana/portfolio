@@ -27,6 +27,8 @@ public_router = APIRouter(prefix="/api/public/expiry", tags=["public"])
 
 class ItemOut(BaseModel):
     id: int
+    kind: str  # expired | projected
+    band: str  # projected: Within 3 months | 3 to 6 months
     material: str
     description: str
     owner: str
@@ -55,6 +57,8 @@ class ReviewOut(BaseModel):
     items: int
     justified: int
     expired_value: float
+    projected: int
+    measured: int
     link: str
 
 
@@ -71,6 +75,7 @@ class Overview(BaseModel):
     runs: list[RunRow]
     mail_ready: bool
     root_causes: list[str]
+    measures: list[str]
 
 
 class ReviewDetail(BaseModel):
@@ -78,6 +83,7 @@ class ReviewDetail(BaseModel):
     items: list[ItemOut]
     outlook: list[PlantOutlook]
     root_causes: list[str]
+    measures: list[str]
 
 
 class Justification(BaseModel):
@@ -97,7 +103,9 @@ def _items(db: Any, review: ExpiryReview) -> list[ExpiryJustification]:
 
 
 def _review_out(db: Any, settings: Any, review: ExpiryReview) -> ReviewOut:
-    items = _items(db, review)
+    everything = _items(db, review)
+    items = [i for i in everything if i.kind != expiry.PROJECTED]
+    projected = [i for i in everything if i.kind == expiry.PROJECTED]
     return ReviewOut(
         id=review.id,
         run_id=review.run_id,
@@ -107,6 +115,8 @@ def _review_out(db: Any, settings: Any, review: ExpiryReview) -> ReviewOut:
         items=len(items),
         justified=sum(1 for i in items if i.root_cause),
         expired_value=sum(i.value for i in items),
+        projected=len(projected),
+        measured=sum(1 for i in projected if i.root_cause),
         link=expiry.link(settings, review),
     )
 
@@ -114,6 +124,8 @@ def _review_out(db: Any, settings: Any, review: ExpiryReview) -> ReviewOut:
 def _item_out(item: ExpiryJustification) -> ItemOut:
     return ItemOut(
         id=item.id,
+        kind=item.kind,
+        band=item.band,
         material=item.material,
         description=item.description,
         owner=item.owner,
@@ -142,6 +154,7 @@ def _detail(db: Any, settings: Any, storage: Any, review: ExpiryReview) -> Revie
             for p, n, e, w, s in plants.itertuples(index=False)
         ],
         root_causes=expiry.ROOT_CAUSES,
+        measures=expiry.MEASURES,
     )
 
 
@@ -192,6 +205,7 @@ def overview(_: CurrentUserDep, db: DbDep, settings: SettingsDep) -> Overview:
         ],
         mail_ready=ready(settings),
         root_causes=expiry.ROOT_CAUSES,
+        measures=expiry.MEASURES,
     )
 
 

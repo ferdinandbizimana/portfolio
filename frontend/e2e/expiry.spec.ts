@@ -140,6 +140,8 @@ test("expiry monitoring, the pharmacist's justification and the monthly e-mail",
   await form.getByRole("button", { name: "Save" }).click();
   await expect(form.getByRole("status")).toContainText("Saved.");
   await expect(page.getByRole("heading", { name: /1 of 1 done/ })).toBeVisible();
+  // Nothing left at closing expires within six months: no measure to record.
+  await expect(page.getByText("Nothing expires within six months.")).toBeVisible();
 
   await signInOk(page);
   await page.goto("/admin/expiry");

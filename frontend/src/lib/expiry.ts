@@ -2,6 +2,10 @@
 
 export interface ExpiryItem {
   id: number;
+  /** "expired": why it expired; "projected": the measure taken to avoid the expiry. */
+  kind: "expired" | "projected";
+  /** Projected items: "Within 3 months" or "3 to 6 months". */
+  band: string;
   material: string;
   description: string;
   owner: string;
@@ -30,6 +34,8 @@ export interface ExpiryReview {
   items: number;
   justified: number;
   expired_value: number;
+  projected: number;
+  measured: number;
   link: string;
 }
 
@@ -46,6 +52,7 @@ export interface ExpiryOverview {
   runs: ExpiryRunRow[];
   mail_ready: boolean;
   root_causes: string[];
+  measures: string[];
 }
 
 export interface ExpiryDetail {
@@ -53,6 +60,7 @@ export interface ExpiryDetail {
   items: ExpiryItem[];
   outlook: PlantOutlook[];
   root_causes: string[];
+  measures: string[];
 }
 
 /** "RWF 1,234,567" (no decimals; money is kept in full in the data). */
@@ -60,7 +68,7 @@ export function rwf(value: number): string {
   return `RWF ${Math.round(value).toLocaleString("en-US")}`;
 }
 
-/** The root cause that needs the reason written out. */
+/** The root cause (or measure) that needs the reason written out: "Other", the last one. */
 export function needsReason(rootCauses: string[], cause: string): boolean {
   return cause !== "" && cause === rootCauses[rootCauses.length - 1];
 }
