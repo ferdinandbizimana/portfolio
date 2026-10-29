@@ -134,7 +134,11 @@ how to reach you. Empty parts are hidden, so the site never shows a gap.
    matched to the kinds of file the analyses know.
 2. **Analyses** → **Run**: give the run a name (e.g. "End of June 2026"),
    fill in the parameters (e.g. the period end) and choose the file and sheet
-   for each input. Recognised sheets are chosen for you.
+   for each input. Recognised sheets are chosen for you. Inputs that take several
+   files (VA05, the outbound deliveries list and MB51 of the order fill rate)
+   show **Add more files of this kind**: tick the other months. The files are
+   read one after the other (a "Source File" column says which); a file that is a
+   byte-for-byte copy of one already chosen is left out and listed on the run page.
 3. The run page follows the progress. If a file does not fit, nothing is
    calculated and each problem is listed with the file, sheet, row and column.
 4. When it finishes: the checks (all must pass), the dashboard, and the Excel,
@@ -236,6 +240,24 @@ district and facility type; they apply to every section unless the section
 says otherwise. If the VA05 export has the "Plant" column it gives each line's
 plant; otherwise the delivering plant (or the plant that usually serves the
 customer) is used.
+
+In the style of your "Order Fill Rate — Master Prompt (v3)": several VA05 (and
+delivery, MB51) files can be chosen, one per month. The run first checks the
+data: VA05 rows read, months present against the months of the period, rows
+left out by reason (outside the period, customer returns ZRRE, unassigned plant,
+zero quantity), schedule lines (an item's rows that repeat the same quantity and
+value count once; rows that differ add up), and the ordered value recomputed as
+quantity × net price against VA05, month by month. The Word report and the SMT
+deck then give the executive summary (delivered qty %, delivered value %, RM
+revenue not captured, donor units not delivered, lines and orders
+Delivered-In-Full), how to read the figures, loss per WBS, trend, quarters and
+what drove each one (main items, weakest plants), plants, top RM items by value
+and top donor items by units not delivered, the most frequently short items,
+most-missing items over time, Delivered-In-Full by order type, customers,
+facilities and regions, recommendations with owner and timing, and data notes.
+The Excel workbook adds README, Data checks, Source check, Value reconciliation
+and **Calc quarters** (live SUMIFS / COUNTIFS formulas on the Order lines sheet,
+with a Difference column that must be 0).
 
 ### Expiry monitoring and the monthly follow-up
 

@@ -241,3 +241,102 @@ def test_confirmed_quantity_programme_value_and_facilities() -> None:
     assert all(c.passed for c in result.checks)
     for report in ANALYSIS.reports(result, PARAMS, Templates()):
         check_report(report.kind, report.content)
+
+
+# --- v3 style (Ferdinand, 29 October 2026) -------------------------------------------
+
+
+def test_schedule_lines_count_once_and_returns_are_left_out() -> None:
+    inputs = data()
+    orders = inputs["orders"]
+    extra = pd.DataFrame(
+        [
+            # Order 100 item 10 again: a schedule line repeating the item quantity and value.
+            ["0000000100", "000010", "2026-04-01", "C1", "0001", 10, 1000, "ZRMS", ""],
+            # A customer return and a line without plant: both outside the base.
+            ["600", "10", "2026-05-02", "C2", "3", 2, 200, "ZRRE", ""],
+            ["700", "10", "2026-05-03", "C2", "3", 2, 200, "ZRMS", "Unassigned"],
+        ],
+        columns=[*ORDER_COLUMNS, "Sales Document Type", "Plant"],
+    )
+    extra["Document Date"] = pd.to_datetime(extra["Document Date"])
+    orders = orders.assign(**{"Sales Document Type": "ZRMS", "Plant": ""})
+    inputs["orders"] = pd.concat([orders, extra], ignore_index=True)
+    result = ANALYSIS.compute(inputs, PARAMS)
+    kpis = {k.label: k.value for k in result.metrics}
+    assert kpis["Order lines"] == 4  # unchanged: the repeat counted once, the rest left out
+    assert kpis["Quantity fill rate"] == pytest.approx(21 / 27)
+    checks = result.tables["data_checks"].set_index("Check")["Value"]
+    assert checks["VA05 rows read"] == 9
+    assert checks["Left out: Customer return (ZRRE)"] == 1
+    assert checks["Left out: Plant / shipping point unassigned"] == 1
+    assert checks["Left out: Order date outside the period"] == 1
+    assert checks["Left out: Zero or negative quantity"] == 1
+    assert checks["Order items with repeated schedule lines"] == 1
+    assert checks["Order lines analysed"] == 4
+    source = result.tables["source_check"]
+    assert int(source["Rows Read"].sum()) == 9
+    assert int(source["Rows Analysed"].sum()) == 5  # four lines, one of them on two rows
+
+
+def test_rows_of_an_item_that_differ_add_up() -> None:
+    inputs = data()
+    second = pd.DataFrame([["200", "10", "2026-05-10", "C2", "1", 2, 200]], columns=ORDER_COLUMNS)
+    second["Document Date"] = pd.to_datetime(second["Document Date"])
+    inputs["orders"] = pd.concat([inputs["orders"], second], ignore_index=True)
+    lines = ANALYSIS.compute(inputs, PARAMS).tables["lines"].set_index(["Sales Document", "Item"])
+    assert lines.loc[("200", "10"), "Ordered Qty"] == 10  # 8 + 2
+    assert lines.loc[("200", "10"), "Ordered Value"] == 1000
+
+
+def test_v3_tables_hand_checked(result: Any) -> None:
+    wbs = result.tables["v3_by_wbs"].set_index("WBS")
+    own = wbs.loc[WBS_OWN]
+    assert (own["Ordered Value"], own["Value Not Delivered"]) == (2700, 600)
+    assert own["Not Delivered Qty"] == 6  # 27 ordered, 21 delivered
+    quarters = result.tables["v3_by_quarter"]
+    assert quarters["Quarter"].tolist() == ["Q4 · Apr–Jun"]
+    assert quarters.iloc[0]["Line DIF %"] == 0.5
+    checks = result.tables["data_checks"].set_index("Check")
+    assert checks.loc["Months with orders", "Value"] == 3
+    assert checks.loc["Months with orders", "Note"] == "of 3 in the period"
+    top = result.tables["v3_top_rm_items"]
+    assert top.iloc[0]["Value Not Delivered"] == 400  # order 300: nothing goods issued
+    customers = result.tables["v3_top_customers"]
+    assert customers.iloc[0]["Value Not Delivered"] == 400
+
+
+def test_v3_report_and_workbook_with_live_formulas(result: Any) -> None:
+    import io
+
+    from openpyxl import load_workbook
+
+    from app.reporting.guard import pptx_texts
+
+    files = {f.kind: f for f in ANALYSIS.reports(result, PARAMS, Templates())}
+    texts = " | ".join(pptx_texts(files["pptx"].content))
+    for part in (
+        "Executive summary",
+        "RMS delivered 77.8% of the units and 77.8% of the value ordered",
+        "How to read the figures",
+        "A · Loss per WBS element",
+        "Order fill rate per quarter",
+        "Facilities and regions",
+        "Recommendations and next steps",
+        "Data notes",
+    ):
+        assert part in texts, part
+    book = load_workbook(io.BytesIO(files["xlsx"].content))
+    assert book.sheetnames[:6] == [
+        "Summary",
+        "README",
+        "Data checks",
+        "Source check",
+        "Value reconciliation",
+        "Calc quarters",
+    ]
+    calc = book["Calc quarters"]
+    assert str(calc["B5"].value).startswith("=SUMIFS('Order lines'!")
+    assert str(calc["L5"].value) == "=F5-K5"
+    for report in files.values():
+        check_report(report.kind, report.content)

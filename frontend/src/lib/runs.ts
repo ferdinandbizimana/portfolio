@@ -17,9 +17,28 @@ export interface RunSummary {
   finished_at: string | null;
 }
 
+export interface RunFile {
+  data_file_id: number;
+  sheet: string;
+  filename: string;
+  sha256: string;
+}
+
+/** One input of a run: its file, plus the other files when the input takes several. */
+export interface RunInput extends RunFile {
+  more?: RunFile[];
+  /** Byte-identical copies that were left out. */
+  skipped?: string[];
+}
+
+/** Every file of a run input, in the order they were read. */
+export function inputFiles(input: RunInput): RunFile[] {
+  return [input, ...(input.more ?? [])];
+}
+
 export interface Run extends RunSummary {
   parameters: Record<string, unknown>;
-  inputs: Record<string, { data_file_id: number; sheet: string; filename: string; sha256: string }>;
+  inputs: Record<string, RunInput>;
   errors: string[];
   checks: Dashboard["checks"];
   metrics: Dashboard["kpis"];
@@ -42,6 +61,8 @@ export interface AnalysisInfo {
     required: boolean;
     /** The input takes every sheet of the file recognised as the dataset. */
     all_sheets: boolean;
+    /** The input takes several files (e.g. one export per month). */
+    multiple?: boolean;
   }[];
   parameters_schema: {
     properties?: Record<
