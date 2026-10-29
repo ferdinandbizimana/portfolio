@@ -15,6 +15,12 @@
   --color-success-soft: #e1f2e8;
   --color-warning: #8a5a00;
   --color-warning-soft: #fdf0d5;
+  /* Personal brand: gold from the same dashboards, for key results only. */
+  --color-gold: #f7bc15;
+  --color-accent-soft: #e6f1fa;
+  --color-hero: #0f1b3a;
+  --color-on-hero: #ffffff;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -32,6 +38,10 @@
     --color-success-soft: #16322a;
     --color-warning: #f4c26b;
     --color-warning-soft: #3a2e14;
+    --color-gold: #f7c948;
+    --color-accent-soft: #15283f;
+    --color-hero: #0a1226;
+    --color-on-hero: #ffffff;
   }
 }
 
@@ -62,6 +72,29 @@ body {
   .card,
   nav a {
     @apply text-ink;
+  }
+
+  /* Portfolio building blocks */
+  .eyebrow {
+    @apply text-xs font-semibold tracking-[0.14em] text-accent uppercase;
+  }
+  .section-title {
+    @apply text-2xl font-semibold tracking-tight sm:text-3xl;
+  }
+  .lead {
+    @apply text-lg leading-relaxed text-muted;
+  }
+  .chip {
+    @apply rounded-full border border-line bg-surface px-3 py-1 text-sm text-ink;
+  }
+  .tile {
+    @apply rounded-xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)];
+  }
+  .btn-hero {
+    @apply inline-flex items-center gap-2 rounded-md bg-gold px-5 py-2.5 text-sm font-semibold text-hero hover:brightness-95;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 rounded-md border border-white/40 px-5 py-2.5 text-sm font-semibold text-on-hero hover:bg-white/10;
   }
 }
 

@@ -101,6 +101,12 @@ class Profile(Base):
     cv_file_id: Mapped[int | None] = mapped_column(
         ForeignKey("stored_files.id", ondelete="SET NULL")
     )
+    # Personal brand (Ferdinand, 29 October 2026): what a recruiter looks for first.
+    availability: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    highlights: Mapped[list[dict[str, str]]] = mapped_column(JsonDict, default=list)  # key results
+    certifications: Mapped[list[dict[str, str]]] = mapped_column(JsonDict, default=list)
+    education: Mapped[list[dict[str, str]]] = mapped_column(JsonDict, default=list)
+    languages: Mapped[list[str]] = mapped_column(JsonDict, default=list)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

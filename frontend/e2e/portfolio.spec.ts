@@ -32,11 +32,20 @@ test("profile edits, photo and CV appear on the public site at once", async ({ p
     .locator("input[type=file][accept='application/pdf']")
     .setInputFiles({ name: "CV Ferdinand.pdf", mimeType: "application/pdf", buffer: PDF });
   await expect(page.getByRole("link", { name: "CV Ferdinand.pdf" })).toBeVisible();
+  const availability = `Open to supply chain roles ${unique()}`;
+  await page.getByLabel("Availability").fill(availability);
+  await page.getByRole("button", { name: "Add a key result" }).click();
+  await page.getByLabel("Result 1: figure").fill("98%");
+  await page.getByLabel("Result 1: what it measures").fill("bin accuracy (test)");
   await page.getByRole("button", { name: "Save profile" }).click();
   await expect(page.getByRole("status")).toContainText("Saved");
 
   await page.goto("/");
   await expect(page.getByText(headline)).toBeVisible();
+  await expect(page.getByText(availability)).toBeVisible();
+  const results = page.getByRole("region", { name: "Key results" });
+  await expect(results).toContainText("98%");
+  await expect(results).toContainText("bin accuracy (test)");
   await expect(page.locator("strong", { hasText: "SAP exports" })).toBeVisible();
   const cvLink = page.getByRole("link", { name: "Download CV" }).first();
   const href = await cvLink.getAttribute("href");

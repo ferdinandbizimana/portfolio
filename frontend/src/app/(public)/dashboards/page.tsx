@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { PageShell } from "@/components/portfolio/page-shell";
 import { formatDateTime } from "@/lib/audit";
 import { fetchPublicDashboards } from "@/lib/public-api";
 
@@ -10,12 +11,11 @@ export default async function DashboardsPage() {
   const dashboards = await fetchPublicDashboards();
 
   return (
-    <div>
-      <h1 className="mb-2 text-3xl font-semibold">Dashboards</h1>
-      <p className="mb-8 text-muted">
-        Interactive summaries of supply chain analyses. Use the filters and search on each dashboard
-        to explore the figures.
-      </p>
+    <PageShell
+      eyebrow="Live work"
+      title="Dashboards"
+      intro="Interactive summaries of supply chain analyses, built from SAP exports. Use the filters and search on each dashboard to explore the figures."
+    >
       {dashboards.length === 0 ? (
         <p className="text-muted">No dashboards are published yet.</p>
       ) : (
@@ -24,7 +24,7 @@ export default async function DashboardsPage() {
             <li key={d.slug}>
               <Link
                 href={`/dashboards/${d.slug}`}
-                className="flex h-full flex-col gap-2 rounded-lg border border-line p-4 text-ink hover:bg-panel"
+                className="tile flex h-full flex-col gap-2 text-ink no-underline hover:border-accent"
               >
                 <h2 className="font-semibold">{d.title}</h2>
                 {d.description && <p className="text-sm text-muted">{d.description}</p>}
@@ -38,6 +38,6 @@ export default async function DashboardsPage() {
           ))}
         </ul>
       )}
-    </div>
+    </PageShell>
   );
 }

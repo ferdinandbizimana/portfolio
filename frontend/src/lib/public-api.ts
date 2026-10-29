@@ -1,6 +1,6 @@
 import "server-only";
 
-import { PORTFOLIO_TAG, type Portfolio, type Project } from "./portfolio";
+import { PORTFOLIO_TAG, withProfileDefaults, type Portfolio, type Project } from "./portfolio";
 import type { PublicDashboard, PublicListItem } from "./publications";
 import { API_URL } from "./server-api";
 
@@ -13,7 +13,7 @@ export async function fetchPortfolio(): Promise<Portfolio> {
     next: { revalidate: REVALIDATE_SECONDS, tags: [PORTFOLIO_TAG] },
   });
   if (!response.ok) throw new Error(`Portfolio could not be loaded (${response.status}).`);
-  return (await response.json()) as Portfolio;
+  return withProfileDefaults((await response.json()) as Portfolio);
 }
 
 /** A published project, or null if there is none with this slug. */

@@ -6,8 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.content.schemas import (
+    Credential,
     ExperienceOut,
     FileRef,
+    Highlight,
     ProfileOut,
     ProjectOut,
     ProjectSummaryOut,
@@ -55,6 +57,11 @@ def profile_out(db: Session, profile: Profile) -> ProfileOut:
         github_url=profile.github_url,
         photo=file_ref(db, profile.photo_file_id),
         cv=file_ref(db, profile.cv_file_id),
+        availability=profile.availability or "",
+        highlights=[Highlight(**h) for h in profile.highlights or []],
+        certifications=[Credential(**c) for c in profile.certifications or []],
+        education=[Credential(**c) for c in profile.education or []],
+        languages=list(profile.languages or []),
     )
 
 

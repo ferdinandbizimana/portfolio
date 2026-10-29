@@ -7,7 +7,7 @@ import "./globals.css";
 
 const NAME = "Ferdinand Bizimana";
 const DESCRIPTION =
-  "Supply chain professional working with SAP S/4HANA (MM, EWM, SD, FI): portfolio, case studies and dashboards.";
+  "Supply chain and inventory analyst working with SAP S/4HANA (MM, EWM, SD, FI): case studies, live dashboards and CV.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),

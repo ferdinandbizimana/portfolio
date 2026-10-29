@@ -17,7 +17,7 @@ export default async function DashboardPage({ params }: Props) {
   const data = await fetchPublicDashboard((await params).slug);
   if (!data) notFound();
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-10">
       <Link href="/dashboards" className="text-sm">
         ← All dashboards
       </Link>
