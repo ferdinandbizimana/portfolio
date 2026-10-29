@@ -214,8 +214,8 @@
   const total = (t, ignore) => aggregate(t, () => "", ignore).get("") || {};
 
   // ---------- layout
-  const COLORS = ["#0079BF", "#C55A11", "#2F6B4F", "#B23A2E", "#F7BC15", "#6B4E9B", "#7A1F1F", "#5E5E5E", "#7FB8DD", "#9AA5B1"];
-  const RED = "#B23A2E", AMBER = "#C55A11", GREEN = "#2F6B4F";
+  const COLORS = ["#0071CE", "#00AE42", "#F7BE00", "#66AAE2", "#66CE8E", "#5E6B78", "#99C6EB", "#B78C00", "#C0392B", "#9AA5B1"];
+  const RED = "#C0392B", AMBER = "#B78C00", GREEN = "#00AE42";
   if (window.Chart) {
     Chart.defaults.font.family = "-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
     Chart.defaults.color = "#4A5568";

@@ -15,7 +15,14 @@ from sqlalchemy import select
 from app.api.deps import CurrentUserDep, DbDep, NowDep, client_ip
 from app.core import audit
 from app.db.models import AnalysisRun, Publication
-from app.publishing import DetailLevel, build_snapshot, new_token, slug_base
+from app.publishing import (
+    DetailLevel,
+    build_snapshot,
+    neutral,
+    neutral_text,
+    new_token,
+    slug_base,
+)
 
 Visibility = Literal["private", "secret", "public"]
 
@@ -129,11 +136,11 @@ def create_publication(
     run, dashboard = _finished_run(db, run_id)
     publication = Publication(
         run_id=run.id,
-        slug=_unique_slug(db, body.title),
+        slug=_unique_slug(db, neutral_text(body.title)),
         secret_token=new_token(),
         visibility="private",
-        title=body.title.strip(),
-        description=body.description.strip(),
+        title=neutral_text(body.title.strip()),
+        description=neutral_text(body.description.strip()),
         detail_level=body.detail_level,
         include_checks=body.include_checks,
         snapshot=build_snapshot(dashboard, body.detail_level, body.include_checks),
@@ -182,9 +189,9 @@ def update_publication(
 ) -> PublicationOut:
     publication = _publication(db, publication_id)
     if body.title is not None:
-        publication.title = body.title.strip()
+        publication.title = neutral_text(body.title.strip())
     if body.description is not None:
-        publication.description = body.description.strip()
+        publication.description = neutral_text(body.description.strip())
     if body.visibility is not None and body.visibility != publication.visibility:
         previous = publication.visibility
         publication.visibility = body.visibility
@@ -240,10 +247,10 @@ def delete_publication(
 def _public(publication: Publication) -> PublicDashboard:
     return PublicDashboard(
         slug=publication.slug,
-        title=publication.title,
-        description=publication.description,
+        title=neutral_text(publication.title),
+        description=neutral_text(publication.description),
         published_at=publication.published_at,
-        dashboard=publication.snapshot,
+        dashboard=neutral(publication.snapshot),  # also snapshots made before the rule
     )
 
 
@@ -256,7 +263,10 @@ def public_dashboards(db: DbDep) -> list[PublicListItem]:
     ).all()
     return [
         PublicListItem(
-            slug=p.slug, title=p.title, description=p.description, published_at=p.published_at
+            slug=p.slug,
+            title=neutral_text(p.title),
+            description=neutral_text(p.description),
+            published_at=p.published_at,
         )
         for p in rows
     ]

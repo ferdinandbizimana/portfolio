@@ -53,6 +53,14 @@ def facts(open_lines: pd.DataFrame, received: pd.DataFrame) -> dict[str, pd.Data
                     open_lines["Receiving Plant"], open_lines["Receiving Plant Name"]
                 ),
                 "Age": open_lines["Age"],
+                "Lane": [
+                    f"{s} → {r}"
+                    for s, r in zip(
+                        _plant(open_lines["Supplying Plant"], open_lines["Supplying Plant Name"]),
+                        _plant(open_lines["Receiving Plant"], open_lines["Receiving Plant Name"]),
+                        strict=True,
+                    )
+                ],
                 "STO": open_lines["STO"],
                 "Item": [
                     f"{d} [{m}]" if d else m
@@ -78,6 +86,20 @@ def facts(open_lines: pd.DataFrame, received: pd.DataFrame) -> dict[str, pd.Data
                     f"{p} · {names[p]}" if names.get(p) else p for p in received["Receiving Plant"]
                 ],
                 "Month": month_of(received["Goods Receipt Date"]),
+                "Lane": [
+                    f"{s} → {r}"
+                    for s, r in zip(
+                        [
+                            f"{p} · {names[p]}" if names.get(p) else p
+                            for p in received["Supplying Plant"]
+                        ],
+                        [
+                            f"{p} · {names[p]}" if names.get(p) else p
+                            for p in received["Receiving Plant"]
+                        ],
+                        strict=True,
+                    )
+                ],
                 "Transit days": pd.to_numeric(received["Transit Days"], errors="coerce").fillna(
                     0.0
                 ),
@@ -146,7 +168,30 @@ def build(
                 ),
             ),
             DashSection(
-                "C · Plants",
+                "C · Lanes (supplying → receiving plant)",
+                note=(
+                    "Where the value waits, and how long the transfers already received took "
+                    "on the same lane."
+                ),
+                blocks=(
+                    TableSpec(
+                        "Stock in transit by lane",
+                        "open",
+                        ("Lane",),
+                        ("lines", "stos", "value", "avg_days"),
+                        sort_by="value",
+                    ),
+                    TableSpec(
+                        "Transit time of received transfers by lane",
+                        "received",
+                        ("Lane",),
+                        ("received", "avg_transit"),
+                        sort_by="received",
+                    ),
+                ),
+            ),
+            DashSection(
+                "D · Plants",
                 blocks=(
                     ChartSpec(
                         "Value in transit by receiving plant",
@@ -181,7 +226,7 @@ def build(
                 ),
             ),
             DashSection(
-                "D · Lines in transit",
+                "E · Lines in transit",
                 note="Oldest first; download them as CSV.",
                 blocks=(
                     DetailSpec(

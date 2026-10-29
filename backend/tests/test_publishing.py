@@ -184,3 +184,42 @@ def test_capped_table_note_is_reworded_for_visitors() -> None:
     }
     snapshot = build_snapshot(dashboard, "summary", include_checks=False)
     assert snapshot["tables"][0]["note"] == "Showing the first 20,000 of 50,000 lines."
+
+
+def test_organisation_names_are_taken_out_of_published_text() -> None:
+    from app.publishing import neutral, neutral_text
+
+    assert neutral_text("Rwanda Medical Supply · Expiry justifications") == "Expiry justifications"
+    assert neutral_text("Commercial (RMS-OWN)") == "Commercial (OWN)"
+    assert neutral_text("RMS-PRG-FND-CP") == "PRG-FND-CP"
+    assert neutral_text("RMS own sales") == "Own sales"
+    assert neutral_text("RBC accountability report") == "Programme accountability report"
+    assert neutral_text("Stock held for Rwanda Biomedical Centre") == (
+        "Stock held for the programme partner"
+    )
+    # Words that only contain the letters are kept; numbers are never touched.
+    assert neutral_text("TERMS of delivery") == "TERMS of delivery"
+    assert neutral({"a": ["RMS-OWN", 5, 1.5, None]}) == {"a": ["OWN", 5, 1.5, None]}
+
+
+def test_published_dashboards_carry_no_organisation_names(
+    logged_in: TestClient, run: dict[str, Any], db: Any
+) -> None:
+    from app.db.models import Publication
+
+    publication = publish(
+        logged_in,
+        run["id"],
+        title="RMS stock by plant",
+        description="Rwanda Medical Supply figures for RBC",
+        detail_level="detail",
+    )
+    assert publication["title"] == "Stock by plant"
+    # A snapshot stored before the rule is made neutral when it is served.
+    stored = db.get(Publication, publication["id"])
+    stored.snapshot = {**stored.snapshot, "title": "RMS-OWN stock · Rwanda Medical Supply"}
+    db.commit()
+    public = set_visibility(logged_in, publication["id"], "public")
+    for path in (f"/api/public/dashboards/{public['slug']}", "/api/public/dashboards"):
+        text = json.dumps(logged_in.get(path).json())
+        assert "RMS" not in text and "Rwanda Medical Supply" not in text and "RBC" not in text

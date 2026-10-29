@@ -1,4 +1,11 @@
-"""A simple description of a report, turned into Word and PowerPoint by the builders."""
+"""A simple description of a report, turned into Word and PowerPoint by the builders.
+
+Beyond sections of text, tables and charts, a report can carry the parts of a
+management deck (the RMS SMT layout): KPI cards and highlight boxes for the
+executive summary, a key message and a "So what" reading for each section,
+recommendations with an owner and a timing, and data notes. Every one is
+optional; a report without them is laid out as before, in the RMS brand.
+"""
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -41,7 +48,36 @@ class ChartBlock:
     title: str
     categories: list[str]
     series: dict[str, list[float]]
-    kind: Literal["bar", "column", "pie"] = "bar"
+    kind: Literal["bar", "column", "pie", "line", "stacked"] = "bar"
+    value_format: ValueFormat = "number"  # how values and the axis read
+    labels: bool = True  # show the value on each bar or point
+
+
+Tone = Literal["blue", "green", "yellow", "red", "grey"]
+
+
+@dataclass
+class KpiCard:
+    label: str
+    value: str  # already written out, e.g. "92.8%" or "RWF 5.19B"
+    note: str = ""
+    tone: Tone = "blue"
+
+
+@dataclass
+class Highlight:
+    """A titled box of text: a finding on the executive summary, a quarter, a note."""
+
+    title: str
+    text: str
+    tone: Tone = "grey"
+
+
+@dataclass
+class Recommendation:
+    action: str
+    owner: str
+    timing: str
 
 
 @dataclass
@@ -51,6 +87,10 @@ class Section:
     bullets: list[str] = field(default_factory=list)
     tables: list[TableBlock] = field(default_factory=list)
     charts: list[ChartBlock] = field(default_factory=list)
+    message: str = ""  # the key message, one line under the heading
+    takeaway: str = ""  # "So what": what the figures mean for management
+    kpis: list[KpiCard] = field(default_factory=list)
+    highlights: list[Highlight] = field(default_factory=list)
 
 
 @dataclass
@@ -68,6 +108,14 @@ class ReportDocument:
     date_text: str  # the reporting date, written out (never "today")
     sections: list[Section]
     checks: list[CheckLine] = field(default_factory=list)
+    # Management deck parts (all optional).
+    summary_message: str = ""  # the one-sentence answer, on the executive summary
+    kpis: list[KpiCard] = field(default_factory=list)
+    highlights: list[Highlight] = field(default_factory=list)
+    recommendations: list[Recommendation] = field(default_factory=list)
+    notes: list[Highlight] = field(default_factory=list)  # data notes
+    audience: str = ""  # e.g. "Senior Management Team · Inventory & Warehouse Management"
+    draft: bool = False
 
 
 def format_value(value: object, value_format: ValueFormat) -> str:

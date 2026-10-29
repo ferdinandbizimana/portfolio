@@ -5,7 +5,16 @@ import pandas as pd
 import pytest
 from docx import Document
 
-from app.reporting.documents import ReportDocument, Section, TableBlock, format_value
+from app.reporting.documents import (
+    ChartBlock,
+    Highlight,
+    KpiCard,
+    Recommendation,
+    ReportDocument,
+    Section,
+    TableBlock,
+    format_value,
+)
 from app.reporting.guard import (
     BannedWordingError,
     check_report,
@@ -49,11 +58,65 @@ def test_values_are_formatted_for_reports() -> None:
     assert format_value(None, "money") == ""
 
 
+# The parts of a management (SMT) deck.
+DECK = ReportDocument(
+    title="Stock report",
+    subtitle="Fake data",
+    date_text="30 June 2026",
+    sections=[
+        Section(
+            "By plant",
+            message="Plant P1 holds most of the stock",
+            takeaway="Count P1 first.",
+            charts=[
+                ChartBlock(
+                    "Value by plant", ["P1", "P2"], {"Value": [600.0, 400.0]}, "bar", "money"
+                )
+            ],
+            tables=[
+                TableBlock(
+                    "Plants",
+                    pd.DataFrame({"Plant": ["P1", "P2"], "Value": [600.0, 400.0]}),
+                    {"Value": "money"},
+                )
+            ],
+        )
+    ],
+    summary_message="RWF 1,000 of stock in two plants",
+    kpis=[KpiCard("Stock value", "RWF 1,000", "2 plants"), KpiCard("Plants", "2", tone="green")],
+    highlights=[Highlight("1 · Concentration", "P1 holds 60%.", "yellow")],
+    recommendations=[Recommendation("Count plant P1", "Inventory control", "7 days")],
+    notes=[Highlight("Coverage", "Fake files only.")],
+    audience="Senior Management Team",
+    draft=True,
+)
+
+
 def test_word_report_without_template() -> None:
     content = build_docx(DOC)
     texts = docx_texts(content)
-    assert "Stock report" in texts
+    assert "STOCK REPORT" in " | ".join(texts)  # the cover
     assert "Total" in texts and "1,000" in texts  # total row of the table
+    check_report("docx", content)
+
+
+def test_word_report_with_the_deck_parts() -> None:
+    content = build_docx(DECK)
+    text = " | ".join(docx_texts(content))
+    for part in (
+        "Executive summary",
+        "RWF 1,000 of stock in two plants",
+        "Stock value",
+        "1 · Concentration",
+        "Plant P1 holds most of the stock",
+        "So what",
+        "Count P1 first.",
+        "Recommendations and next steps",
+        "Inventory control",
+        "Data notes",
+        "DRAFT",
+    ):
+        assert part in text, part
     check_report("docx", content)
 
 
@@ -85,8 +148,32 @@ def test_word_template_without_body_placeholder_is_refused(tmp_path: Path) -> No
 def test_powerpoint_deck() -> None:
     content = build_pptx(DOC)
     texts = pptx_texts(content)
-    assert "Stock report" in texts
+    assert "STOCK REPORT" in texts  # the cover
     assert "By plant" in texts
+    assert "RMS · Stock report · 30 June 2026" in texts  # the footer of every slide
+    check_report("pptx", content)
+
+
+def test_powerpoint_management_deck() -> None:
+    from pptx import Presentation
+
+    content = build_pptx(DECK)
+    texts = " | ".join(pptx_texts(content))
+    for part in (
+        "Executive summary",
+        "RWF 1,000",
+        "So what",
+        "Count P1 first.",
+        "Recommendations and next steps",
+        "Count plant P1",
+        "Data notes",
+        "Thank You",
+        "Draft for SMT",
+    ):
+        assert part in texts, part
+    deck = Presentation(io.BytesIO(content))
+    charts = [s for slide in deck.slides for s in slide.shapes if s.has_chart]
+    assert len(charts) == 1  # a native, editable chart
     check_report("pptx", content)
 
 

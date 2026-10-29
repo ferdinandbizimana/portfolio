@@ -41,12 +41,10 @@ from pydantic import BaseModel, Field
 from app.analyses.base import Analysis, AnalysisResult, Check, InputSpec
 from app.analyses.common.closing import material_code, plant_code, plant_names
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
+from app.analyses.stock_in_transit import insights
 from app.datasets import parse_dates
 from app.reporting.documents import (
-    ChartBlock,
-    ReportDocument,
     ReportFile,
-    Section,
     TableBlock,
     Templates,
     ValueFormat,
@@ -177,7 +175,7 @@ def _code(values: pd.Series) -> pd.Series:
 class StockInTransit(Analysis):
     key = "stock_in_transit"
     title = "Stock in transit"
-    version = "1.4.0"
+    version = "1.5.0"
     description = (
         "Stock in transit between plants (MB5T) with the days since its goods issue, traced "
         "in MB51 by STO and outbound delivery (641 goods issue, 101 goods receipt), and the "
@@ -491,6 +489,13 @@ class StockInTransit(Analysis):
             else None
         )
         long = params.long_transit_days
+        lane_table = insights.lanes(transit, received, names)
+        received_by_month = insights.monthly(received, long)
+        lead = insights.lead_times(received, names)
+        oldest_table = insights.oldest(transit, names)
+        facts = insights.figures(
+            transit, received, lane_table, lead, unmatched_receipts, long, bool(created)
+        )
         kpis = [
             Kpi(label="Value in transit", value=total_value, format="money", unit="RWF"),
             Kpi(label="Lines in transit", value=len(transit), format="integer"),
@@ -561,6 +566,12 @@ class StockInTransit(Analysis):
                 "Value in transit by material = value in transit",
                 expected=total_value,
                 actual=float(by_material["Value in Transit"].sum()),
+            ),
+            Check(
+                "lanes_total",
+                "Value in transit by lane = value in transit",
+                expected=total_value,
+                actual=float(lane_table["Value in Transit"].sum()),
             ),
             Check(
                 "plants_total",
@@ -648,6 +659,57 @@ class StockInTransit(Analysis):
                     searchable=["Material", "Material Description", "Outbound Deliveries"],
                 ),
                 Table(
+                    id="by-lane",
+                    title="By lane (supplying → receiving plant)",
+                    columns=[
+                        Column(key="Lane", label="Lane"),
+                        Column(key="Lines in Transit", label="Lines", format="integer"),
+                        Column(
+                            key="Value in Transit", label="Value in transit (RWF)", format=money
+                        ),
+                        Column(key="Over Limit Lines", label=f"Over {long} days", format="integer"),
+                        Column(key="Oldest Days", label="Oldest (days)", format=number),
+                        Column(key="Received Transfers", label="Received", format="integer"),
+                        Column(
+                            key="Average Transit Days", label="Average transit days", format=number
+                        ),
+                        Column(key="P90 Transit Days", label="90% within (days)", format=number),
+                    ],
+                    rows=rows_of(lane_table),
+                    searchable=["Lane"],
+                ),
+                Table(
+                    id="received-by-month",
+                    title="Transit time of the transfers received, by month",
+                    columns=[
+                        Column(key="Month", label="Month of receipt"),
+                        Column(key="Receipts", label="Receipts", format="integer"),
+                        Column(key="Average Transit Days", label="Average days", format=number),
+                        Column(key="P90 Transit Days", label="90% within (days)", format=number),
+                        Column(
+                            key="Over Limit Receipts", label=f"Over {long} days", format="integer"
+                        ),
+                    ],
+                    rows=rows_of(received_by_month),
+                ),
+                Table(
+                    id="lead-time",
+                    title="Lead time by supplying plant (days)",
+                    columns=[
+                        Column(key="Plant", label="Plant"),
+                        Column(key="Plant Name", label="Name"),
+                        Column(key="Received Transfers", label="Received", format="integer"),
+                        Column(key="STO to Goods Issue", label="STO to goods issue", format=number),
+                        Column(
+                            key="Goods Issue to Receipt",
+                            label="Goods issue to receipt",
+                            format=number,
+                        ),
+                        Column(key="STO to Goods Receipt", label="STO to receipt", format=number),
+                    ],
+                    rows=rows_of(lead),
+                ),
+                Table(
                     id="by-receiving",
                     title="By receiving plant",
                     columns=plant_columns,
@@ -704,7 +766,11 @@ class StockInTransit(Analysis):
             tables={
                 "in_transit": transit_table,
                 "by_age": by_age,
+                "by_lane": lane_table,
                 "by_material": by_material,
+                "received_by_month": received_by_month,
+                "lead_time": lead,
+                "oldest": oldest_table,
                 "by_receiving": by_receiving,
                 "by_supplying": by_supplying,
                 "received": received_table,
@@ -712,7 +778,7 @@ class StockInTransit(Analysis):
             metrics=kpis,
             checks=checks,
             dashboard=dashboard,
-            extras={"subtitle": subtitle},
+            extras={"subtitle": subtitle, "figures": facts, "names": names},
         )
 
     def reports(
@@ -746,57 +812,37 @@ class StockInTransit(Analysis):
         }
         by_age = TableBlock("By age", t["by_age"], formats, total_row=True)
         by_receiving = TableBlock("By receiving plant", t["by_receiving"], formats)
-        kpi: dict[str, Any] = {k.label: k.value for k in result.metrics}
-        long = params.long_transit_days
-
-        def days(value: object) -> str:
-            return f"{float(value):.1f} days" if isinstance(value, int | float) else "not available"
-
-        document = ReportDocument(
-            title="Stock in transit",
-            subtitle=str(result.extras["subtitle"]),
-            date_text=f"{params.report_date:%d %B %Y}",
-            sections=[
-                Section(
-                    "Summary",
-                    paragraphs=[
-                        f"Stock worth RWF {float(kpi['Value in transit'] or 0):,.0f} is in transit "
-                        f"on {kpi['Lines in transit']} lines; "
-                        f"{kpi[f'In transit more than {long} days']} "
-                        f"lines have been in transit for more than {long} days. Transfers already "
-                        f"received took {days(kpi['Average transit time (received)'])} on average "
-                        "from goods issue to goods receipt.",
-                    ],
-                    tables=[by_age],
-                    charts=[
-                        ChartBlock(
-                            "Value in transit by age (RWF)",
-                            [str(a) for a in t["by_age"]["Age"]],
-                            {"Value": [float(v) for v in t["by_age"]["Value"]]},
-                        )
-                    ],
-                ),
-                Section("By receiving plant", tables=[by_receiving]),
-                Section(
-                    "Method",
-                    bullets=[
-                        "Stock in transit: MB5T. Goods issues (641) and receipts (101) of each "
-                        "STO and material come from MB51; reversals (642, 102) are taken off.",
-                        "Receipts are matched to the goods issue with the same outbound delivery "
-                        "first, then to the oldest issue still open.",
-                        "Every MB5T line is a line in transit. When MB5T gives no value, the "
-                        "value is that of the goods issue (641) of the outbound delivery in "
-                        "MB51, for the quantity still in transit.",
-                        "Days in transit run from the oldest open goods issue to the MB5T date; "
-                        "transit time runs from goods issue to goods receipt.",
-                    ],
-                ),
-            ],
-            checks=check_lines(result.checks),
+        document = insights.document(
+            t,
+            dict(result.extras["figures"]),  # type: ignore[call-overload]
+            dict(result.extras["names"]),  # type: ignore[call-overload]
+            params.long_transit_days,
+            f"{params.report_date:%d %B %Y}",
+            str(result.extras["subtitle"]),
         )
+        document.checks = check_lines(result.checks)
         name = f"Stock_In_Transit_{params.report_date:%Y-%m-%d}"
+        formats.update(
+            {
+                "Over Limit Lines": "integer",
+                "Over Limit Value": "money",
+                "Oldest Days": "number",
+                "Average Days Open": "number",
+                "P90 Transit Days": "number",
+                "Receipts": "integer",
+                "Over Limit Receipts": "integer",
+                "STO to Goods Issue": "number",
+                "Goods Issue to Receipt": "number",
+                "STO to Goods Receipt": "number",
+                "Share Before Goods Issue": "percent",
+            }
+        )
         blocks = [
             by_age,
+            TableBlock("By lane", t["by_lane"], formats, total_row=True),
+            TableBlock("Oldest lines", t["oldest"], formats),
+            TableBlock("Transit time by month", t["received_by_month"], formats),
+            TableBlock("Lead time by plant", t["lead_time"], formats),
             TableBlock("By material", t["by_material"], formats, total_row=True),
             by_receiving,
             TableBlock("By supplying plant", t["by_supplying"], formats),

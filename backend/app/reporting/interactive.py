@@ -21,6 +21,7 @@ from typing import Any, Literal
 
 import pandas as pd
 
+from app.reporting import brand
 from app.reporting.documents import ReportFile
 
 # "change": a share shown as "Increase 12.3%" or "Reduction 4.0%".
@@ -137,6 +138,7 @@ class InteractiveDashboard:
     eyebrow: str = "Rwanda Medical Supply"
     intro: str = ""
     footer: str = ""
+    branded: bool = True  # RMS logo and tagline in the header (internal files only)
     checks: list[tuple[str, float, float, bool]] = field(default_factory=list)
 
 
@@ -243,6 +245,14 @@ def build_html(dashboard: InteractiveDashboard) -> bytes:
         if dashboard.checks
         else ""
     )
+    logo = brand.logo("white") if dashboard.branded else None
+    logo_tag = (
+        f'<img class="logo" alt="{e(brand.ORGANISATION)}" '
+        f'src="data:image/png;base64,{base64.b64encode(logo).decode("ascii")}">'
+        if logo
+        else ""
+    )
+    tagline = f'<p class="tagline">{e(brand.TAGLINE)}</p>' if dashboard.branded else ""
     page = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -250,10 +260,13 @@ def build_html(dashboard: InteractiveDashboard) -> bytes:
 <style>{_asset("dashboard.css")}</style>
 </head><body>
 <header class="hd"><div class="wrap">
+<div class="brand"><div>
 <div class="eyebrow">{e(dashboard.eyebrow)}</div>
 <h1>{e(dashboard.title)}</h1>
 <p class="sub">{e(dashboard.subtitle)}</p>
+</div>{logo_tag}</div>
 {f'<p class="intro">{e(dashboard.intro)}</p>' if dashboard.intro else ""}
+{tagline}
 </div></header>
 <nav class="flt" aria-label="Filters"><div class="wrap" id="filters"></div></nav>
 <main class="wrap">

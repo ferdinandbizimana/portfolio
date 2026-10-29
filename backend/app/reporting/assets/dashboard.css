@@ -1,27 +1,33 @@
 :root {
-  --ink: #15234a;
-  --muted: #4a5672;
-  --line: #dbe2ea;
+  /* RMS Brand Guide: corporate blue #0071CE, green #00AE42, yellow #F7BE00 (accent). */
+  --ink: #26323f;
+  --muted: #5e6b78;
+  --line: #d5dde5;
   --bg: #f3f6f9;
   --card: #ffffff;
-  --blue: #0079bf;
-  --red: #a12c22;
-  --amber: #c55a11;
-  --green: #226b45;
+  --blue: #0071ce;
+  --navy: #005aa5;
+  --red: #c0392b;
+  --amber: #b78c00;
+  --green: #00ae42;
   --grey: #9aa5b1;
-  --gold: #f7bc15;
+  --gold: #f7be00;
+  --head: "Effra", "Open Sans", "Segoe UI", Arial, sans-serif;
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font: 14px/1.5 "Open Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 .wrap { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
-.hd { background: var(--ink); color: #fff; padding: 28px 0 22px; border-bottom: 4px solid var(--blue); }
+.hd { background: var(--blue); color: #fff; padding: 24px 0 20px; border-bottom: 4px solid var(--gold); }
+.hd .brand { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.hd .logo { height: 46px; width: auto; }
+.tagline { margin: 10px 0 0; font: 600 13px var(--head); color: var(--gold); }
 .eyebrow { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.75; }
-h1 { margin: 6px 0 4px; font-size: 26px; line-height: 1.25; text-wrap: balance; }
+h1 { margin: 6px 0 4px; font-family: var(--head); font-size: 26px; line-height: 1.25; text-wrap: balance; }
 .sub { margin: 0; opacity: 0.85; }
 .intro { margin: 10px 0 0; max-width: 90ch; opacity: 0.85; }
 .flt { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid var(--line); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04); }
@@ -41,17 +47,17 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .tone-green { --kc: var(--green); }
 .tone-grey { --kc: var(--grey); }
 .kpi .l { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
-.kpi .v { font-size: 24px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.kpi .v { font-family: var(--head); font-size: 24px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .kpi .s { font-size: 12px; color: var(--muted); }
 .sec { margin-top: 30px; }
-.sech { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; border-bottom: 2px solid var(--ink); padding-bottom: 4px; }
-h2 { margin: 0; font-size: 19px; }
+.sech { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; border-bottom: 2px solid var(--blue); padding-bottom: 4px; }
+h2 { margin: 0; font-family: var(--head); font-size: 19px; color: var(--blue); }
 .rank { font-size: 13px; color: var(--muted); }
 .note { color: var(--muted); margin: 8px 0 0; max-width: 100ch; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 14px; margin-top: 12px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px; min-width: 0; }
 .card.wide { grid-column: 1 / -1; }
-h3 { margin: 0 0 2px; font-size: 15px; }
+h3 { margin: 0 0 2px; font-family: var(--head); font-size: 15px; }
 .cap { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
 .cw { position: relative; height: 320px; }
 .tw { overflow-x: auto; }
