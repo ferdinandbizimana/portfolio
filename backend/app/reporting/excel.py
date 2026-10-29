@@ -14,21 +14,23 @@ from openpyxl.cell import Cell, WriteOnlyCell
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from app.reporting import brand
 from app.reporting.documents import CheckLine, TableBlock, ValueFormat
 
-FONT = "Arial"
-NAVY = "1F3864"
-HEADER_FILL = PatternFill("solid", fgColor=NAVY)
-HEADER_FONT = Font(name=FONT, bold=True, color="FFFFFF", size=10)
-BODY_FONT = Font(name=FONT, size=10)
-BOLD_FONT = Font(name=FONT, size=10, bold=True)
-TITLE_FONT = Font(name=FONT, bold=True, size=14, color=NAVY)
-SUBTITLE_FONT = Font(name=FONT, italic=True, size=9, color="595959")
-WARNING_FONT = Font(name=FONT, italic=True, size=9, color="C00000")
-TOTAL_FILL = PatternFill("solid", fgColor="D9E1F2")
-PASS_FILL = PatternFill("solid", fgColor="E2EFDA")
-FAIL_FILL = PatternFill("solid", fgColor="F8CBAD")
-THIN = Side(style="thin", color="BFBFBF")
+# RMS Brand Guide: Open Sans for figures and text, Effra for titles, corporate
+# blue header rows.
+FONT = brand.BODY_FONT
+HEADER_FILL = PatternFill("solid", fgColor=brand.BLUE)
+HEADER_FONT = Font(name=FONT, bold=True, color=brand.WHITE, size=10)
+BODY_FONT = Font(name=FONT, size=10, color=brand.INK)
+BOLD_FONT = Font(name=FONT, size=10, bold=True, color=brand.INK)
+TITLE_FONT = Font(name=brand.HEADING_FONT, bold=True, size=14, color=brand.BLUE)
+SUBTITLE_FONT = Font(name=FONT, italic=True, size=9, color=brand.MUTED)
+WARNING_FONT = Font(name=FONT, italic=True, size=9, color=brand.RED)
+TOTAL_FILL = PatternFill("solid", fgColor=brand.tint(brand.BLUE, 0.15))
+PASS_FILL = PatternFill("solid", fgColor=brand.tint(brand.GREEN, 0.2))
+FAIL_FILL = PatternFill("solid", fgColor="F6D5D1")
+THIN = Side(style="thin", color=brand.LINE)
 BORDER = Border(top=THIN, bottom=THIN, left=THIN, right=THIN)
 
 NUMBER_FORMATS: dict[ValueFormat, str] = {

@@ -1,5 +1,6 @@
 """Interactive HTML dashboards: self-contained, data packed, banned wording caught."""
 
+import re
 from typing import Any
 
 import pandas as pd
@@ -67,7 +68,9 @@ def test_self_contained_and_packed() -> None:
     content = build_html(dashboard())
     page = content.decode()
     assert "<title>Fake dashboard</title>" in page
-    assert " src=" not in page and "<link" not in page  # nothing loaded from outside
+    # Nothing loaded from outside: the only images are inline (the logo, when installed).
+    assert all(src.startswith("data:") for src in re.findall(r' src="([^"]*)"', page))
+    assert "<link" not in page
     data = payload(content)
     lines = data["facts"]["lines"]
     assert lines["rows"] == 3

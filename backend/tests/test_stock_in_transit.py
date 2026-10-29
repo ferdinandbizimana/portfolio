@@ -214,3 +214,45 @@ def test_every_mb5t_line_counts_and_missing_values_come_from_mb51() -> None:
     assert sto1["Difference with MB51"].dropna().tolist() == [0]
     assert kpis["Average days in transit (open)"] == pytest.approx(23)  # not counted twice
     assert all(c.passed for c in result.checks), [c.label for c in result.checks if not c.passed]
+
+
+def test_lanes_and_lead_times_hand_checked(result: Any) -> None:
+    lanes = result.tables["by_lane"].set_index("Lane")
+    main = lanes.loc["1000 → 7000 · Kigali Hub"]
+    assert (main["Lines in Transit"], main["Value in Transit"]) == (2, 650)
+    # Received on the lane: 5 units in 5 days, 4 in 19, 5 in 10.
+    assert main["Received Transfers"] == 3
+    assert main["Average Transit Days"] == pytest.approx(151 / 14)
+    assert main["P90 Transit Days"] == pytest.approx(17.2)  # 10 + 0.8 x (19 - 10)
+    assert lanes.loc["7000 · Kigali Hub → 1000", "Value in Transit"] == 10
+    months = result.tables["received_by_month"].set_index("Month")
+    assert months.loc["2026-05", "Average Transit Days"] == 10
+    assert months.loc["2026-07", "Average Transit Days"] == pytest.approx((5 * 5 + 4 * 19) / 9)
+    oldest = result.tables["oldest"]
+    assert oldest["STO"].tolist() == ["4500000001", "4500000003"]  # no goods issue: not listed
+    assert any(c.key == "lanes_total" and c.passed for c in result.checks)
+
+
+def test_management_report_quotes_this_run() -> None:
+    from app.reporting.guard import pptx_texts
+
+    params = PARAMS.model_copy(update={"long_transit_days": 20})
+    result = ANALYSIS.compute(data(), params)
+    figures: dict[str, Any] = result.extras["figures"]  # type: ignore[assignment]
+    assert (figures["over_lines"], figures["over_value"]) == (1, 600)
+    assert figures["no_issue_lines"] == 1 and figures["untraced_lines"] == 0
+    files = {f.kind: f for f in ANALYSIS.reports(result, params, Templates())}
+    texts = " | ".join(pptx_texts(files["pptx"].content))
+    for part in (
+        "Executive summary",
+        "RWF 660 is in transit on 3 lines; 90.9% of the value has waited more than 20 days",
+        "B · Lanes: where the stock is waiting",
+        "1000 → 7000 · Kigali Hub",
+        "Confirm physical receipt and post the goods receipt (101) for the 1 line in transit",
+        "Receiving plant managers",
+        "Review the 1 MB5T line with no goods issue in MB51",
+        "Data notes",
+    ):
+        assert part in texts, part
+    for report in files.values():
+        check_report(report.kind, report.content)

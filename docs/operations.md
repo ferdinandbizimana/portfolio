@@ -270,6 +270,15 @@ column says which. The OBD value (MB51) is shown on every line, as a total and i
 a "By material" table (lines, quantity, MB5T value, OBD value, value in transit,
 lines over the limit and the outbound deliveries of each material).
 
+The reports are written for management (SMT): an executive summary (value in
+transit, lines past the limit, days open, transit time, data to correct), then
+A · age, B · lanes (supplying → receiving plant), C · receiving plants, D · transit
+time of the transfers received (average and the time within which 9 in 10
+arrive), E · lead time split between dispatch (STO → goods issue) and transport
+(goods issue → receipt) when ME2M is given, F · materials, G · the oldest lines to
+follow up, H · data integrity; then actions with a proposed owner and timing, and
+data notes. Every sentence quotes figures of the same run.
+
 ### Purchase order follow-up
 
 Files: ME2N and the list of inbound deliveries, optionally OX10. Parameters:
@@ -330,6 +339,20 @@ flags.
 
 ## Report templates
 
+Without an uploaded template, reports follow the **RMS Brand Guide** (RMS
+BRD/GUI/01): corporate blue #0071CE, green #00AE42, yellow #F7BE00 as an accent;
+Effra for titles and Open Sans for text (install both fonts on the computers that
+open the reports, otherwise Office shows a similar font); the colour logo on
+white, the white logo on blue, the tagline "Delivering Supplies, Building Trust."
+PowerPoint decks use the management (SMT) layout: blue cover, executive summary
+with KPI cards, a key message under each title, native charts beside their
+table, a "So what" box, recommendations, data notes and a closing slide. Word
+reports have the same parts; Excel uses the brand colours and fonts; the
+interactive HTML dashboards carry the logo and tagline.
+
+The logo files go in `backend/app/reporting/assets/brand/` (`rms-logo.png` and
+`rms-logo-white.png`); without them reports are built without a logo.
+
 In **Templates**, upload your Word (.docx) and PowerPoint (.pptx) templates and
 click **Make active**. From then on every report uses them.
 
@@ -345,6 +368,11 @@ checked for the words "AI" and "to be confirmed"; a report containing them is
 not produced.
 
 ## Publishing a dashboard
+
+Published dashboards are neutral: the names RMS, Rwanda Medical Supply, RBC and
+Rwanda Biomedical Centre are taken out of the title, the description and every
+text of the dashboard, and no logo is shown. RMS branding stays in what you
+download and in the e-mails.
 
 1. Open a finished run (Admin → Runs) and choose **Publish…**.
 2. Give it a title and, if you like, a description. Choose **Summary only**
