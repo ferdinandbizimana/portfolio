@@ -9,7 +9,7 @@ from typing import Any
 
 PROFILE: dict[str, Any] = {
     "full_name": "Ferdinand Bizimana",
-    "headline": "Supply chain professional · SAP S/4HANA (MM, EWM, SD, FI)",
+    "headline": "Supply chain & inventory analyst · SAP S/4HANA (MM, EWM, SD, FI)",
     "location": "Kigali, Rwanda",
     "summary_md": (
         "I turn SAP exports into decisions: stock accuracy, expiry prevention, order fill "
@@ -27,6 +27,13 @@ PROFILE: dict[str, Any] = {
     ),
     "linkedin_url": "",
     "github_url": "https://github.com/ferdinandbizimana",
+    "availability": "Open to supply chain and SAP analytics roles (sample)",
+    # True of this system; replace with your own results in Admin > Profile.
+    "highlights": [
+        {"value": "13", "label": "supply chain analyses automated, SAP export to board report"},
+        {"value": "4", "label": "SAP S/4HANA modules in daily use: MM, EWM, SD, FI"},
+        {"value": "100%", "label": "of reports self-checked: every total ties back to SAP"},
+    ],
 }
 
 EXPERIENCE: list[dict[str, Any]] = [

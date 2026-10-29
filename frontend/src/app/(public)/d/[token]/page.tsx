@@ -18,5 +18,9 @@ export default async function SharedDashboardPage({
 }) {
   const data = await fetchSharedDashboard((await params).token);
   if (!data) notFound();
-  return <PublishedDashboard data={data} />;
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 py-10">
+      <PublishedDashboard data={data} />
+    </div>
+  );
 }

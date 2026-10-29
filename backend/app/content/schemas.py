@@ -35,6 +35,24 @@ class FileRef(BaseModel):
     url: str
 
 
+class Highlight(BaseModel):
+    """A key result shown large on the home page, e.g. "99%" / "inventory accuracy"."""
+
+    value: Annotated[Text, StringConstraints(min_length=1, max_length=24)]
+    label: Annotated[Text, StringConstraints(min_length=1, max_length=90)]
+
+
+class Credential(BaseModel):
+    """A certification or a degree."""
+
+    title: Annotated[Text, StringConstraints(min_length=1, max_length=160)]
+    issuer: Annotated[Text, StringConstraints(max_length=160)] = ""
+    year: Annotated[Text, StringConstraints(max_length=20)] = ""
+
+
+Language = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+
+
 class ProfileIn(BaseModel):
     full_name: Annotated[Text, StringConstraints(min_length=1, max_length=120)]
     headline: Annotated[Text, StringConstraints(max_length=200)] = ""
@@ -45,6 +63,11 @@ class ProfileIn(BaseModel):
     github_url: Url = ""
     photo_file_id: int | None = None
     cv_file_id: int | None = None
+    availability: Annotated[Text, StringConstraints(max_length=200)] = ""
+    highlights: Annotated[list[Highlight], Field(max_length=6)] = []
+    certifications: Annotated[list[Credential], Field(max_length=20)] = []
+    education: Annotated[list[Credential], Field(max_length=10)] = []
+    languages: Annotated[list[Language], Field(max_length=10)] = []
 
 
 class ProfileOut(BaseModel):
@@ -57,6 +80,11 @@ class ProfileOut(BaseModel):
     github_url: str
     photo: FileRef | None
     cv: FileRef | None
+    availability: str = ""
+    highlights: list[Highlight] = []
+    certifications: list[Credential] = []
+    education: list[Credential] = []
+    languages: list[str] = []
 
 
 class ExperienceIn(BaseModel):

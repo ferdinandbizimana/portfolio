@@ -5,6 +5,19 @@ export interface FileRef {
   url: string;
 }
 
+/** A key result shown large on the home page, e.g. "99%" / "inventory accuracy". */
+export interface Highlight {
+  value: string;
+  label: string;
+}
+
+/** A certification or a degree. */
+export interface Credential {
+  title: string;
+  issuer: string;
+  year: string;
+}
+
 export interface Profile {
   full_name: string;
   headline: string;
@@ -15,6 +28,11 @@ export interface Profile {
   github_url: string;
   photo: FileRef | null;
   cv: FileRef | null;
+  availability: string;
+  highlights: Highlight[];
+  certifications: Credential[];
+  education: Credential[];
+  languages: string[];
 }
 
 export interface Experience {
@@ -91,4 +109,62 @@ export function parseItems(text: string): string[] {
     .map((item) => item.trim())
     .filter(Boolean);
   return [...new Set(items)];
+}
+
+function monthIndex(month: string): number {
+  const [year, number] = month.split("-").map(Number);
+  return (year ?? 0) * 12 + ((number ?? 1) - 1);
+}
+
+/** "2023-07" for a date (the month a role "until now" runs to). */
+export function monthOf(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Whole years from the first role to today (overlapping roles count once). */
+export function yearsOfExperience(
+  entries: Pick<Experience, "start_month" | "end_month">[],
+  today: string,
+): number {
+  if (entries.length === 0) return 0;
+  const first = Math.min(...entries.map((e) => monthIndex(e.start_month)));
+  return Math.max(0, Math.floor((monthIndex(today) - first + 1) / 12));
+}
+
+/** "2 yrs 4 mos", "11 mos", "1 yr": the length of a role, both months included. */
+export function durationText(start: string, end: string | null, today: string): string {
+  const months = Math.max(1, monthIndex(end ?? today) - monthIndex(start) + 1);
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  const parts = [
+    years ? `${years} ${years === 1 ? "yr" : "yrs"}` : "",
+    rest ? `${rest} ${rest === 1 ? "mo" : "mos"}` : "",
+  ];
+  return parts.filter(Boolean).join(" ");
+}
+
+/** "AB" from "Ada Bizimana": the monogram in the site header. */
+export function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+/** Fields added later default to empty, so a response cached before an update still renders. */
+export function withProfileDefaults(portfolio: Portfolio): Portfolio {
+  const profile = portfolio.profile;
+  return {
+    ...portfolio,
+    profile: {
+      ...profile,
+      availability: profile.availability ?? "",
+      highlights: profile.highlights ?? [],
+      certifications: profile.certifications ?? [],
+      education: profile.education ?? [],
+      languages: profile.languages ?? [],
+    },
+  };
 }

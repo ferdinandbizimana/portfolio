@@ -101,6 +101,31 @@ only when **Published** is ticked.
 Long texts use Markdown: `**bold**`, `*italic*`, `## Heading`, `- list item`,
 `[link text](https://…)` and tables. Use **Preview** to check before saving.
 
+### Making the portfolio work for recruiters
+
+The home page is built to answer, in this order, what a hiring manager in supply
+chain looks for: who you are and what you are open to (**Availability**), the
+value you bring (**Headline** and **Short introduction**), proof (**Key
+results**, case studies, live dashboards), your career, your credentials, and
+how to reach you. Empty parts are hidden, so the site never shows a gap.
+
+- **Headline**: role and tools in one line, e.g. "Supply chain & inventory
+  analyst · SAP S/4HANA (MM, EWM, SD, FI)".
+- **Short introduction**: two or three sentences on the problems you solve and
+  for whom; start with a verb ("I turn SAP exports into decisions …").
+- **Key results** (up to 6): figures you can stand behind and explain in an
+  interview, e.g. inventory record accuracy reached, value of expiries avoided,
+  days saved on a period-end report. Only real results: never estimates.
+- **Case studies**: one per project, written as problem → what you built →
+  result; tick **Featured** on your best three, they come first on the home
+  page.
+- **Certifications**, **Education**, **Languages**: title, issuer and year.
+- **Photo** and **CV (PDF)**: a professional photo; the CV button is the first
+  button on the home page.
+- Published dashboards are the strongest proof: publish one or two with
+  **Summary only** detail. Organisation names and logos are removed
+  automatically.
+
 ## Running an analysis
 
 1. **Data files**: upload the SAP exports (Excel or CSV). Large files are sent

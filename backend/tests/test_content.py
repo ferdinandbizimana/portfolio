@@ -88,6 +88,27 @@ def test_profile_rejects_bad_links_and_unknown_files(logged_in: TestClient) -> N
     assert unknown_file.status_code == 400
 
 
+def test_profile_brand_fields_are_saved_and_public(
+    logged_in: TestClient, client: TestClient
+) -> None:
+    body = {
+        "full_name": "Ferdinand Bizimana",
+        "availability": "Open to supply chain roles",
+        "highlights": [{"value": "13", "label": "analyses automated end to end"}],
+        "certifications": [{"title": "SAP S/4HANA (sample)", "issuer": "SAP", "year": "2024"}],
+        "education": [{"title": "Bachelor (sample)", "issuer": "University", "year": "2018"}],
+        "languages": ["English", "Kinyarwanda", "French"],
+    }
+    response = logged_in.put("/api/admin/content/profile", json=body)
+    assert response.status_code == 200, response.text
+    profile = client.get("/api/public/portfolio").json()["profile"]
+    for key in ("availability", "highlights", "certifications", "education", "languages"):
+        assert profile[key] == body[key], key
+    too_many = [{"value": str(n), "label": "x"} for n in range(7)]
+    rejected = logged_in.put("/api/admin/content/profile", json={**body, "highlights": too_many})
+    assert rejected.status_code == 422
+
+
 def test_experience_crud_and_order(logged_in: TestClient) -> None:
     first = logged_in.post("/api/admin/content/experience", json=EXPERIENCE).json()
     second = logged_in.post(
