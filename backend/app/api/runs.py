@@ -43,6 +43,7 @@ class InputOut(BaseModel):
     dataset_title: str
     required: bool
     all_sheets: bool = False
+    multiple: bool = False
 
 
 class AnalysisOut(BaseModel):
@@ -80,6 +81,7 @@ def list_analyses(_: CurrentUserDep) -> list[AnalysisOut]:
                     dataset_title=datasets.get(i.dataset).title,
                     required=i.required,
                     all_sheets=i.all_sheets,
+                    multiple=i.multiple,
                 )
                 for i in a.inputs
             ],
@@ -115,7 +117,7 @@ class RunCreate(BaseModel):
     analysis: str
     label: str = Field(default="", max_length=200)
     parameters: dict[str, Any] = Field(default_factory=dict)
-    inputs: dict[str, InputChoice]
+    inputs: dict[str, InputChoice | list[InputChoice]]
 
 
 class RunSummary(BaseModel):
@@ -196,7 +198,14 @@ def _start(
     if analysis is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown analysis.")
     inputs, errors = resolve_inputs(
-        db, analysis, {key: (c.data_file_id, c.sheet) for key, c in body.inputs.items()}
+        db,
+        analysis,
+        {
+            key: [(c.data_file_id, c.sheet) for c in choice]
+            if isinstance(choice, list)
+            else (choice.data_file_id, choice.sheet)
+            for key, choice in body.inputs.items()
+        },
     )
     params = None
     try:
@@ -234,6 +243,18 @@ def create_run(
     return _start(body, request, current, db, queue)
 
 
+def _choices(value: dict[str, Any]) -> InputChoice | list[InputChoice]:
+    """The files of a stored run input, as they were chosen (skipped copies left out)."""
+    first = InputChoice(data_file_id=int(value["data_file_id"]), sheet=str(value["sheet"]))
+    if "more" not in value:
+        return first
+    more = [
+        InputChoice(data_file_id=int(m["data_file_id"]), sheet=str(m["sheet"]))
+        for m in value["more"]
+    ]
+    return [first, *more]
+
+
 @router.post("/runs/{run_id}/rerun", response_model=RunOut, status_code=status.HTTP_201_CREATED)
 def rerun(
     run_id: int, request: Request, current: CurrentUserDep, db: DbDep, queue: QueueDep
@@ -245,10 +266,7 @@ def rerun(
         analysis=old.analysis_key,
         label=old.label,
         parameters=old.parameters or {},
-        inputs={
-            key: InputChoice(data_file_id=int(value["data_file_id"]), sheet=str(value["sheet"]))
-            for key, value in (old.inputs or {}).items()
-        },
+        inputs={key: _choices(value) for key, value in (old.inputs or {}).items()},
     )
     return _start(body, request, current, db, queue, rerun_of=old.id)
 

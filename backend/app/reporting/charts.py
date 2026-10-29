@@ -5,6 +5,7 @@ the same ChartBlock is drawn here as a PNG.
 """
 
 import io
+import math
 from functools import cache
 
 import matplotlib
@@ -32,6 +33,15 @@ def short_number(value: float, value_format: ValueFormat = "number") -> str:
     return f"{value:,.0f}" if size >= 10 or value == int(value) else f"{value:.1f}"
 
 
+def _short(label: str, limit: int = 40) -> str:
+    return label if len(label) <= limit else label[: limit - 1] + "…"
+
+
+def _finite(value: float | None) -> float:
+    number = float(value) if value is not None else 0.0
+    return number if math.isfinite(number) else 0.0
+
+
 @cache
 def _font() -> str:
     """Open Sans when the machine has it, else matplotlib's own font (no warnings)."""
@@ -44,9 +54,9 @@ def _hex(colour: str) -> str:
 
 
 def chart_png(chart: ChartBlock, width: float = 6.5, height: float = 3.2) -> bytes:
-    categories = [str(c) for c in chart.categories[:MAX_CATEGORIES]]
+    categories = [_short(str(c)) for c in chart.categories[:MAX_CATEGORIES]]
     series = {
-        name: [float(v) for v in values[:MAX_CATEGORIES]] for name, values in chart.series.items()
+        name: [_finite(v) for v in values[:MAX_CATEGORIES]] for name, values in chart.series.items()
     }
     plt.rcParams.update(
         {
@@ -141,8 +151,7 @@ def chart_png(chart: ChartBlock, width: float = 6.5, height: float = 3.2) -> byt
                 ncol=min(len(series), 4),
             )
     ax.set_title(chart.title, loc="left", fontsize=9, fontweight="bold", color=_hex(brand.BLUE))
-    fig.tight_layout()
     buffer = io.BytesIO()
-    fig.savefig(buffer, format="png", metadata={"Software": None})
+    fig.savefig(buffer, format="png", metadata={"Software": None}, bbox_inches="tight")
     plt.close(fig)
     return buffer.getvalue()

@@ -74,6 +74,19 @@ export function RunForm({
       }),
     ),
   );
+  // Inputs that take several files: the files added to the first one.
+  const [extra, setExtra] = useState<Record<string, string[]>>(() =>
+    Object.fromEntries(
+      analysis.inputs
+        .filter((i) => i.multiple)
+        .map((i) => [
+          i.key,
+          (previous?.inputs[i.key]?.more ?? [])
+            .filter((m) => files.some((f) => f.id === m.data_file_id))
+            .map((m) => String(m.data_file_id)),
+        ]),
+    ),
+  );
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
@@ -84,7 +97,21 @@ export function RunForm({
     const inputs = Object.fromEntries(
       Object.entries(choices)
         .filter(([, c]) => c.fileId && c.sheet)
-        .map(([key, c]) => [key, { data_file_id: Number(c.fileId), sheet: c.sheet }]),
+        .map(([key, c]) => {
+          const first = { data_file_id: Number(c.fileId), sheet: c.sheet };
+          const spec = analysis.inputs.find((i) => i.key === key);
+          const more = (extra[key] ?? [])
+            .filter((id) => id !== c.fileId)
+            .map((id) => {
+              const file = files.find((f) => String(f.id) === id);
+              const sheet = file ? recognised(file, spec?.dataset ?? "")[0] : undefined;
+              return {
+                data_file_id: Number(id),
+                sheet: spec?.all_sheets ? ALL_SHEETS : (sheet?.name ?? ""),
+              };
+            });
+          return [key, more.length ? [first, ...more] : first];
+        }),
     );
     const result = await postJson<Run>("/api/admin/runs", {
       analysis: analysis.key,
@@ -205,6 +232,16 @@ export function RunForm({
                 </select>
               </Field>
             )}
+            {input.multiple && file && (
+              <MoreFiles
+                label={input.label}
+                candidates={files.filter(
+                  (f) => String(f.id) !== choice.fileId && recognised(f, input.dataset).length > 0,
+                )}
+                chosen={extra[input.key] ?? []}
+                onChange={(ids) => setExtra({ ...extra, [input.key]: ids })}
+              />
+            )}
           </fieldset>
         );
       })}
@@ -214,5 +251,52 @@ export function RunForm({
         {pending ? "Starting…" : "Run analysis"}
       </button>
     </form>
+  );
+}
+
+/** The other files of the same kind that an input taking several files can add. */
+function MoreFiles({
+  label,
+  candidates,
+  chosen,
+  onChange,
+}: {
+  label: string;
+  candidates: DataFile[];
+  chosen: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  if (candidates.length === 0) {
+    return (
+      <p className="text-xs text-muted">
+        This input can take several files (for example one per month): upload the others on the Data
+        files page and they appear here.
+      </p>
+    );
+  }
+  return (
+    <fieldset className="flex flex-col gap-1.5 rounded-md bg-panel p-3">
+      <legend className="sr-only">More files for {label}</legend>
+      <p className="text-sm font-medium">Add more files of this kind</p>
+      <p className="text-xs text-muted">
+        For example the other months. They are read one after the other; a copy of a file already
+        chosen is left out.
+      </p>
+      {candidates.map((f) => {
+        const id = String(f.id);
+        return (
+          <label key={f.id} className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={chosen.includes(id)}
+              onChange={(e) =>
+                onChange(e.target.checked ? [...chosen, id] : chosen.filter((c) => c !== id))
+              }
+            />
+            {f.filename} (#{f.id})
+          </label>
+        );
+      })}
+    </fieldset>
   );
 }

@@ -449,7 +449,7 @@ class Deck:
                 width,
                 Inches(0.55),
                 card.value,
-                24 if len(card.value) <= 10 else 18,
+                24 if len(card.value) <= 7 else 18 if len(card.value) <= 11 else 14,
                 accent,
                 bold=True,
                 font=brand.HEADING_FONT,
@@ -896,6 +896,12 @@ def _cell(
     run.font.color.rgb = _rgb(colour)
 
 
+def _finite(value: float | None) -> float:
+    """Chart values must be numbers: a missing or infinite value is drawn as 0."""
+    number = float(value) if value is not None else 0.0
+    return number if math.isfinite(number) else 0.0
+
+
 def number_format(values: Sequence[float], value_format: ValueFormat) -> str:
     """An Excel number format that keeps axis and labels short (1.2M, 3.4B)."""
     if value_format == "percent":
@@ -917,7 +923,7 @@ def _add_chart(slide: Any, chart: ChartBlock, left: int, top: int, width: int, h
     data.categories = [str(c) for c in chart.categories]
     values: list[float] = []
     for name, series in chart.series.items():
-        floats = [float(v) for v in series]
+        floats = [_finite(v) for v in series]
         values += floats
         data.add_series(name, floats)  # type: ignore[no-untyped-call]
     graphic = slide.shapes.add_chart(_CHART_TYPES[chart.kind], left, top, width, height, data)

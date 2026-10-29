@@ -72,19 +72,38 @@ test("order fill rate from VA05 and outbound deliveries", async ({ page }) => {
     ["D1", `9${tag.slice(-6)}1`, "10", "1001", "1000", "10", "10", "05.04.2026", "05.04.2026"],
     ["D2", `9${tag.slice(-6)}1`, "20", "1002", "1000", "3", "3", "06.04.2026", "06.04.2026"],
   ]);
+  // A second month of VA05: one more order, not delivered.
+  const may = csv([
+    [
+      "Sales Document",
+      "Sales Document Item",
+      "Document Date",
+      "Sold-to Party",
+      "Material",
+      "Order Quantity (Item)",
+      "Net Value (Item)",
+    ],
+    [`9${tag.slice(-6)}2`, "10", "05.05.2026", "C1", "1001", "10", "1000"],
+  ]);
   await uploadCsv(page, `va05-${tag}.csv`, orders, "VA05 sales orders");
+  await uploadCsv(page, `va05-may-${tag}.csv`, may, "VA05 sales orders");
   await uploadCsv(page, `obd-${tag}.csv`, deliveries, "Outbound deliveries");
   await run(page, "order_fill_rate", `Fill rate ${tag}`, async () => {
     await page.getByLabel("Orders from").fill("2026-04-01");
     await page.getByLabel("Orders up to").fill("2026-06-30");
     await chooseFile(page, "Sales orders", `va05-${tag}.csv`);
+    await page
+      .getByRole("group", { name: /^More files for Sales orders/ })
+      .getByLabel(`va05-may-${tag}.csv`)
+      .check();
     await chooseFile(page, "Outbound deliveries", `obd-${tag}.csv`);
     await clearFile(page, "Plant and customer names");
     await clearFile(page, "Goods movements");
   });
-  // One of two lines in full; 13 of 15 units.
-  await expect(kpi(page, "Line fill rate")).toContainText("50.0%");
-  await expect(kpi(page, "Quantity fill rate")).toContainText("86.7%");
+  // April and May together: one of three lines in full; 13 of 25 units.
+  await expect(kpi(page, "Line fill rate")).toContainText("33.3%");
+  await expect(kpi(page, "Quantity fill rate")).toContainText("52.0%");
+  await expect(page.getByText(`va05-may-${tag}.csv, sheet`)).toBeVisible();
   // The interactive dashboard opens sandboxed (own origin, no access to the site).
   const open = page.getByRole("link", { name: "Open interactive dashboard" });
   const view = await page.request.get((await open.getAttribute("href"))!);

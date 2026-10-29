@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { postJson, sendJson } from "@/lib/api-errors";
 import { formatDateTime } from "@/lib/audit";
-import { isActive, STATUS_LABEL, statusClass, type Run } from "@/lib/runs";
+import { inputFiles, isActive, STATUS_LABEL, statusClass, type Run } from "@/lib/runs";
 import { formatBytes } from "@/lib/upload";
 
 export function RunView({ run }: { run: Run }) {
@@ -177,13 +177,20 @@ export function RunView({ run }: { run: Run }) {
           Inputs and traceability
         </h2>
         <ul className="flex flex-col gap-1 text-muted">
-          {Object.entries(run.inputs).map(([key, input]) => (
-            <li key={key}>
-              {input.filename},{" "}
-              {input.sheet === "*" ? "all recognised sheets" : `sheet ${input.sheet}`} · SHA-256{" "}
-              {input.sha256.slice(0, 16)}…
-            </li>
-          ))}
+          {Object.entries(run.inputs).flatMap(([key, input]) => [
+            ...inputFiles(input).map((file) => (
+              <li key={`${key}-${file.data_file_id}`}>
+                {file.filename},{" "}
+                {file.sheet === "*" ? "all recognised sheets" : `sheet ${file.sheet}`} · SHA-256{" "}
+                {file.sha256.slice(0, 16)}…
+              </li>
+            )),
+            ...(input.skipped ?? []).map((name) => (
+              <li key={`${key}-skipped-${name}`}>
+                {name}: left out, a copy of a file already used
+              </li>
+            )),
+          ])}
           {Object.entries(run.parameters).map(([key, value]) => (
             <li key={key}>
               {key}: {String(value)}

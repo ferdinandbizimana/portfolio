@@ -210,6 +210,54 @@ def test_run_again_with_the_same_files_and_parameters(
     assert logged_in.post("/api/admin/runs/999999/rerun").status_code == 404
 
 
+def test_an_input_can_take_several_files(
+    logged_in: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import dataclasses
+
+    from app.analyses.registry import get_analysis
+
+    analysis = get_analysis("demo_stock_summary")
+    assert analysis is not None
+    spec = dataclasses.replace(analysis.inputs[0], multiple=True)
+    monkeypatch.setattr(type(analysis), "inputs", (spec,))
+    june = upload(logged_in, demo_csv(), "june.csv")
+    july_rows = "Plant;Material;Material Description;Quantity;Value\nP400;M-0009;Masks;5;500\n"
+    july = upload(logged_in, july_rows.encode(), "july.csv")
+    copy = upload(logged_in, demo_csv(), "june-copy.csv")  # the same bytes as june
+    body = {
+        "analysis": "demo_stock_summary",
+        "label": "Two months",
+        "parameters": {"period_end": "2026-07-31"},
+        "inputs": {
+            "stock": [
+                {"data_file_id": june["id"], "sheet": "CSV"},
+                {"data_file_id": july["id"], "sheet": "CSV"},
+                {"data_file_id": copy["id"], "sheet": "CSV"},
+            ]
+        },
+    }
+    created = logged_in.post("/api/admin/runs", json=body)
+    assert created.status_code == 201, created.text
+    run = logged_in.get(f"/api/admin/runs/{created.json()['id']}").json()
+    assert run["status"] == "succeeded", run["errors"]
+    stock = run["inputs"]["stock"]
+    assert stock["filename"] == "june.csv"
+    assert [m["filename"] for m in stock["more"]] == ["july.csv"]
+    assert stock["skipped"] == ["june-copy.csv"]
+    figures = {m["label"]: m["value"] for m in run["metrics"]}
+    assert figures["Lines"] == len(DEMO_ROWS) + 1  # the copy is not counted twice
+    assert figures["Stock value"] == pytest.approx(686000.5 + 500)
+    # Run again keeps both files.
+    again = logged_in.post(f"/api/admin/runs/{run['id']}/rerun").json()
+    assert [m["filename"] for m in again["inputs"]["stock"]["more"]] == ["july.csv"]
+    # An input that takes one file refuses a list of two.
+    monkeypatch.setattr(type(analysis), "inputs", (dataclasses.replace(spec, multiple=False),))
+    refused = logged_in.post("/api/admin/runs", json=body)
+    assert refused.status_code == 400
+    assert "takes one file" in refused.text
+
+
 def test_cancel_and_delete(logged_in: TestClient, client: TestClient) -> None:
     data_file = upload(logged_in, demo_workbook(), "stock.xlsx")
     run = start_run(logged_in, data_file["id"])

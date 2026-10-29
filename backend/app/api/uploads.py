@@ -243,6 +243,11 @@ def _usage(db: DbDep) -> Counter[int]:
     all_inputs: list[dict[str, Any] | None] = list(db.scalars(select(AnalysisRun.inputs)))
     for inputs in all_inputs:
         ids = {choice.get("data_file_id") for choice in (inputs or {}).values()}
+        ids |= {
+            extra.get("data_file_id")
+            for choice in (inputs or {}).values()
+            for extra in choice.get("more", [])
+        }
         used.update(i for i in ids if isinstance(i, int))
     return used
 

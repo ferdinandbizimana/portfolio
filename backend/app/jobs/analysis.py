@@ -62,6 +62,15 @@ def _step(db: Session, run: AnalysisRun, progress: int, message: str) -> None:
 def load_input(
     db: Session, storage: LocalStorage, spec: datasets.DatasetSpec, choice: dict[str, Any]
 ) -> pd.DataFrame:
+    if choice.get("more"):
+        # Several files for one input: read each, one after the other.
+        files = [{k: v for k, v in choice.items() if k not in ("more", "skipped")}]
+        files += list(choice["more"])
+        frames = [
+            load_input(db, storage, spec, item).assign(**{"Source File": item["filename"]})
+            for item in files
+        ]
+        return pd.concat(frames, ignore_index=True)
     data_file = db.get(DataFile, choice.get("data_file_id"))
     if data_file is None or data_file.status != "ready":
         raise RunFailed(f"The file chosen for {spec.title!r} is not available.")

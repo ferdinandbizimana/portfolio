@@ -56,7 +56,7 @@ from app.analyses.base import Analysis, AnalysisResult, Check, InputSpec
 from app.analyses.common.closing import material_code, plant_code, plant_names
 from app.analyses.common.periods import fiscal_quarter, fiscal_year
 from app.analyses.dashboard import Chart, Column, Dashboard, Kpi, Series, Table, rows_of
-from app.analyses.order_fill_rate import dashboard_html
+from app.analyses.order_fill_rate import dashboard_html, insights
 from app.analyses.order_fill_rate.dashboard_html import (
     IN_FULL as IN_FULL,
 )
@@ -71,8 +71,6 @@ from app.analyses.order_fill_rate.dashboard_html import (
     WBS_PROGRAMME,
 )
 from app.reporting.documents import (
-    ChartBlock,
-    ReportDocument,
     ReportFile,
     Section,
     TableBlock,
@@ -106,6 +104,13 @@ BORDER_DISTRICTS = (
 )
 STATUSES = [IN_FULL, PARTLY, NOT_DELIVERED]
 NO_DELIVERY = "No delivery"
+# Left out of the base (v3 prompt, Ferdinand, 29 October 2026).
+RETURN_TYPES = ("ZRRE",)  # customer returns
+UNASSIGNED_PLANTS = ("UNASSIGNED", "0")
+OUTSIDE_PERIOD = "Order date outside the period"
+RETURNS = "Customer return (ZRRE)"
+UNASSIGNED = "Plant / shipping point unassigned"
+ZERO_QTY = "Zero or negative quantity"
 
 
 def _code(values: pd.Series) -> pd.Series:
@@ -202,18 +207,33 @@ def delivered_by_line(deliveries: pd.DataFrame, goods_issued_only: bool) -> pd.D
     return obd.reset_index(drop=True)
 
 
+def _short_table(frame: pd.DataFrame) -> pd.DataFrame:
+    """The columns a slide or a page can hold; the workbook keeps them all."""
+    keep = [
+        "Order Lines",
+        "Line Fill Rate",
+        "Quantity Fill Rate",
+        "Ordered Value",
+        "Delivered Value",
+        "Value Fill Rate",
+    ]
+    if frame.empty:
+        return frame
+    return frame[[frame.columns[0], *[c for c in keep if c in frame.columns]]]
+
+
 class OrderFillRate(Analysis):
     key = "order_fill_rate"
     title = "Order fill rate"
-    version = "1.2.0"
+    version = "1.3.0"
     description = (
         "Sales orders (VA05) against outbound deliveries: lines and orders delivered in "
         "full, quantity and value fill rate, by delivering plant, customer and month, with "
         "the days from order to goods issue."
     )
     inputs = (
-        InputSpec("orders", "va05_sales_orders", "Sales orders (VA05)"),
-        InputSpec("deliveries", "outbound_deliveries", "Outbound deliveries (OBDs)"),
+        InputSpec("orders", "va05_sales_orders", "Sales orders (VA05)", multiple=True),
+        InputSpec("deliveries", "outbound_deliveries", "Outbound deliveries (OBDs)", multiple=True),
         InputSpec(
             "plants",
             "ox10_plants",
@@ -225,6 +245,7 @@ class OrderFillRate(Analysis):
             "mb51_material_documents",
             "Goods movements (MB51), for the value of programme distributions",
             required=False,
+            multiple=True,
         ),
     )
     Parameters = Parameters
@@ -251,14 +272,40 @@ class OrderFillRate(Analysis):
                 "Order Plant": plant_code(_column(raw, "Plant")).astype(str),
             }
         )
+        orders["Source File"] = (
+            _column(raw, "Source File").astype("string").fillna("").astype(str)
+            if "Source File" in raw.columns
+            else ""
+        )
         start, end = pd.Timestamp(params.period_start), pd.Timestamp(params.period_end)
-        in_period = orders["Order Date"].between(start, end)
-        outside = int((~in_period).sum())
-        orders = orders[in_period]
-        zero = orders["Ordered Qty"] <= 0
-        zero_lines = int(zero.sum())
-        orders = orders[~zero]
-        # Several VA05 rows for the same item (schedule lines) are one order line.
+        # Data checks (v3 style): every VA05 row is either analysed or left out for a reason.
+        source = orders.assign(Reason="")
+        source.loc[~source["Order Date"].between(start, end), "Reason"] = OUTSIDE_PERIOD
+        source.loc[(source["Reason"] == "") & source["Sales Type"].isin(RETURN_TYPES), "Reason"] = (
+            RETURNS
+        )
+        source.loc[
+            (source["Reason"] == "") & source["Order Plant"].map(_name).isin(UNASSIGNED_PLANTS),
+            "Reason",
+        ] = UNASSIGNED
+        source.loc[(source["Reason"] == "") & (source["Ordered Qty"] <= 0), "Reason"] = ZERO_QTY
+        outside = int((source["Reason"] == OUTSIDE_PERIOD).sum())
+        zero_lines = int((source["Reason"] == ZERO_QTY).sum())
+        orders = source[source["Reason"] == ""].drop(columns="Reason")
+        # Several VA05 rows for the same item are schedule lines: the item quantity and
+        # value are repeated on each, so they count once (v3). Rows that differ add up.
+        repeated = orders.groupby(["Sales Document", "Item"], sort=True).agg(
+            rows=("Ordered Qty", "size"),
+            qty_kinds=("Ordered Qty", "nunique"),
+            value_kinds=("Ordered Value", "nunique"),
+        )
+        schedule_items = repeated[
+            (repeated["rows"] > 1) & (repeated["qty_kinds"] == 1) & (repeated["value_kinds"] == 1)
+        ].index
+
+        def once_or_sum(values: pd.Series) -> float:
+            return float(values.iloc[0]) if values.nunique() == 1 else float(values.sum())
+
         orders = (
             orders.groupby(["Sales Document", "Item"], sort=True)
             .agg(
@@ -266,16 +313,20 @@ class OrderFillRate(Analysis):
                     "Order Date": ("Order Date", "min"),
                     "Customer": ("Customer", "first"),
                     "Material": ("Material", "first"),
-                    "Ordered Qty": ("Ordered Qty", "sum"),
-                    "Ordered Value": ("Ordered Value", "sum"),
+                    "Ordered Qty": ("Ordered Qty", once_or_sum),
+                    "Ordered Value": ("Ordered Value", once_or_sum),
                     "Sales Type": ("Sales Type", "first"),
-                    "Confirmed Qty": ("Confirmed Qty", lambda q: q.sum(min_count=1)),
+                    "Confirmed Qty": (
+                        "Confirmed Qty",
+                        lambda q: once_or_sum(q.dropna()) if q.notna().any() else float("nan"),
+                    ),
                     "Net Price": ("Net Price", "first"),
                     "Order Plant": ("Order Plant", "first"),
                 }
             )
             .reset_index()
         )
+        data_checks = insights.data_checks(source, orders, len(schedule_items), params)
 
         obd = delivered_by_line(data["deliveries"], params.goods_issued_only)
         by_item = obd["Item"] != ""
@@ -593,6 +644,8 @@ class OrderFillRate(Analysis):
         line_table["Order Date"] = line_table["Order Date"].dt.strftime("%Y-%m-%d")
         line_table["Last Goods Issue"] = line_table["Last Goods Issue"].dt.strftime("%Y-%m-%d")
         short = line_table[line_table["Status"] != IN_FULL]
+        v3_tables = insights.tables(lines)
+        v3_figures = insights.figures(lines)
         unmatched_table = unmatched[
             ["Delivery", "Sales Document", "Item", "Material", "Plant", "Delivered Qty"]
         ].reset_index(drop=True)
@@ -742,11 +795,20 @@ class OrderFillRate(Analysis):
                 "by_customer": by_customer,
                 "short_lines": short,
                 "unmatched_deliveries": unmatched_table,
+                "data_checks": data_checks,
+                "source_check": insights.source_check(source),
+                "value_reconciliation": insights.value_reconciliation(source),
+                **v3_tables,
             },
             metrics=kpis,
             checks=checks,
             dashboard=dashboard,
-            extras={"subtitle": subtitle, "orders": order_count, "orders_in_full": orders_in_full},
+            extras={
+                "subtitle": subtitle,
+                "orders": order_count,
+                "orders_in_full": orders_in_full,
+                "figures": v3_figures,
+            },
         )
 
     @staticmethod
@@ -811,80 +873,88 @@ class OrderFillRate(Analysis):
         }
         by_plant = TableBlock("By plant", t["by_plant"], formats)
         by_month = TableBlock("By month", t["by_month"], formats)
-        kpi = {k.label: k.value for k in result.metrics}
-
-        def pct(value: object) -> str:
-            return f"{float(value):.1%}" if isinstance(value, int | float) else "not available"
-
-        orders, in_full = str(result.extras["orders"]), str(result.extras["orders_in_full"])
-        document = ReportDocument(
-            title="Order fill rate",
-            subtitle=str(result.extras["subtitle"]),
-            date_text=f"{params.period_end:%d %B %Y}",
-            sections=[
-                Section(
-                    "Summary",
-                    paragraphs=[
-                        f"{in_full} of {orders} sales orders ({pct(kpi['Order fill rate'])}) and "
-                        f"{pct(kpi['Line fill rate'])} of {kpi['Order lines']} order lines were "
-                        f"delivered in full. Quantity fill rate {pct(kpi['Quantity fill rate'])}; "
-                        f"value fill rate {pct(kpi['Value fill rate'])}.",
-                    ],
-                    tables=[by_plant],
-                    charts=[
-                        ChartBlock(
-                            "Value fill rate by plant (%)",
-                            [str(p) for p in t["by_plant"]["Plant"]] if len(t["by_plant"]) else [],
-                            {
-                                "Value fill rate": [
-                                    100 * float(v or 0) for v in t["by_plant"]["Value Fill Rate"]
-                                ]
-                            }
-                            if len(t["by_plant"])
-                            else {},
-                        )
-                    ],
-                ),
-                Section("By month", tables=[by_month]),
-                Section(
-                    "Facilities and regions",
-                    paragraphs=[
-                        "Customers are matched to OX10 by name; the facility type comes from the "
-                        "abbreviation in the name, the district from City and the region from "
-                        "Description."
-                    ],
-                    tables=[
-                        TableBlock("By facility type", t["by_facility"], formats),
-                        TableBlock("By region", t["by_region"], formats),
-                        TableBlock("By district", t["by_district"], formats),
-                    ],
-                ),
-                Section(
-                    "Method",
-                    bullets=[
-                        "Order lines: VA05 sales order items dated in the period, quantity above "
-                        "zero. Deliveries: outbound delivery items referring to the order line"
-                        + (", goods issued." if params.goods_issued_only else "."),
-                        "A line is delivered in full when the delivered quantity reaches the "
-                        "ordered quantity; an order when all its lines are. Quantity and value "
-                        "fill rate count delivered quantities up to the ordered quantity.",
-                        "Days to goods issue: from the order date to the last goods issue of a "
-                        "line delivered in full.",
-                    ],
-                ),
-            ],
-            checks=check_lines(result.checks),
-        )
-        name = f"Order_Fill_Rate_{params.period_start:%Y-%m-%d}_{params.period_end:%Y-%m-%d}"
-        whole_year = (params.period_start.month, params.period_start.day) == (7, 1) and (
-            params.period_end - params.period_start
-        ).days in (364, 365)
-        title = (
+        whole_year_title = (
             f"Order fill rate {fiscal_year(params.period_start)}"
-            if whole_year
+            if (params.period_start.month, params.period_start.day) == (7, 1)
+            and (params.period_end - params.period_start).days in (364, 365)
             else "Order fill rate"
         )
+        document = insights.document(
+            t,
+            dict(result.extras["figures"]),  # type: ignore[call-overload]
+            t["data_checks"],
+            whole_year_title,
+            f"{params.period_start:%B %Y} to {params.period_end:%B %Y}",
+            str(result.extras["subtitle"]),
+        )
+        document.sections.append(
+            Section(
+                "Facilities and regions",
+                paragraphs=[
+                    "Customers are matched to OX10 by name; the facility type comes from the "
+                    "abbreviation in the name, the district from City and the region from "
+                    "Description."
+                ],
+                tables=[
+                    TableBlock("By facility type", _short_table(t["by_facility"]), formats),
+                    TableBlock("By region", _short_table(t["by_region"]), formats),
+                    TableBlock("By district", _short_table(t["by_district"]), formats),
+                ],
+            )
+        )
+        document.checks = check_lines(result.checks)
+        name = f"Order_Fill_Rate_{params.period_start:%Y-%m-%d}_{params.period_end:%Y-%m-%d}"
+        title = whole_year_title
+        v3_formats: dict[str, ValueFormat] = {
+            **formats,
+            "Delivered Qty %": "percent",
+            "Delivered Value %": "percent",
+            "Line DIF %": "percent",
+            "Lines Nothing Delivered %": "percent",
+            "Not Delivered Qty": "number",
+            "Value Not Delivered": "money",
+            "RM Value Not Delivered": "money",
+            "Donor Units Not Delivered": "number",
+            "% Short": "percent",
+            "% Lines Short": "percent",
+            "Lines Short": "integer",
+            "Customers Affected": "integer",
+            "Months Affected": "integer",
+            "Orders": "integer",
+            "Orders DIF %": "percent",
+            "Orders With a Nil-Delivery Line %": "percent",
+            "Value": "number",
+            "Rows": "integer",
+            "Rows Read": "integer",
+            "Rows Analysed": "integer",
+            "Net Value (VA05)": "money",
+            "Quantity x Net Price": "money",
+            "Difference": "money",
+            "Lines In Full": "integer",
+            "Delivered Value (check)": "money",
+        }
+        over_time = t["v3_items_over_time"]
+        v3_formats.update({c: "money" for c in over_time.columns if c != "Month"})
+        readme = pd.DataFrame({"About this workbook": insights.README})
+        calc = insights.calc_quarters(list(t["lines"].columns), t["v3_by_quarter"], "Order lines")
         blocks = [
+            TableBlock("README", readme),
+            TableBlock("Data checks", t["data_checks"], v3_formats),
+            TableBlock("Source check", t["source_check"], v3_formats, total_row=True),
+            TableBlock(
+                "Value reconciliation", t["value_reconciliation"], v3_formats, total_row=True
+            ),
+            TableBlock("Calc quarters", calc, v3_formats),
+            TableBlock("WBS loss", t["v3_by_wbs"], v3_formats, total_row=True),
+            TableBlock("By month (v3)", t["v3_by_month"], v3_formats, total_row=True),
+            TableBlock("By quarter", t["v3_by_quarter"], v3_formats),
+            TableBlock("Plants", t["v3_by_plant"], v3_formats, total_row=True),
+            TableBlock("Top RM items", t["v3_top_rm_items"], v3_formats),
+            TableBlock("Top donor items", t["v3_top_donor_items"], v3_formats),
+            TableBlock("Frequently short", t["v3_frequently_short"], v3_formats),
+            TableBlock("Items over time", over_time, v3_formats, total_row=True),
+            TableBlock("DIF by order type", t["v3_dif_by_type"], v3_formats),
+            TableBlock("Top customers", t["v3_top_customers"], v3_formats),
             by_plant,
             by_month,
             TableBlock("Sales and programme", t["by_kind"], formats),

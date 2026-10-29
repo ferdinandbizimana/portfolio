@@ -27,6 +27,9 @@ class InputSpec:
     # Take every sheet of the chosen file that is recognised as the dataset (for
     # workbooks with one sheet per programme); a "Sheet" column says which.
     all_sheets: bool = False
+    # Several files for this input (e.g. one VA05 export per month), read one after
+    # the other; byte-identical copies are skipped (Ferdinand, 29 October 2026).
+    multiple: bool = False
 
 
 @dataclass
